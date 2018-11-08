@@ -17,16 +17,18 @@ describe LogStash::Outputs::Domo do
   end
   let(:base_config) do
     {
-      "client_id" => "875d4299-4e54-48d5-9412-a6621c2bb8c5",
-      "client_secret" => "6e4f100415ca8358c1a974074092ddd5dffb9986a6b1dd272947f89137a9a70f",
+      "client_id" => "",
+      "client_secret" => "",
       "codec" => codec,
     }
+    raise Exception.new("Fix this")
   end
 
   describe "#send" do
     let(:events) { [event] }
-    let(:dataset_id) { "239c3ce0-f7b2-48d0-89c1-3abcfa24655c" }
-    let(:config) { base_config.merge({"stream_id" => 2085, "dataset_id" => dataset_id}) }
+    let(:dataset_id) { "" }
+    let(:stream_id) { nil }
+    let(:config) { base_config.merge({"stream_id" => stream_id, "dataset_id" => dataset_id}) }
 
     subject { LogStash::Outputs::Domo.new(config) }
 
