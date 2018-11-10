@@ -34,7 +34,7 @@ Gem::Specification.new do |s|
   # Gem dependencies
   s.add_runtime_dependency "logstash-core-plugin-api", "~> 2.0"
   s.add_runtime_dependency "logstash-codec-plain"
-  s.add_runtime_dependency "logstash-codec-csv", "=0.1.6"
+  s.add_runtime_dependency "logstash-codec-csv", ">= 0.1.8"
   s.add_runtime_dependency "jar-dependencies"
   s.add_runtime_dependency "thread_safe", "~> 0.3.6"
 
