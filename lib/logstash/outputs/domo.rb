@@ -191,11 +191,13 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
     end
 
     @event_mutex.synchronize do
-      # Commit and create a new Stream Execution if that hasn't happened already
-      @domo_stream_execution = @domo_client.stream_client.getExecution(@domo_stream.getId, @domo_stream_execution.getId)
-      if @domo_stream_execution.currentState == "ACTIVE"
-        @domo_client.stream_client.commitExecution(@domo_stream.getId, @domo_stream_execution.getId)
-        @domo_stream_execution = nil
+      unless @domo_stream_execution.nil?
+        # Commit and create a new Stream Execution if that hasn't happened already
+        @domo_stream_execution = @domo_client.stream_client.getExecution(@domo_stream.getId, @domo_stream_execution.getId)
+        if @domo_stream_execution.currentState == "ACTIVE"
+          @domo_client.stream_client.commitExecution(@domo_stream.getId, @domo_stream_execution.getId)
+          @domo_stream_execution = nil
+        end
       end
 
       @part_num.set(1)
