@@ -1,6 +1,6 @@
 Gem::Specification.new do |s|
   s.name          = 'logstash-output-domo'
-  s.version       = '0.9.2'
+  s.version       = '0.9.7'
   s.licenses      = ['Apache-2.0']
   s.summary       = 'Output events to the DOMO Streams API.'
   s.homepage      = 'https://github.com/ResignationMedia/logstash-output-domo'
@@ -34,7 +34,7 @@ Gem::Specification.new do |s|
   # Gem dependencies
   s.add_runtime_dependency "logstash-core-plugin-api", "~> 2.0"
   s.add_runtime_dependency "logstash-codec-plain"
-  s.add_runtime_dependency "logstash-codec-csv", ">= 0.1.8"
+  s.add_runtime_dependency "logstash-codec-csv", ">= 0.9.0"
   s.add_runtime_dependency "jar-dependencies"
 
   s.add_development_dependency "logstash-devutils"

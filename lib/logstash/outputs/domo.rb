@@ -1,6 +1,7 @@
 # encoding: utf-8
 require "logstash/outputs/base"
 require "logstash/namespace"
+require "csv"
 require "java"
 require "thread"
 require "logstash-output-domo_jars.rb"
@@ -68,27 +69,51 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
   
   public
   # Send Event data using the DOMO Streams API.
-  # @param event [LogStash::Event] The Event we're processing.
-  # @param data [String] The Event's encoded data.
-  # @param part_num [java.util.concurrent.atomic.AtomicInteger] The Stream Execution Upload Part Number.
-  # @param attempt [Integer] The number of attempts already made to send these data.
-  # @yield [Symbol, LogStash::Event, String, java.util.concurrent.atomic.AtomicInteger, Integer] Status of the attempt along with the original provided parameters.
-  def send_to_domo(event, data, part_num, attempt)
+  #
+  # @param job [DomoQueueJob] The Queue job we're processing.
+  # @yield [Symbol, DomoQueueJob] Status of the attempt along with the modified Queue job.
+  def send_to_domo(job)
     begin
       @event_mutex.synchronize do
+        if @domo_stream_execution.nil?
+          @domo_stream_execution = @domo_client.stream_execution(@domo_stream)
+        end
         # Upload the event data to the Streams API
-        @domo_client.stream_client.uploadDataPart(@domo_stream.getId, @domo_stream_execution.getId, part_num, data)
+        @domo_client.stream_client.uploadDataPart(@domo_stream.getId, @domo_stream_execution.getId, job.part_num.get, job.data)
       end
       # Flag the job as a success
-      yield :success, event, data, part_num, attempt
+      yield :success, job
     # Handle exceptions from the DOMO SDK.
     rescue Java::ComDomoSdkRequest::RequestException => e
       # Retriable errors
-      if e.getStatusCode < 400 && e.getStatusCode >= 500
-        @logger.warn("Got a retriable error from the DOMO Streams API.", 
-          :code => e.getStatusCode,
-          :exception => e)
-        yield :retry, event, data, part_num, attempt
+      if e.getStatusCode == -1 || (e.getStatusCode < 400 && e.getStatusCode >= 500)
+        @event_mutex.synchronize do
+          unless @domo_stream_execution.nil?
+            @domo_stream_execution = @domo_client.stream_client.getExecution(@domo_stream.getId, @domo_stream_execution.getId)
+            if @domo_stream_execution.currentState == "ACTIVE"
+              begin
+                @domo_client.stream_client.commitExecution(@domo_stream.getId, @domo_stream_execution.getId)
+              rescue Java::ComDomoSdkRequest::RequestException
+                begin
+                  @domo_client.stream_client.abortExecution(@domo_stream.getId, @domo_stream_execution.getId)
+                rescue Java::ComDomoSdkRequest::RequestException
+                end
+              end
+            end
+
+            @domo_stream_execution = @domo_client.stream_execution(@domo_stream)
+          end
+        end
+
+        @logger.info("Got a retriable error from the DOMO Streams API.",
+                     :code => e.getStatusCode,
+                     :exception => e,
+                     :event => job.event,
+                     :data => job.data)
+
+        job.part_num = @part_num
+        job.attempt += 1
+        yield :retry, job
       # Fatal errors
       else
         @logger.error("Encountered a fatal error interacting with the DOMO Streams API.", 
@@ -96,7 +121,7 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
           :exception => e,
           :data => data,
           :event => event)
-        yield :failure, event, data, part_num, attempt
+        yield :failure, job
       end
     end
   end
@@ -132,7 +157,7 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
       else
         @domo_stream_execution = @domo_client.stream_client.getExecution(@domo_stream.getId, @domo_stream_execution.getId)
         # We need to make a new Stream Execution if the current one has already been aborted or committed
-        if @domo_stream_execution == "SUCCESS" or @domo_stream_execution == "FAILURE"
+        if @domo_stream_execution != "ACTIVE"
           @domo_stream_execution = @domo_client.stream_execution(@domo_stream)
         end
       end
@@ -145,7 +170,7 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
     until @event_queue.empty?
       job = @event_queue.pop
 
-      send_to_domo(job.event, job.data, job.part_num.get, job.attempt) do |action, event, data, part_num, attempt|
+      send_to_domo(job) do |action, processed_job|
         begin
           # If we aren't retrying failures, then don't consider retriable errors to be...retriable
           action = :failure if action == :retry && !@retry_failures
@@ -156,12 +181,10 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
             retries.incrementAndGet
 
             # Calculate how long to sleep before retrying the request
-            sleep_for = sleep_for_attempt(next_attempt)
+            sleep_for = sleep_for_attempt(processed_job.attempt)
             @logger.info("Retrying DOMO Streams API request. Will sleep for #{sleep_for} seconds")
-            # Increment the attempt #
-            job.attempt += 1
             # Throw the job onto the timer queue
-            timer_task = RetryTimerTask.new(@event_queue, job)
+            timer_task = RetryTimerTask.new(@event_queue, processed_job)
             @timer.schedule(timer_task, sleep_for * 1000)
           when :failure
             failures.incrementAndGet
@@ -180,8 +203,8 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
                         :class => e.class.name,
                         :message => e.message,
                         :backtrace => e.backtrace,
-                        :event => event,
-                        :data => data)
+                        :event => job.event,
+                        :data => job.data)
           failures.incrementAndGet
         # No matter what happens increment the Part Number
         ensure
@@ -242,6 +265,7 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
 
   private
   # Calculates how long to randomly sleep when retrying a job.
+  #
   # @param attempt [Integer] The number of attempts that have already occurred.
   # @return [Numeric] The number of seconds to wait.
   def sleep_for_attempt(attempt)
