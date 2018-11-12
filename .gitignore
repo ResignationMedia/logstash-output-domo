@@ -5,7 +5,7 @@ Gemfile.lock
 .idea/
 vendor/
 *.jar
-
+.yardoc
 # built application files
 *.apk
 *.ap_
@@ -41,3 +41,4 @@ proguard/
 .gradle/
 build/
 bin/
+.DS_Store

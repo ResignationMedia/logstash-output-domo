@@ -1,0 +1,1016 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>
+  Class: LogStash::Outputs::Domo::LogStashDomo
+  
+    &mdash; Documentation by YARD 0.9.16
+  
+</title>
+
+  <link rel="stylesheet" href="../../../css/style.css" type="text/css" charset="utf-8" />
+
+  <link rel="stylesheet" href="../../../css/common.css" type="text/css" charset="utf-8" />
+
+<script type="text/javascript" charset="utf-8">
+  pathId = "LogStash::Outputs::Domo::LogStashDomo";
+  relpath = '../../../';
+</script>
+
+
+  <script type="text/javascript" charset="utf-8" src="../../../js/jquery.js"></script>
+
+  <script type="text/javascript" charset="utf-8" src="../../../js/app.js"></script>
+
+
+  </head>
+  <body>
+    <div class="nav_wrap">
+      <iframe id="nav" src="../../../class_list.html?1"></iframe>
+      <div id="resizer"></div>
+    </div>
+
+    <div id="main" tabindex="-1">
+      <div id="header">
+        <div id="menu">
+  
+    <a href="../../../_index.html">Index (L)</a> &raquo;
+    <span class='title'>LogStash</span> &raquo; <span class='title'>Outputs</span> &raquo; <span class='title'><span class='object_link'><a href="../Domo.html" title="LogStash::Outputs::Domo (class)">Domo</a></span></span>
+     &raquo; 
+    <span class="title">LogStashDomo</span>
+  
+</div>
+
+        <div id="search">
+  
+    <a class="full_list_link" id="class_list_link"
+        href="../../../class_list.html">
+
+        <svg width="24" height="24">
+          <rect x="0" y="4" width="24" height="4" rx="1" ry="1"></rect>
+          <rect x="0" y="12" width="24" height="4" rx="1" ry="1"></rect>
+          <rect x="0" y="20" width="24" height="4" rx="1" ry="1"></rect>
+        </svg>
+    </a>
+  
+</div>
+        <div class="clear"></div>
+      </div>
+
+      <div id="content"><h1>Class: LogStash::Outputs::Domo::LogStashDomo
+  
+  
+  
+</h1>
+<div class="box_info">
+  
+  <dl>
+    <dt>Inherits:</dt>
+    <dd>
+      <span class="inheritName">Object</span>
+      
+        <ul class="fullTree">
+          <li>Object</li>
+          
+            <li class="next">LogStash::Outputs::Domo::LogStashDomo</li>
+          
+        </ul>
+        <a href="#" class="inheritanceTree">show all</a>
+      
+    </dd>
+  </dl>
+  
+
+  
+  
+  
+  
+  
+
+  
+
+  
+  <dl>
+    <dt>Defined in:</dt>
+    <dd>lib/logstash/outputs/domo.rb</dd>
+  </dl>
+  
+</div>
+
+<h2>Overview</h2><div class="docstring">
+  <div class="discussion">
+    
+<p>Interacts with the DOMO APIs.</p>
+
+
+  </div>
+</div>
+<div class="tags">
+  
+
+</div>
+
+
+
+  <h2>Instance Attribute Summary <small><a href="#" class="summary_toggle">collapse</a></small></h2>
+  <ul class="summary">
+    
+      <li class="public ">
+  <span class="summary_signature">
+    
+      <a href="#client-instance_method" title="#client (instance method)">#<strong>client</strong>  &#x21d2; Java::ComDomoSdk::DomoClient </a>
+    
+
+    
+  </span>
+  
+  
+  
+    
+      <span class="note title readonly">readonly</span>
+    
+    
+  
+  
+  
+  
+  
+
+  
+    <span class="summary_desc"><div class='inline'></div></span>
+  
+</li>
+
+    
+      <li class="public ">
+  <span class="summary_signature">
+    
+      <a href="#stream_client-instance_method" title="#stream_client (instance method)">#<strong>stream_client</strong>  &#x21d2; Java::ComDomoSdkStreams::StreamClient </a>
+    
+
+    
+  </span>
+  
+  
+  
+    
+      <span class="note title readonly">readonly</span>
+    
+    
+  
+  
+  
+  
+  
+
+  
+    <span class="summary_desc"><div class='inline'></div></span>
+  
+</li>
+
+    
+  </ul>
+
+
+
+
+  
+    <h2>
+      Instance Method Summary
+      <small><a href="#" class="summary_toggle">collapse</a></small>
+    </h2>
+
+    <ul class="summary">
+      
+        <li class="public ">
+  <span class="summary_signature">
+    
+      <a href="#initialize-instance_method" title="#initialize (instance method)">#<strong>initialize</strong>(client_id, client_secret, api_host, use_https, scopes)  &#x21d2; LogStashDomo </a>
+    
+
+    
+  </span>
+  
+  
+    <span class="note title constructor">constructor</span>
+  
+  
+  
+  
+  
+  
+
+  
+    <span class="summary_desc"><div class='inline'></div></span>
+  
+</li>
+
+      
+        <li class="public ">
+  <span class="summary_signature">
+    
+      <a href="#paginate_list-instance_method" title="#paginate_list (instance method)">#<strong>paginate_list</strong>(method, limit, offset = 0, args = Array.new)  &#x21d2; Object </a>
+    
+
+    
+  </span>
+  
+  
+  
+  
+  
+  
+  
+
+  
+    <span class="summary_desc"><div class='inline'>
+<p>Enumerator that lazily paginates through various DOMO SDK methods that make
+use of it.</p>
+</div></span>
+  
+</li>
+
+      
+        <li class="public ">
+  <span class="summary_signature">
+    
+      <a href="#stream-instance_method" title="#stream (instance method)">#<strong>stream</strong>(stream_id = nil, dataset_id = nil, include_execution = true)  &#x21d2; Array&lt;Java::ComDomoSdkStreamModel::Stream, (Java::ComDomoSdkStreamModel::Execution, nil)&gt; </a>
+    
+
+    
+  </span>
+  
+  
+  
+  
+  
+  
+  
+
+  
+    <span class="summary_desc"><div class='inline'>
+<p>Get a Stream.</p>
+</div></span>
+  
+</li>
+
+      
+        <li class="public ">
+  <span class="summary_signature">
+    
+      <a href="#stream_execution-instance_method" title="#stream_execution (instance method)">#<strong>stream_execution</strong>(stream, stream_execution = nil)  &#x21d2; Java::ComDomoSdkStreamModel::Execution </a>
+    
+
+    
+  </span>
+  
+  
+  
+  
+  
+  
+  
+
+  
+    <span class="summary_desc"><div class='inline'>
+<p>Get the provided Stream&#39;s ACTIVE Stream Execution or create a new one.</p>
+</div></span>
+  
+</li>
+
+      
+    </ul>
+  
+
+<div id="constructor_details" class="method_details_list">
+  <h2>Constructor Details</h2>
+  
+    <div class="method_details first">
+  <h3 class="signature first" id="initialize-instance_method">
+  
+    #<strong>initialize</strong>(client_id, client_secret, api_host, use_https, scopes)  &#x21d2; <tt><span class='object_link'><a href="" title="LogStash::Outputs::Domo::LogStashDomo (class)">LogStashDomo</a></span></tt> 
+  
+
+  
+
+  
+</h3><div class="docstring">
+  <div class="discussion">
+    
+
+  </div>
+</div>
+<div class="tags">
+  <p class="tag_title">Parameters:</p>
+<ul class="param">
+  
+    <li>
+      
+        <span class='name'>client_id</span>
+      
+      
+        <span class='type'>(<tt>String</tt>)</span>
+      
+      
+      
+        &mdash;
+        <div class='inline'>
+<p>The OAuth ClientID.</p>
+</div>
+      
+    </li>
+  
+    <li>
+      
+        <span class='name'>client_secret</span>
+      
+      
+        <span class='type'>(<tt>String</tt>)</span>
+      
+      
+      
+        &mdash;
+        <div class='inline'>
+<p>The OAuth Client Secret.</p>
+</div>
+      
+    </li>
+  
+    <li>
+      
+        <span class='name'>api_host</span>
+      
+      
+        <span class='type'>(<tt>String</tt>)</span>
+      
+      
+      
+        &mdash;
+        <div class='inline'>
+<p>The host for API connections.</p>
+</div>
+      
+    </li>
+  
+    <li>
+      
+        <span class='name'>use_https</span>
+      
+      
+        <span class='type'>(<tt>Boolean</tt>)</span>
+      
+      
+      
+        &mdash;
+        <div class='inline'>
+<p>Use HTTPS for API requests.</p>
+</div>
+      
+    </li>
+  
+    <li>
+      
+        <span class='name'>scopes</span>
+      
+      
+        <span class='type'>(<tt>Array&lt;Java::ComDomoSdkRequest::Scope&gt;</tt>, <tt>Java::ComDomoSdkRequest::Scope</tt>)</span>
+      
+      
+      
+        &mdash;
+        <div class='inline'>
+<p>The OAuth permission scopes.</p>
+</div>
+      
+    </li>
+  
+</ul>
+
+
+</div><table class="source_code">
+  <tr>
+    <td>
+      <pre class="lines">
+
+
+323
+324
+325
+326
+327
+328
+329
+330
+331
+332
+333
+334
+335
+336
+337
+338</pre>
+    </td>
+    <td>
+      <pre class="code"><span class="info file"># File 'lib/logstash/outputs/domo.rb', line 323</span>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_initialize'>initialize</span><span class='lparen'>(</span><span class='id identifier rubyid_client_id'>client_id</span><span class='comma'>,</span> <span class='id identifier rubyid_client_secret'>client_secret</span><span class='comma'>,</span> <span class='id identifier rubyid_api_host'>api_host</span><span class='comma'>,</span> <span class='id identifier rubyid_use_https'>use_https</span><span class='comma'>,</span> <span class='id identifier rubyid_scopes'>scopes</span><span class='rparen'>)</span>
+  <span class='kw'>unless</span> <span class='id identifier rubyid_scopes'>scopes</span><span class='period'>.</span><span class='id identifier rubyid_is_a?'>is_a?</span> <span class='const'>Array</span>
+    <span class='id identifier rubyid_scopes'>scopes</span> <span class='op'>=</span> <span class='lbracket'>[</span><span class='id identifier rubyid_scopes'>scopes</span><span class='rbracket'>]</span>
+  <span class='kw'>end</span>
+  <span class='comment'># Build the API client configuration
+</span>  <span class='id identifier rubyid_client_config'>client_config</span> <span class='op'>=</span> <span class='const'>Java</span><span class='op'>::</span><span class='const'>ComDomoSdkRequest</span><span class='op'>::</span><span class='const'>Config</span><span class='period'>.</span><span class='id identifier rubyid_with'>with</span>
+    <span class='period'>.</span><span class='id identifier rubyid_clientId'>clientId</span><span class='lparen'>(</span><span class='id identifier rubyid_client_id'>client_id</span><span class='rparen'>)</span>
+    <span class='period'>.</span><span class='id identifier rubyid_clientSecret'>clientSecret</span><span class='lparen'>(</span><span class='id identifier rubyid_client_secret'>client_secret</span><span class='rparen'>)</span>
+    <span class='period'>.</span><span class='id identifier rubyid_apiHost'>apiHost</span><span class='lparen'>(</span><span class='id identifier rubyid_api_host'>api_host</span><span class='rparen'>)</span>
+    <span class='period'>.</span><span class='id identifier rubyid_useHttps'>useHttps</span><span class='lparen'>(</span><span class='id identifier rubyid_use_https'>use_https</span><span class='rparen'>)</span>
+    <span class='period'>.</span><span class='id identifier rubyid_scope'>scope</span><span class='lparen'>(</span><span class='op'>*</span><span class='id identifier rubyid_scopes'>scopes</span><span class='rparen'>)</span>
+    <span class='period'>.</span><span class='id identifier rubyid_build'>build</span><span class='lparen'>(</span><span class='rparen'>)</span>
+  <span class='comment'># Instantiate our clients
+</span>  <span class='ivar'>@client</span> <span class='op'>=</span> <span class='const'>Java</span><span class='op'>::</span><span class='const'>ComDomoSdk</span><span class='op'>::</span><span class='const'>DomoClient</span><span class='period'>.</span><span class='id identifier rubyid_create'>create</span><span class='lparen'>(</span><span class='id identifier rubyid_client_config'>client_config</span><span class='rparen'>)</span>
+  <span class='ivar'>@stream_client</span> <span class='op'>=</span> <span class='ivar'>@client</span><span class='period'>.</span><span class='id identifier rubyid_streamClient'>streamClient</span>
+<span class='kw'>end</span></pre>
+    </td>
+  </tr>
+</table>
+</div>
+  
+</div>
+
+  <div id="instance_attr_details" class="attr_details">
+    <h2>Instance Attribute Details</h2>
+    
+      
+      <span id=""></span>
+      <div class="method_details first">
+  <h3 class="signature first" id="client-instance_method">
+  
+    #<strong>client</strong>  &#x21d2; <tt>Java::ComDomoSdk::DomoClient</tt>  <span class="extras">(readonly)</span>
+  
+
+  
+
+  
+</h3><div class="docstring">
+  <div class="discussion">
+    
+
+  </div>
+</div>
+<div class="tags">
+  
+<p class="tag_title">Returns:</p>
+<ul class="return">
+  
+    <li>
+      
+      
+        <span class='type'>(<tt>Java::ComDomoSdk::DomoClient</tt>)</span>
+      
+      
+      
+    </li>
+  
+</ul>
+
+</div><table class="source_code">
+  <tr>
+    <td>
+      <pre class="lines">
+
+
+313
+314
+315</pre>
+    </td>
+    <td>
+      <pre class="code"><span class="info file"># File 'lib/logstash/outputs/domo.rb', line 313</span>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_client'>client</span>
+  <span class='ivar'>@client</span>
+<span class='kw'>end</span></pre>
+    </td>
+  </tr>
+</table>
+</div>
+    
+      
+      <span id=""></span>
+      <div class="method_details ">
+  <h3 class="signature " id="stream_client-instance_method">
+  
+    #<strong>stream_client</strong>  &#x21d2; <tt>Java::ComDomoSdkStreams::StreamClient</tt>  <span class="extras">(readonly)</span>
+  
+
+  
+
+  
+</h3><div class="docstring">
+  <div class="discussion">
+    
+
+  </div>
+</div>
+<div class="tags">
+  
+<p class="tag_title">Returns:</p>
+<ul class="return">
+  
+    <li>
+      
+      
+        <span class='type'>(<tt>Java::ComDomoSdkStreams::StreamClient</tt>)</span>
+      
+      
+      
+    </li>
+  
+</ul>
+
+</div><table class="source_code">
+  <tr>
+    <td>
+      <pre class="lines">
+
+
+315
+316
+317</pre>
+    </td>
+    <td>
+      <pre class="code"><span class="info file"># File 'lib/logstash/outputs/domo.rb', line 315</span>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_stream_client'>stream_client</span>
+  <span class='ivar'>@stream_client</span>
+<span class='kw'>end</span></pre>
+    </td>
+  </tr>
+</table>
+</div>
+    
+  </div>
+
+
+  <div id="instance_method_details" class="method_details_list">
+    <h2>Instance Method Details</h2>
+
+    
+      <div class="method_details first">
+  <h3 class="signature first" id="paginate_list-instance_method">
+  
+    #<strong>paginate_list</strong>(method, limit, offset = 0, args = Array.new)  &#x21d2; <tt>Object</tt> 
+  
+
+  
+
+  
+</h3><div class="docstring">
+  <div class="discussion">
+    
+<p>Enumerator that lazily paginates through various DOMO SDK methods that make
+use of it.</p>
+
+
+  </div>
+</div>
+<div class="tags">
+  <p class="tag_title">Parameters:</p>
+<ul class="param">
+  
+    <li>
+      
+        <span class='name'>method</span>
+      
+      
+        <span class='type'>(<tt>Method</tt>)</span>
+      
+      
+      
+        &mdash;
+        <div class='inline'>
+<p>The DOMO SDK method to be called</p>
+</div>
+      
+    </li>
+  
+    <li>
+      
+        <span class='name'>limit</span>
+      
+      
+        <span class='type'>(<tt>Integer</tt>)</span>
+      
+      
+      
+        &mdash;
+        <div class='inline'>
+<p>The limit of results per page</p>
+</div>
+      
+    </li>
+  
+    <li>
+      
+        <span class='name'>offset</span>
+      
+      
+        <span class='type'>(<tt>Integer</tt>)</span>
+      
+      
+        <em class="default">(defaults to: <tt>0</tt>)</em>
+      
+      
+        &mdash;
+        <div class='inline'>
+<p>The page offset</p>
+</div>
+      
+    </li>
+  
+    <li>
+      
+        <span class='name'>args</span>
+      
+      
+        <span class='type'>(<tt>Array</tt>)</span>
+      
+      
+        <em class="default">(defaults to: <tt>Array.new</tt>)</em>
+      
+      
+        &mdash;
+        <div class='inline'>
+<p>An array of arguments to be passed to `method`</p>
+</div>
+      
+    </li>
+  
+</ul>
+
+<p class="tag_title">Returns:</p>
+<ul class="return">
+  
+    <li>
+      
+      
+        <span class='type'>(<tt>Object</tt>)</span>
+      
+      
+      
+        &mdash;
+        <div class='inline'>
+<p>A result from the API call</p>
+</div>
+      
+    </li>
+  
+</ul>
+
+</div><table class="source_code">
+  <tr>
+    <td>
+      <pre class="lines">
+
+
+347
+348
+349
+350
+351
+352
+353
+354
+355
+356
+357
+358
+359</pre>
+    </td>
+    <td>
+      <pre class="code"><span class="info file"># File 'lib/logstash/outputs/domo.rb', line 347</span>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_paginate_list'>paginate_list</span><span class='lparen'>(</span><span class='id identifier rubyid_method'>method</span><span class='comma'>,</span> <span class='id identifier rubyid_limit'>limit</span><span class='comma'>,</span> <span class='id identifier rubyid_offset'>offset</span><span class='op'>=</span><span class='int'>0</span><span class='comma'>,</span> <span class='id identifier rubyid_args'>args</span><span class='op'>=</span><span class='const'>Array</span><span class='period'>.</span><span class='id identifier rubyid_new'>new</span><span class='rparen'>)</span>
+  <span class='id identifier rubyid_args'>args</span> <span class='op'>&lt;&lt;</span> <span class='id identifier rubyid_limit'>limit</span>
+  <span class='const'>Enumerator</span><span class='period'>.</span><span class='id identifier rubyid_new'>new</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_y'>y</span><span class='op'>|</span>
+    <span class='id identifier rubyid_results'>results</span> <span class='op'>=</span> <span class='id identifier rubyid_method'>method</span><span class='period'>.</span><span class='id identifier rubyid_call'>call</span><span class='lparen'>(</span><span class='op'>*</span><span class='id identifier rubyid_args'>args</span><span class='comma'>,</span> <span class='id identifier rubyid_offset'>offset</span><span class='rparen'>)</span>
+    <span class='kw'>until</span> <span class='id identifier rubyid_results'>results</span><span class='period'>.</span><span class='id identifier rubyid_size'>size</span> <span class='op'>&lt;=</span> <span class='int'>0</span>
+      <span class='id identifier rubyid_results'>results</span><span class='period'>.</span><span class='id identifier rubyid_each'>each</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_result'>result</span><span class='op'>|</span>
+        <span class='id identifier rubyid_y'>y</span><span class='period'>.</span><span class='id identifier rubyid_yield'>yield</span> <span class='id identifier rubyid_result'>result</span>
+      <span class='kw'>end</span>
+      <span class='id identifier rubyid_offset'>offset</span> <span class='op'>+=</span> <span class='id identifier rubyid_limit'>limit</span>
+      <span class='id identifier rubyid_results'>results</span> <span class='op'>=</span> <span class='id identifier rubyid_method'>method</span><span class='period'>.</span><span class='id identifier rubyid_call'>call</span><span class='lparen'>(</span><span class='op'>*</span><span class='id identifier rubyid_args'>args</span><span class='comma'>,</span> <span class='id identifier rubyid_offset'>offset</span><span class='rparen'>)</span>
+    <span class='kw'>end</span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span></pre>
+    </td>
+  </tr>
+</table>
+</div>
+    
+      <div class="method_details ">
+  <h3 class="signature " id="stream-instance_method">
+  
+    #<strong>stream</strong>(stream_id = nil, dataset_id = nil, include_execution = true)  &#x21d2; <tt>Array&lt;Java::ComDomoSdkStreamModel::Stream, (Java::ComDomoSdkStreamModel::Execution, nil)&gt;</tt> 
+  
+
+  
+
+  
+</h3><div class="docstring">
+  <div class="discussion">
+    
+<p>Get a Stream</p>
+
+
+  </div>
+</div>
+<div class="tags">
+  <p class="tag_title">Parameters:</p>
+<ul class="param">
+  
+    <li>
+      
+        <span class='name'>stream_id</span>
+      
+      
+        <span class='type'>(<tt>Integer</tt>, <tt>nil</tt>)</span>
+      
+      
+        <em class="default">(defaults to: <tt>nil</tt>)</em>
+      
+      
+        &mdash;
+        <div class='inline'>
+<p>The optional ID of the Stream</p>
+</div>
+      
+    </li>
+  
+    <li>
+      
+        <span class='name'>dataset_id</span>
+      
+      
+        <span class='type'>(<tt>String</tt>, <tt>nil</tt>)</span>
+      
+      
+        <em class="default">(defaults to: <tt>nil</tt>)</em>
+      
+      
+        &mdash;
+        <div class='inline'>
+<p>The ID of the associated Dataset</p>
+</div>
+      
+    </li>
+  
+    <li>
+      
+        <span class='name'>include_execution</span>
+      
+      
+        <span class='type'>(<tt>Boolean</tt>)</span>
+      
+      
+        <em class="default">(defaults to: <tt>true</tt>)</em>
+      
+      
+        &mdash;
+        <div class='inline'>
+<p>Returns a new or active Stream Execution along with the Stream</p>
+</div>
+      
+    </li>
+  
+</ul>
+
+<p class="tag_title">Returns:</p>
+<ul class="return">
+  
+    <li>
+      
+      
+        <span class='type'>(<tt>Array&lt;Java::ComDomoSdkStreamModel::Stream, (Java::ComDomoSdkStreamModel::Execution, nil)&gt;</tt>)</span>
+      
+      
+      
+    </li>
+  
+</ul>
+
+</div><table class="source_code">
+  <tr>
+    <td>
+      <pre class="lines">
+
+
+394
+395
+396
+397
+398
+399
+400
+401
+402
+403
+404
+405
+406
+407
+408
+409
+410
+411
+412
+413
+414
+415
+416
+417
+418
+419
+420
+421
+422</pre>
+    </td>
+    <td>
+      <pre class="code"><span class="info file"># File 'lib/logstash/outputs/domo.rb', line 394</span>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_stream'>stream</span><span class='lparen'>(</span><span class='id identifier rubyid_stream_id'>stream_id</span><span class='op'>=</span><span class='kw'>nil</span><span class='comma'>,</span> <span class='id identifier rubyid_dataset_id'>dataset_id</span><span class='op'>=</span><span class='kw'>nil</span><span class='comma'>,</span> <span class='id identifier rubyid_include_execution'>include_execution</span><span class='op'>=</span><span class='kw'>true</span><span class='rparen'>)</span>
+  <span class='id identifier rubyid_stream_list'>stream_list</span> <span class='op'>=</span> <span class='ivar'>@stream_client</span><span class='period'>.</span><span class='id identifier rubyid_java_method'>java_method</span> <span class='symbol'>:list</span><span class='comma'>,</span> <span class='lbracket'>[</span><span class='const'>Java</span><span class='op'>::</span><span class='id identifier rubyid_int'>int</span><span class='comma'>,</span> <span class='const'>Java</span><span class='op'>::</span><span class='id identifier rubyid_int'>int</span><span class='rbracket'>]</span>
+  <span class='id identifier rubyid_stream_get'>stream_get</span> <span class='op'>=</span> <span class='ivar'>@stream_client</span><span class='period'>.</span><span class='id identifier rubyid_java_method'>java_method</span> <span class='symbol'>:get</span><span class='comma'>,</span> <span class='lbracket'>[</span><span class='const'>Java</span><span class='op'>::</span><span class='id identifier rubyid_long'>long</span><span class='rbracket'>]</span>
+
+  <span class='kw'>unless</span> <span class='id identifier rubyid_stream_id'>stream_id</span><span class='period'>.</span><span class='id identifier rubyid_nil?'>nil?</span>
+    <span class='kw'>return</span> <span class='id identifier rubyid_stream_get'>stream_get</span><span class='period'>.</span><span class='id identifier rubyid_call'>call</span><span class='lparen'>(</span><span class='id identifier rubyid_stream_id'>stream_id</span><span class='rparen'>)</span>
+  <span class='kw'>end</span>
+
+  <span class='id identifier rubyid_limit'>limit</span> <span class='op'>=</span> <span class='int'>500</span>
+  <span class='id identifier rubyid_offset'>offset</span> <span class='op'>=</span> <span class='int'>0</span>
+  <span class='id identifier rubyid_stream'>stream</span> <span class='op'>=</span> <span class='kw'>nil</span>
+  <span class='id identifier rubyid_paginate_list'>paginate_list</span><span class='lparen'>(</span><span class='id identifier rubyid_stream_list'>stream_list</span><span class='comma'>,</span> <span class='id identifier rubyid_limit'>limit</span><span class='comma'>,</span> <span class='id identifier rubyid_offset'>offset</span><span class='rparen'>)</span><span class='period'>.</span><span class='id identifier rubyid_each'>each</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_s'>s</span><span class='op'>|</span>
+    <span class='kw'>if</span> <span class='id identifier rubyid_s'>s</span><span class='period'>.</span><span class='id identifier rubyid_dataset'>dataset</span><span class='period'>.</span><span class='id identifier rubyid_getId'>getId</span> <span class='op'>==</span> <span class='id identifier rubyid_dataset_id'>dataset_id</span>
+      <span class='id identifier rubyid_stream'>stream</span> <span class='op'>=</span> <span class='id identifier rubyid_s'>s</span>
+      <span class='kw'>break</span>
+    <span class='kw'>end</span>
+  <span class='kw'>end</span>
+
+  <span class='kw'>if</span> <span class='id identifier rubyid_stream'>stream</span><span class='period'>.</span><span class='id identifier rubyid_nil?'>nil?</span>
+    <span class='id identifier rubyid_raise'>raise</span> <span class='const'><span class='object_link'><a href="DomoStreamNotFound.html" title="LogStash::Outputs::Domo::DomoStreamNotFound (class)">DomoStreamNotFound</a></span></span><span class='lparen'>(</span><span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>No Stream found for Dataset </span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_dataset_id'>dataset_id</span><span class='embexpr_end'>}</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='id identifier rubyid_dataset_id'>dataset_id</span><span class='comma'>,</span> <span class='id identifier rubyid_stream_id'>stream_id</span><span class='rparen'>)</span>
+  <span class='kw'>end</span>
+
+  <span class='kw'>if</span> <span class='id identifier rubyid_include_execution'>include_execution</span>
+    <span class='id identifier rubyid_stream_execution'>stream_execution</span> <span class='op'>=</span> <span class='id identifier rubyid_stream_execution'>stream_execution</span><span class='lparen'>(</span><span class='id identifier rubyid_stream'>stream</span><span class='rparen'>)</span>
+  <span class='kw'>else</span>
+    <span class='id identifier rubyid_stream_execution'>stream_execution</span> <span class='op'>=</span> <span class='kw'>nil</span>
+  <span class='kw'>end</span>
+  <span class='kw'>return</span> <span class='id identifier rubyid_stream'>stream</span><span class='comma'>,</span> <span class='id identifier rubyid_stream_execution'>stream_execution</span>
+<span class='kw'>end</span></pre>
+    </td>
+  </tr>
+</table>
+</div>
+    
+      <div class="method_details ">
+  <h3 class="signature " id="stream_execution-instance_method">
+  
+    #<strong>stream_execution</strong>(stream, stream_execution = nil)  &#x21d2; <tt>Java::ComDomoSdkStreamModel::Execution</tt> 
+  
+
+  
+
+  
+</h3><div class="docstring">
+  <div class="discussion">
+    
+<p>Get the provided Stream&#39;s ACTIVE Stream Execution or create a new one</p>
+
+
+  </div>
+</div>
+<div class="tags">
+  <p class="tag_title">Parameters:</p>
+<ul class="param">
+  
+    <li>
+      
+        <span class='name'>stream</span>
+      
+      
+        <span class='type'>(<tt>Java::ComDomoSdkStreamModel::Stream</tt>)</span>
+      
+      
+      
+        &mdash;
+        <div class='inline'>
+<p>A DOMO SDK Stream object</p>
+</div>
+      
+    </li>
+  
+    <li>
+      
+        <span class='name'>stream_execution</span>
+      
+      
+        <span class='type'>(<tt>Java::ComDomoSdkStreamModel::Execution</tt>, <tt>nil</tt>)</span>
+      
+      
+        <em class="default">(defaults to: <tt>nil</tt>)</em>
+      
+      
+        &mdash;
+        <div class='inline'>
+<p>If provided, check for the latest state on the Stream Execution before
+creating a new one.</p>
+</div>
+      
+    </li>
+  
+</ul>
+
+<p class="tag_title">Returns:</p>
+<ul class="return">
+  
+    <li>
+      
+      
+        <span class='type'>(<tt>Java::ComDomoSdkStreamModel::Execution</tt>)</span>
+      
+      
+      
+    </li>
+  
+</ul>
+
+</div><table class="source_code">
+  <tr>
+    <td>
+      <pre class="lines">
+
+
+366
+367
+368
+369
+370
+371
+372
+373
+374
+375
+376
+377
+378
+379
+380
+381
+382
+383
+384
+385
+386</pre>
+    </td>
+    <td>
+      <pre class="code"><span class="info file"># File 'lib/logstash/outputs/domo.rb', line 366</span>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_stream_execution'>stream_execution</span><span class='lparen'>(</span><span class='id identifier rubyid_stream'>stream</span><span class='comma'>,</span> <span class='id identifier rubyid_stream_execution'>stream_execution</span><span class='op'>=</span><span class='kw'>nil</span><span class='rparen'>)</span>
+  <span class='id identifier rubyid_create_execution'>create_execution</span> <span class='op'>=</span> <span class='ivar'>@stream_client</span><span class='period'>.</span><span class='id identifier rubyid_java_method'>java_method</span> <span class='symbol'>:createExecution</span><span class='comma'>,</span> <span class='lbracket'>[</span><span class='const'>Java</span><span class='op'>::</span><span class='id identifier rubyid_long'>long</span><span class='rbracket'>]</span>
+  <span class='kw'>if</span> <span class='id identifier rubyid_stream_execution'>stream_execution</span><span class='period'>.</span><span class='id identifier rubyid_nil?'>nil?</span>
+    <span class='id identifier rubyid_limit'>limit</span> <span class='op'>=</span> <span class='int'>50</span>
+    <span class='id identifier rubyid_offset'>offset</span> <span class='op'>=</span> <span class='int'>0</span>
+    <span class='id identifier rubyid_list_executions'>list_executions</span> <span class='op'>=</span> <span class='ivar'>@stream_client</span><span class='period'>.</span><span class='id identifier rubyid_java_method'>java_method</span> <span class='symbol'>:listExecutions</span><span class='comma'>,</span> <span class='lbracket'>[</span><span class='const'>Java</span><span class='op'>::</span><span class='id identifier rubyid_long'>long</span><span class='comma'>,</span> <span class='const'>Java</span><span class='op'>::</span><span class='id identifier rubyid_long'>long</span><span class='comma'>,</span> <span class='const'>Java</span><span class='op'>::</span><span class='id identifier rubyid_long'>long</span><span class='rbracket'>]</span>
+
+    <span class='id identifier rubyid_paginate_list'>paginate_list</span><span class='lparen'>(</span><span class='id identifier rubyid_list_executions'>list_executions</span><span class='comma'>,</span> <span class='id identifier rubyid_limit'>limit</span><span class='comma'>,</span> <span class='id identifier rubyid_offset'>offset</span><span class='comma'>,</span> <span class='lbracket'>[</span><span class='id identifier rubyid_stream'>stream</span><span class='period'>.</span><span class='id identifier rubyid_getId'>getId</span><span class='rbracket'>]</span><span class='rparen'>)</span><span class='period'>.</span><span class='id identifier rubyid_each'>each</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_execution'>execution</span><span class='op'>|</span>
+      <span class='kw'>if</span> <span class='id identifier rubyid_execution'>execution</span><span class='period'>.</span><span class='id identifier rubyid_currentState'>currentState</span> <span class='op'>==</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>ACTIVE</span><span class='tstring_end'>&quot;</span></span>
+        <span class='kw'>return</span> <span class='id identifier rubyid_execution'>execution</span>
+      <span class='kw'>end</span>
+    <span class='kw'>end</span>
+  <span class='kw'>else</span>
+    <span class='id identifier rubyid_stream_execution'>stream_execution</span> <span class='op'>=</span> <span class='ivar'>@stream_client</span><span class='period'>.</span><span class='id identifier rubyid_getExecution'>getExecution</span><span class='lparen'>(</span><span class='id identifier rubyid_stream'>stream</span><span class='period'>.</span><span class='id identifier rubyid_getId'>getId</span><span class='comma'>,</span> <span class='id identifier rubyid_stream_execution'>stream_execution</span><span class='period'>.</span><span class='id identifier rubyid_getId'>getId</span><span class='rparen'>)</span>
+    <span class='kw'>if</span> <span class='id identifier rubyid_stream_execution'>stream_execution</span><span class='period'>.</span><span class='id identifier rubyid_currentState'>currentState</span> <span class='op'>==</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>ACTIVE</span><span class='tstring_end'>&quot;</span></span>
+      <span class='kw'>return</span> <span class='id identifier rubyid_stream_execution'>stream_execution</span>
+    <span class='kw'>end</span>
+  <span class='kw'>end</span>
+
+  <span class='id identifier rubyid_create_execution'>create_execution</span><span class='period'>.</span><span class='id identifier rubyid_call'>call</span><span class='lparen'>(</span><span class='id identifier rubyid_stream'>stream</span><span class='period'>.</span><span class='id identifier rubyid_getId'>getId</span><span class='rparen'>)</span>
+<span class='kw'>end</span></pre>
+    </td>
+  </tr>
+</table>
+</div>
+    
+  </div>
+
+</div>
+
+      <div id="footer">
+  Generated on Sun Nov 11 23:31:48 2018 by
+  <a href="http://yardoc.org" title="Yay! A Ruby Documentation Tool" target="_parent">yard</a>
+  0.9.16 (ruby-2.3.3).
+</div>
+
+    </div>
+  </body>
+</html>

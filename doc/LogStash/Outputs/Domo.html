@@ -1,0 +1,871 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>
+  Class: LogStash::Outputs::Domo
+  
+    &mdash; Documentation by YARD 0.9.16
+  
+</title>
+
+  <link rel="stylesheet" href="../../css/style.css" type="text/css" charset="utf-8" />
+
+  <link rel="stylesheet" href="../../css/common.css" type="text/css" charset="utf-8" />
+
+<script type="text/javascript" charset="utf-8">
+  pathId = "LogStash::Outputs::Domo";
+  relpath = '../../';
+</script>
+
+
+  <script type="text/javascript" charset="utf-8" src="../../js/jquery.js"></script>
+
+  <script type="text/javascript" charset="utf-8" src="../../js/app.js"></script>
+
+
+  </head>
+  <body>
+    <div class="nav_wrap">
+      <iframe id="nav" src="../../class_list.html?1"></iframe>
+      <div id="resizer"></div>
+    </div>
+
+    <div id="main" tabindex="-1">
+      <div id="header">
+        <div id="menu">
+  
+    <a href="../../_index.html">Index (D)</a> &raquo;
+    <span class='title'>LogStash</span> &raquo; <span class='title'>Outputs</span>
+     &raquo; 
+    <span class="title">Domo</span>
+  
+</div>
+
+        <div id="search">
+  
+    <a class="full_list_link" id="class_list_link"
+        href="../../class_list.html">
+
+        <svg width="24" height="24">
+          <rect x="0" y="4" width="24" height="4" rx="1" ry="1"></rect>
+          <rect x="0" y="12" width="24" height="4" rx="1" ry="1"></rect>
+          <rect x="0" y="20" width="24" height="4" rx="1" ry="1"></rect>
+        </svg>
+    </a>
+  
+</div>
+        <div class="clear"></div>
+      </div>
+
+      <div id="content"><h1>Class: LogStash::Outputs::Domo
+  
+  
+  
+</h1>
+<div class="box_info">
+  
+  <dl>
+    <dt>Inherits:</dt>
+    <dd>
+      <span class="inheritName">Base</span>
+      
+        <ul class="fullTree">
+          <li>Object</li>
+          
+            <li class="next">Base</li>
+          
+            <li class="next">LogStash::Outputs::Domo</li>
+          
+        </ul>
+        <a href="#" class="inheritanceTree">show all</a>
+      
+    </dd>
+  </dl>
+  
+
+  
+  
+  
+  
+  
+
+  
+
+  
+  <dl>
+    <dt>Defined in:</dt>
+    <dd>lib/logstash/outputs/domo.rb</dd>
+  </dl>
+  
+</div>
+
+<h2>Overview</h2><div class="docstring">
+  <div class="discussion">
+    
+<p>Write events to a DOMO Streams Dataset.</p>
+
+<p>Requires DOMO OAuth credentials. <a
+href="https://developer.domo.com/docs/authentication/overview-4">developer.domo.com/docs/authentication/overview-4</a></p>
+
+<p>Additionally, the DOMO Streams API requires that the Dataset and Stream be
+made via the API. Streams cannot be added to existing Datasets. <a
+href="https://developer.domo.com/docs/stream/overview">developer.domo.com/docs/stream/overview</a></p>
+
+
+  </div>
+</div>
+<div class="tags">
+  
+
+</div><h2>Defined Under Namespace</h2>
+<p class="children">
+  
+    
+  
+    
+      <strong class="classes">Classes:</strong> <span class='object_link'><a href="Domo/DomoQueueJob.html" title="LogStash::Outputs::Domo::DomoQueueJob (class)">DomoQueueJob</a></span>, <span class='object_link'><a href="Domo/DomoStreamNotFound.html" title="LogStash::Outputs::Domo::DomoStreamNotFound (class)">DomoStreamNotFound</a></span>, <span class='object_link'><a href="Domo/LogStashDomo.html" title="LogStash::Outputs::Domo::LogStashDomo (class)">LogStashDomo</a></span>, <span class='object_link'><a href="Domo/RetryTimerTask.html" title="LogStash::Outputs::Domo::RetryTimerTask (class)">RetryTimerTask</a></span>
+    
+  
+</p>
+
+
+
+
+
+
+
+  
+    <h2>
+      Instance Method Summary
+      <small><a href="#" class="summary_toggle">collapse</a></small>
+    </h2>
+
+    <ul class="summary">
+      
+        <li class="public ">
+  <span class="summary_signature">
+    
+      <a href="#close-instance_method" title="#close (instance method)">#<strong>close</strong>  &#x21d2; Object </a>
+    
+
+    
+  </span>
+  
+  
+  
+  
+  
+  
+  
+
+  
+    <span class="summary_desc"><div class='inline'></div></span>
+  
+</li>
+
+      
+        <li class="public ">
+  <span class="summary_signature">
+    
+      <a href="#multi_receive-instance_method" title="#multi_receive (instance method)">#<strong>multi_receive</strong>(events)  &#x21d2; Object </a>
+    
+
+    
+  </span>
+  
+  
+  
+  
+  
+  
+  
+
+  
+    <span class="summary_desc"><div class='inline'></div></span>
+  
+</li>
+
+      
+        <li class="public ">
+  <span class="summary_signature">
+    
+      <a href="#process_queue-instance_method" title="#process_queue (instance method)">#<strong>process_queue</strong>  &#x21d2; Object </a>
+    
+
+    
+  </span>
+  
+  
+  
+  
+  
+  
+  
+
+  
+    <span class="summary_desc"><div class='inline'>
+<p>Process the Queue of encoded Events that need to be sent to DOMO.</p>
+</div></span>
+  
+</li>
+
+      
+        <li class="public ">
+  <span class="summary_signature">
+    
+      <a href="#receive-instance_method" title="#receive (instance method)">#<strong>receive</strong>(event)  &#x21d2; Object </a>
+    
+
+    
+  </span>
+  
+  
+  
+  
+  
+  
+  
+
+  
+    <span class="summary_desc"><div class='inline'></div></span>
+  
+</li>
+
+      
+        <li class="public ">
+  <span class="summary_signature">
+    
+      <a href="#register-instance_method" title="#register (instance method)">#<strong>register</strong>  &#x21d2; Object </a>
+    
+
+    
+  </span>
+  
+  
+  
+  
+  
+  
+  
+
+  
+    <span class="summary_desc"><div class='inline'></div></span>
+  
+</li>
+
+      
+        <li class="public ">
+  <span class="summary_signature">
+    
+      <a href="#send_to_domo-instance_method" title="#send_to_domo (instance method)">#<strong>send_to_domo</strong>(event, data, part_num, attempt) {|Symbol, LogStash::Event, String, java.util.concurrent.atomic.AtomicInteger, Integer| ... } &#x21d2; Object </a>
+    
+
+    
+  </span>
+  
+  
+  
+  
+  
+  
+  
+
+  
+    <span class="summary_desc"><div class='inline'>
+<p>Send Event data using the DOMO Streams API.</p>
+</div></span>
+  
+</li>
+
+      
+    </ul>
+  
+
+
+  
+
+  <div id="instance_method_details" class="method_details_list">
+    <h2>Instance Method Details</h2>
+
+    
+      <div class="method_details first">
+  <h3 class="signature first" id="close-instance_method">
+  
+    #<strong>close</strong>  &#x21d2; <tt>Object</tt> 
+  
+
+  
+
+  
+</h3><table class="source_code">
+  <tr>
+    <td>
+      <pre class="lines">
+
+
+103
+104
+105
+106
+107
+108
+109
+110
+111
+112
+113
+114
+115
+116
+117
+118
+119
+120
+121</pre>
+    </td>
+    <td>
+      <pre class="code"><span class="info file"># File 'lib/logstash/outputs/domo.rb', line 103</span>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_close'>close</span>
+  <span class='ivar'>@timer</span><span class='period'>.</span><span class='id identifier rubyid_cancel'>cancel</span>
+  <span class='kw'>unless</span> <span class='ivar'>@event_queue</span><span class='period'>.</span><span class='id identifier rubyid_closed?'>closed?</span>
+    <span class='ivar'>@event_queue</span><span class='period'>.</span><span class='id identifier rubyid_close'>close</span>
+  <span class='kw'>end</span>
+
+  <span class='ivar'>@event_mutex</span><span class='period'>.</span><span class='id identifier rubyid_synchronize'>synchronize</span> <span class='kw'>do</span>
+    <span class='comment'># Commit or abort the stream execution if that hasn&#39;t happened already
+</span>    <span class='kw'>unless</span> <span class='ivar'>@domo_stream_execution</span><span class='period'>.</span><span class='id identifier rubyid_nil?'>nil?</span>
+      <span class='ivar'>@domo_stream_execution</span> <span class='op'>=</span> <span class='ivar'>@domo_client</span><span class='period'>.</span><span class='id identifier rubyid_stream_client'>stream_client</span><span class='period'>.</span><span class='id identifier rubyid_getExecution'>getExecution</span><span class='lparen'>(</span><span class='ivar'>@domo_stream</span><span class='period'>.</span><span class='id identifier rubyid_getId'>getId</span><span class='comma'>,</span> <span class='ivar'>@domo_stream_execution</span><span class='period'>.</span><span class='id identifier rubyid_getId'>getId</span><span class='rparen'>)</span>
+
+      <span class='kw'>if</span> <span class='ivar'>@domo_stream_execution</span><span class='period'>.</span><span class='id identifier rubyid_currentState'>currentState</span> <span class='op'>==</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>ACTIVE</span><span class='tstring_end'>&quot;</span></span>
+        <span class='ivar'>@domo_client</span><span class='period'>.</span><span class='id identifier rubyid_stream_client'>stream_client</span><span class='period'>.</span><span class='id identifier rubyid_commitExecution'>commitExecution</span><span class='lparen'>(</span><span class='ivar'>@domo_stream</span><span class='period'>.</span><span class='id identifier rubyid_getId'>getId</span><span class='comma'>,</span> <span class='ivar'>@domo_stream_execution</span><span class='period'>.</span><span class='id identifier rubyid_getId'>getId</span><span class='rparen'>)</span>
+      <span class='kw'>elsif</span> <span class='ivar'>@domo_stream_execution</span><span class='period'>.</span><span class='id identifier rubyid_currentState'>currentState</span> <span class='op'>==</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>ERROR</span><span class='tstring_end'>&quot;</span></span> <span class='kw'>or</span> <span class='ivar'>@domo_stream_execution</span><span class='period'>.</span><span class='id identifier rubyid_currentState'>currentState</span> <span class='op'>==</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>FAILED</span><span class='tstring_end'>&quot;</span></span>
+        <span class='ivar'>@domo_client</span><span class='period'>.</span><span class='id identifier rubyid_stream_client'>stream_client</span><span class='period'>.</span><span class='id identifier rubyid_abortExecution'>abortExecution</span><span class='lparen'>(</span><span class='ivar'>@domo_stream</span><span class='period'>.</span><span class='id identifier rubyid_getId'>getId</span><span class='comma'>,</span> <span class='ivar'>@domo_stream_execution</span><span class='period'>.</span><span class='id identifier rubyid_getId'>getId</span><span class='rparen'>)</span>
+      <span class='kw'>end</span>
+    <span class='kw'>end</span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span></pre>
+    </td>
+  </tr>
+</table>
+</div>
+    
+      <div class="method_details ">
+  <h3 class="signature " id="multi_receive-instance_method">
+  
+    #<strong>multi_receive</strong>(events)  &#x21d2; <tt>Object</tt> 
+  
+
+  
+
+  
+</h3><table class="source_code">
+  <tr>
+    <td>
+      <pre class="lines">
+
+
+214
+215
+216
+217
+218
+219
+220
+221
+222
+223</pre>
+    </td>
+    <td>
+      <pre class="code"><span class="info file"># File 'lib/logstash/outputs/domo.rb', line 214</span>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_multi_receive'>multi_receive</span><span class='lparen'>(</span><span class='id identifier rubyid_events'>events</span><span class='rparen'>)</span>
+  <span class='ivar'>@event_mutex</span><span class='period'>.</span><span class='id identifier rubyid_synchronize'>synchronize</span> <span class='kw'>do</span>
+    <span class='ivar'>@event_count</span> <span class='op'>=</span> <span class='id identifier rubyid_java'>java</span><span class='period'>.</span><span class='id identifier rubyid_util'>util</span><span class='period'>.</span><span class='id identifier rubyid_concurrent'>concurrent</span><span class='period'>.</span><span class='id identifier rubyid_atomic'>atomic</span><span class='period'>.</span><span class='const'>AtomicInteger</span><span class='period'>.</span><span class='id identifier rubyid_new'>new</span><span class='lparen'>(</span><span class='id identifier rubyid_events'>events</span><span class='period'>.</span><span class='id identifier rubyid_size'>size</span> <span class='op'>+</span> <span class='ivar'>@event_queue</span><span class='period'>.</span><span class='id identifier rubyid_size'>size</span><span class='rparen'>)</span>
+  <span class='kw'>end</span>
+
+  <span class='id identifier rubyid_events'>events</span><span class='period'>.</span><span class='id identifier rubyid_each'>each</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_event'>event</span><span class='op'>|</span>
+    <span class='ivar'>@codec</span><span class='period'>.</span><span class='id identifier rubyid_encode'>encode</span><span class='lparen'>(</span><span class='id identifier rubyid_event'>event</span><span class='rparen'>)</span>
+  <span class='kw'>end</span>
+  <span class='id identifier rubyid_process_queue'>process_queue</span>
+<span class='kw'>end</span></pre>
+    </td>
+  </tr>
+</table>
+</div>
+    
+      <div class="method_details ">
+  <h3 class="signature " id="process_queue-instance_method">
+  
+    #<strong>process_queue</strong>  &#x21d2; <tt>Object</tt> 
+  
+
+  
+
+  
+</h3><div class="docstring">
+  <div class="discussion">
+    
+<p>Process the Queue of encoded Events that need to be sent to DOMO.</p>
+
+
+  </div>
+</div>
+<div class="tags">
+  
+
+</div><table class="source_code">
+  <tr>
+    <td>
+      <pre class="lines">
+
+
+125
+126
+127
+128
+129
+130
+131
+132
+133
+134
+135
+136
+137
+138
+139
+140
+141
+142
+143
+144
+145
+146
+147
+148
+149
+150
+151
+152
+153
+154
+155
+156
+157
+158
+159
+160
+161
+162
+163
+164
+165
+166
+167
+168
+169
+170
+171
+172
+173
+174
+175
+176
+177
+178
+179
+180
+181
+182
+183
+184
+185
+186
+187
+188
+189
+190
+191
+192
+193
+194
+195
+196
+197
+198
+199
+200
+201</pre>
+    </td>
+    <td>
+      <pre class="code"><span class="info file"># File 'lib/logstash/outputs/domo.rb', line 125</span>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_process_queue'>process_queue</span>
+  <span class='ivar'>@event_mutex</span><span class='period'>.</span><span class='id identifier rubyid_synchronize'>synchronize</span> <span class='kw'>do</span>
+    <span class='comment'># Get or create the Stream Execution
+</span>    <span class='kw'>if</span> <span class='ivar'>@domo_stream_execution</span><span class='period'>.</span><span class='id identifier rubyid_nil?'>nil?</span>
+      <span class='ivar'>@domo_stream_execution</span> <span class='op'>=</span> <span class='ivar'>@domo_client</span><span class='period'>.</span><span class='id identifier rubyid_stream_execution'>stream_execution</span><span class='lparen'>(</span><span class='ivar'>@domo_stream</span><span class='rparen'>)</span>
+    <span class='kw'>else</span>
+      <span class='ivar'>@domo_stream_execution</span> <span class='op'>=</span> <span class='ivar'>@domo_client</span><span class='period'>.</span><span class='id identifier rubyid_stream_client'>stream_client</span><span class='period'>.</span><span class='id identifier rubyid_getExecution'>getExecution</span><span class='lparen'>(</span><span class='ivar'>@domo_stream</span><span class='period'>.</span><span class='id identifier rubyid_getId'>getId</span><span class='comma'>,</span> <span class='ivar'>@domo_stream_execution</span><span class='period'>.</span><span class='id identifier rubyid_getId'>getId</span><span class='rparen'>)</span>
+      <span class='comment'># We need to make a new Stream Execution if the current one has already been aborted or committed
+</span>      <span class='kw'>if</span> <span class='ivar'>@domo_stream_execution</span> <span class='op'>==</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>SUCCESS</span><span class='tstring_end'>&quot;</span></span> <span class='kw'>or</span> <span class='ivar'>@domo_stream_execution</span> <span class='op'>==</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>FAILURE</span><span class='tstring_end'>&quot;</span></span>
+        <span class='ivar'>@domo_stream_execution</span> <span class='op'>=</span> <span class='ivar'>@domo_client</span><span class='period'>.</span><span class='id identifier rubyid_stream_execution'>stream_execution</span><span class='lparen'>(</span><span class='ivar'>@domo_stream</span><span class='rparen'>)</span>
+      <span class='kw'>end</span>
+    <span class='kw'>end</span>
+  <span class='kw'>end</span>
+
+  <span class='id identifier rubyid_successes'>successes</span> <span class='op'>=</span> <span class='id identifier rubyid_java'>java</span><span class='period'>.</span><span class='id identifier rubyid_util'>util</span><span class='period'>.</span><span class='id identifier rubyid_concurrent'>concurrent</span><span class='period'>.</span><span class='id identifier rubyid_atomic'>atomic</span><span class='period'>.</span><span class='const'>AtomicInteger</span><span class='period'>.</span><span class='id identifier rubyid_new'>new</span><span class='lparen'>(</span><span class='int'>0</span><span class='rparen'>)</span>
+  <span class='id identifier rubyid_failures'>failures</span>  <span class='op'>=</span> <span class='id identifier rubyid_java'>java</span><span class='period'>.</span><span class='id identifier rubyid_util'>util</span><span class='period'>.</span><span class='id identifier rubyid_concurrent'>concurrent</span><span class='period'>.</span><span class='id identifier rubyid_atomic'>atomic</span><span class='period'>.</span><span class='const'>AtomicInteger</span><span class='period'>.</span><span class='id identifier rubyid_new'>new</span><span class='lparen'>(</span><span class='int'>0</span><span class='rparen'>)</span>
+  <span class='id identifier rubyid_retries'>retries</span> <span class='op'>=</span> <span class='id identifier rubyid_java'>java</span><span class='period'>.</span><span class='id identifier rubyid_util'>util</span><span class='period'>.</span><span class='id identifier rubyid_concurrent'>concurrent</span><span class='period'>.</span><span class='id identifier rubyid_atomic'>atomic</span><span class='period'>.</span><span class='const'>AtomicInteger</span><span class='period'>.</span><span class='id identifier rubyid_new'>new</span><span class='lparen'>(</span><span class='int'>0</span><span class='rparen'>)</span>
+
+  <span class='kw'>until</span> <span class='ivar'>@event_queue</span><span class='period'>.</span><span class='id identifier rubyid_empty?'>empty?</span>
+    <span class='id identifier rubyid_job'>job</span> <span class='op'>=</span> <span class='ivar'>@event_queue</span><span class='period'>.</span><span class='id identifier rubyid_pop'>pop</span>
+
+    <span class='id identifier rubyid_send_to_domo'>send_to_domo</span><span class='lparen'>(</span><span class='id identifier rubyid_job'>job</span><span class='period'>.</span><span class='id identifier rubyid_event'>event</span><span class='comma'>,</span> <span class='id identifier rubyid_job'>job</span><span class='period'>.</span><span class='id identifier rubyid_data'>data</span><span class='comma'>,</span> <span class='id identifier rubyid_job'>job</span><span class='period'>.</span><span class='id identifier rubyid_part_num'>part_num</span><span class='period'>.</span><span class='id identifier rubyid_get'>get</span><span class='comma'>,</span> <span class='id identifier rubyid_job'>job</span><span class='period'>.</span><span class='id identifier rubyid_attempt'>attempt</span><span class='rparen'>)</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_action'>action</span><span class='comma'>,</span> <span class='id identifier rubyid_event'>event</span><span class='comma'>,</span> <span class='id identifier rubyid_data'>data</span><span class='comma'>,</span> <span class='id identifier rubyid_part_num'>part_num</span><span class='comma'>,</span> <span class='id identifier rubyid_attempt'>attempt</span><span class='op'>|</span>
+      <span class='kw'>begin</span>
+        <span class='comment'># If we aren&#39;t retrying failures, then don&#39;t consider retriable errors to be...retriable
+</span>        <span class='id identifier rubyid_action'>action</span> <span class='op'>=</span> <span class='symbol'>:failure</span> <span class='kw'>if</span> <span class='id identifier rubyid_action'>action</span> <span class='op'>==</span> <span class='symbol'>:retry</span> <span class='op'>&amp;&amp;</span> <span class='op'>!</span><span class='ivar'>@retry_failures</span>
+        <span class='kw'>case</span> <span class='id identifier rubyid_action'>action</span>
+        <span class='kw'>when</span> <span class='symbol'>:success</span>
+          <span class='id identifier rubyid_successes'>successes</span><span class='period'>.</span><span class='id identifier rubyid_incrementAndGet'>incrementAndGet</span>
+        <span class='kw'>when</span> <span class='symbol'>:retry</span>
+          <span class='id identifier rubyid_retries'>retries</span><span class='period'>.</span><span class='id identifier rubyid_incrementAndGet'>incrementAndGet</span>
+
+          <span class='comment'># Calculate how long to sleep before retrying the request
+</span>          <span class='id identifier rubyid_sleep_for'>sleep_for</span> <span class='op'>=</span> <span class='id identifier rubyid_sleep_for_attempt'>sleep_for_attempt</span><span class='lparen'>(</span><span class='id identifier rubyid_next_attempt'>next_attempt</span><span class='rparen'>)</span>
+          <span class='ivar'>@logger</span><span class='period'>.</span><span class='id identifier rubyid_info'>info</span><span class='lparen'>(</span><span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Retrying DOMO Streams API request. Will sleep for </span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_sleep_for'>sleep_for</span><span class='embexpr_end'>}</span><span class='tstring_content'> seconds</span><span class='tstring_end'>&quot;</span></span><span class='rparen'>)</span>
+          <span class='comment'># Increment the attempt #
+</span>          <span class='id identifier rubyid_job'>job</span><span class='period'>.</span><span class='id identifier rubyid_attempt'>attempt</span> <span class='op'>+=</span> <span class='int'>1</span>
+          <span class='comment'># Throw the job onto the timer queue
+</span>          <span class='id identifier rubyid_timer_task'>timer_task</span> <span class='op'>=</span> <span class='const'><span class='object_link'><a href="Domo/RetryTimerTask.html" title="LogStash::Outputs::Domo::RetryTimerTask (class)">RetryTimerTask</a></span></span><span class='period'>.</span><span class='id identifier rubyid_new'><span class='object_link'><a href="Domo/RetryTimerTask.html#initialize-instance_method" title="LogStash::Outputs::Domo::RetryTimerTask#initialize (method)">new</a></span></span><span class='lparen'>(</span><span class='ivar'>@event_queue</span><span class='comma'>,</span> <span class='id identifier rubyid_job'>job</span><span class='rparen'>)</span>
+          <span class='ivar'>@timer</span><span class='period'>.</span><span class='id identifier rubyid_schedule'>schedule</span><span class='lparen'>(</span><span class='id identifier rubyid_timer_task'>timer_task</span><span class='comma'>,</span> <span class='id identifier rubyid_sleep_for'>sleep_for</span> <span class='op'>*</span> <span class='int'>1000</span><span class='rparen'>)</span>
+        <span class='kw'>when</span> <span class='symbol'>:failure</span>
+          <span class='id identifier rubyid_failures'>failures</span><span class='period'>.</span><span class='id identifier rubyid_incrementAndGet'>incrementAndGet</span>
+        <span class='kw'>else</span>
+          <span class='id identifier rubyid_raise'>raise</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Unknown action </span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_action'>action</span><span class='embexpr_end'>}</span><span class='tstring_end'>&quot;</span></span>
+        <span class='kw'>end</span>
+
+        <span class='comment'># Safeguard in case the queue size gets out of hand with retriable jobs that are destined to fail
+</span>        <span class='kw'>if</span> <span class='id identifier rubyid_action'>action</span> <span class='op'>==</span> <span class='symbol'>:success</span> <span class='op'>||</span> <span class='id identifier rubyid_action'>action</span> <span class='op'>==</span> <span class='symbol'>:failure</span>
+          <span class='kw'>if</span> <span class='id identifier rubyid_successes'>successes</span><span class='period'>.</span><span class='id identifier rubyid_get'>get</span> <span class='op'>+</span> <span class='id identifier rubyid_failures'>failures</span><span class='period'>.</span><span class='id identifier rubyid_get'>get</span> <span class='op'>==</span> <span class='ivar'>@event_count</span>
+            <span class='ivar'>@event_queue</span><span class='period'>.</span><span class='id identifier rubyid_clear'>clear</span>
+          <span class='kw'>end</span>
+        <span class='kw'>end</span>
+      <span class='kw'>rescue</span> <span class='op'>=&gt;</span> <span class='id identifier rubyid_e'>e</span>
+        <span class='ivar'>@logger</span><span class='period'>.</span><span class='id identifier rubyid_error'>error</span><span class='lparen'>(</span><span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Error contacting the DOMO API.</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span>
+                      <span class='symbol'>:class</span> <span class='op'>=&gt;</span> <span class='id identifier rubyid_e'>e</span><span class='period'>.</span><span class='id identifier rubyid_class'>class</span><span class='period'>.</span><span class='id identifier rubyid_name'>name</span><span class='comma'>,</span>
+                      <span class='symbol'>:message</span> <span class='op'>=&gt;</span> <span class='id identifier rubyid_e'>e</span><span class='period'>.</span><span class='id identifier rubyid_message'>message</span><span class='comma'>,</span>
+                      <span class='symbol'>:backtrace</span> <span class='op'>=&gt;</span> <span class='id identifier rubyid_e'>e</span><span class='period'>.</span><span class='id identifier rubyid_backtrace'>backtrace</span><span class='comma'>,</span>
+                      <span class='symbol'>:event</span> <span class='op'>=&gt;</span> <span class='id identifier rubyid_event'>event</span><span class='comma'>,</span>
+                      <span class='symbol'>:data</span> <span class='op'>=&gt;</span> <span class='id identifier rubyid_data'>data</span><span class='rparen'>)</span>
+        <span class='id identifier rubyid_failures'>failures</span><span class='period'>.</span><span class='id identifier rubyid_incrementAndGet'>incrementAndGet</span>
+      <span class='comment'># No matter what happens increment the Part Number
+</span>      <span class='kw'>ensure</span>
+        <span class='ivar'>@part_num</span><span class='period'>.</span><span class='id identifier rubyid_incrementAndGet'>incrementAndGet</span>
+      <span class='kw'>end</span>
+    <span class='kw'>end</span>
+  <span class='kw'>end</span>
+
+  <span class='ivar'>@event_mutex</span><span class='period'>.</span><span class='id identifier rubyid_synchronize'>synchronize</span> <span class='kw'>do</span>
+    <span class='comment'># Commit and create a new Stream Execution if that hasn&#39;t happened already
+</span>    <span class='ivar'>@domo_stream_execution</span> <span class='op'>=</span> <span class='ivar'>@domo_client</span><span class='period'>.</span><span class='id identifier rubyid_stream_client'>stream_client</span><span class='period'>.</span><span class='id identifier rubyid_getExecution'>getExecution</span><span class='lparen'>(</span><span class='ivar'>@domo_stream</span><span class='period'>.</span><span class='id identifier rubyid_getId'>getId</span><span class='comma'>,</span> <span class='ivar'>@domo_stream_execution</span><span class='period'>.</span><span class='id identifier rubyid_getId'>getId</span><span class='rparen'>)</span>
+    <span class='kw'>if</span> <span class='ivar'>@domo_stream_execution</span><span class='period'>.</span><span class='id identifier rubyid_currentState'>currentState</span> <span class='op'>==</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>ACTIVE</span><span class='tstring_end'>&quot;</span></span>
+      <span class='ivar'>@domo_client</span><span class='period'>.</span><span class='id identifier rubyid_stream_client'>stream_client</span><span class='period'>.</span><span class='id identifier rubyid_commitExecution'>commitExecution</span><span class='lparen'>(</span><span class='ivar'>@domo_stream</span><span class='period'>.</span><span class='id identifier rubyid_getId'>getId</span><span class='comma'>,</span> <span class='ivar'>@domo_stream_execution</span><span class='period'>.</span><span class='id identifier rubyid_getId'>getId</span><span class='rparen'>)</span>
+      <span class='ivar'>@domo_stream_execution</span> <span class='op'>=</span> <span class='ivar'>@domo_client</span><span class='period'>.</span><span class='id identifier rubyid_stream_client'>stream_client</span><span class='period'>.</span><span class='id identifier rubyid_createExecution'>createExecution</span><span class='lparen'>(</span><span class='ivar'>@domo_stream</span><span class='period'>.</span><span class='id identifier rubyid_getId'>getId</span><span class='rparen'>)</span>
+    <span class='kw'>end</span>
+
+    <span class='ivar'>@part_num</span><span class='period'>.</span><span class='id identifier rubyid_set'>set</span><span class='lparen'>(</span><span class='int'>1</span><span class='rparen'>)</span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span></pre>
+    </td>
+  </tr>
+</table>
+</div>
+    
+      <div class="method_details ">
+  <h3 class="signature " id="receive-instance_method">
+  
+    #<strong>receive</strong>(event)  &#x21d2; <tt>Object</tt> 
+  
+
+  
+
+  
+</h3><table class="source_code">
+  <tr>
+    <td>
+      <pre class="lines">
+
+
+204
+205
+206
+207
+208
+209
+210
+211</pre>
+    </td>
+    <td>
+      <pre class="code"><span class="info file"># File 'lib/logstash/outputs/domo.rb', line 204</span>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_receive'>receive</span><span class='lparen'>(</span><span class='id identifier rubyid_event'>event</span><span class='rparen'>)</span>
+  <span class='ivar'>@event_mutex</span><span class='period'>.</span><span class='id identifier rubyid_synchronize'>synchronize</span> <span class='kw'>do</span>
+    <span class='ivar'>@event_count</span> <span class='op'>=</span> <span class='id identifier rubyid_java'>java</span><span class='period'>.</span><span class='id identifier rubyid_util'>util</span><span class='period'>.</span><span class='id identifier rubyid_concurrent'>concurrent</span><span class='period'>.</span><span class='id identifier rubyid_atomic'>atomic</span><span class='period'>.</span><span class='const'>AtomicInteger</span><span class='period'>.</span><span class='id identifier rubyid_new'>new</span><span class='lparen'>(</span><span class='int'>1</span> <span class='op'>+</span> <span class='ivar'>@event_queue</span><span class='period'>.</span><span class='id identifier rubyid_size'>size</span><span class='rparen'>)</span>
+  <span class='kw'>end</span>
+
+  <span class='ivar'>@codec</span><span class='period'>.</span><span class='id identifier rubyid_encode'>encode</span><span class='lparen'>(</span><span class='id identifier rubyid_event'>event</span><span class='rparen'>)</span>
+  <span class='id identifier rubyid_process_queue'>process_queue</span>
+<span class='kw'>end</span></pre>
+    </td>
+  </tr>
+</table>
+</div>
+    
+      <div class="method_details ">
+  <h3 class="signature " id="register-instance_method">
+  
+    #<strong>register</strong>  &#x21d2; <tt>Object</tt> 
+  
+
+  
+
+  
+</h3><table class="source_code">
+  <tr>
+    <td>
+      <pre class="lines">
+
+
+50
+51
+52
+53
+54
+55
+56
+57
+58
+59
+60
+61
+62
+63
+64
+65
+66
+67</pre>
+    </td>
+    <td>
+      <pre class="code"><span class="info file"># File 'lib/logstash/outputs/domo.rb', line 50</span>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_register'>register</span>
+  <span class='ivar'>@domo_client</span> <span class='op'>=</span> <span class='const'><span class='object_link'><a href="Domo/LogStashDomo.html" title="LogStash::Outputs::Domo::LogStashDomo (class)">LogStashDomo</a></span></span><span class='period'>.</span><span class='id identifier rubyid_new'><span class='object_link'><a href="Domo/LogStashDomo.html#initialize-instance_method" title="LogStash::Outputs::Domo::LogStashDomo#initialize (method)">new</a></span></span><span class='lparen'>(</span><span class='ivar'>@client_id</span><span class='comma'>,</span> <span class='ivar'>@client_secret</span><span class='comma'>,</span> <span class='ivar'>@api_host</span><span class='comma'>,</span> <span class='ivar'>@api_ssl</span><span class='comma'>,</span> <span class='const'>Java</span><span class='op'>::</span><span class='const'>ComDomoSdkRequest</span><span class='op'>::</span><span class='const'>Scope</span><span class='op'>::</span><span class='const'>DATA</span><span class='rparen'>)</span>
+  <span class='ivar'>@domo_stream</span><span class='comma'>,</span> <span class='ivar'>@domo_stream_execution</span> <span class='op'>=</span> <span class='ivar'>@domo_client</span><span class='period'>.</span><span class='id identifier rubyid_stream'>stream</span><span class='lparen'>(</span><span class='ivar'>@stream_id</span><span class='comma'>,</span> <span class='ivar'>@dataset_id</span><span class='comma'>,</span> <span class='kw'>false</span> <span class='rparen'>)</span>
+
+  <span class='comment'># Queue for encoded events needing to be uploaded to DOMO
+</span>  <span class='ivar'>@event_queue</span> <span class='op'>=</span> <span class='const'>Queue</span><span class='period'>.</span><span class='id identifier rubyid_new'>new</span>
+  <span class='comment'># This Mutex is primarily used for updating objects from the DOMO API
+</span>  <span class='ivar'>@event_mutex</span> <span class='op'>=</span> <span class='const'>Mutex</span><span class='period'>.</span><span class='id identifier rubyid_new'>new</span>
+  <span class='comment'># Timer for retrying events
+</span>  <span class='ivar'>@timer</span> <span class='op'>=</span> <span class='id identifier rubyid_java'>java</span><span class='period'>.</span><span class='id identifier rubyid_util'>util</span><span class='period'>.</span><span class='const'>Timer</span><span class='period'>.</span><span class='id identifier rubyid_new'>new</span><span class='lparen'>(</span><span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>DOMO Output </span><span class='embexpr_beg'>#{</span><span class='kw'>self</span><span class='period'>.</span><span class='id identifier rubyid_params'>params</span><span class='lbracket'>[</span><span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>id</span><span class='tstring_end'>&#39;</span></span><span class='rbracket'>]</span><span class='embexpr_end'>}</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='kw'>true</span><span class='rparen'>)</span>
+  <span class='comment'># The Streams API Data Part Number
+</span>  <span class='ivar'>@part_num</span> <span class='op'>=</span> <span class='id identifier rubyid_java'>java</span><span class='period'>.</span><span class='id identifier rubyid_util'>util</span><span class='period'>.</span><span class='id identifier rubyid_concurrent'>concurrent</span><span class='period'>.</span><span class='id identifier rubyid_atomic'>atomic</span><span class='period'>.</span><span class='const'>AtomicInteger</span><span class='period'>.</span><span class='id identifier rubyid_new'>new</span><span class='lparen'>(</span><span class='int'>1</span><span class='rparen'>)</span>
+
+  <span class='ivar'>@codec</span><span class='period'>.</span><span class='id identifier rubyid_on_event'>on_event</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_event'>event</span><span class='comma'>,</span> <span class='id identifier rubyid_data'>data</span><span class='op'>|</span>
+    <span class='id identifier rubyid_job'>job</span> <span class='op'>=</span> <span class='const'><span class='object_link'><a href="Domo/DomoQueueJob.html" title="LogStash::Outputs::Domo::DomoQueueJob (class)">DomoQueueJob</a></span></span><span class='period'>.</span><span class='id identifier rubyid_new'><span class='object_link'><a href="Domo/DomoQueueJob.html#initialize-instance_method" title="LogStash::Outputs::Domo::DomoQueueJob#initialize (method)">new</a></span></span><span class='lparen'>(</span><span class='id identifier rubyid_event'>event</span><span class='comma'>,</span> <span class='id identifier rubyid_data'>data</span><span class='comma'>,</span> <span class='ivar'>@part_num</span><span class='comma'>,</span> <span class='int'>0</span><span class='rparen'>)</span>
+    <span class='ivar'>@event_queue</span> <span class='op'>&lt;&lt;</span> <span class='id identifier rubyid_job'>job</span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span></pre>
+    </td>
+  </tr>
+</table>
+</div>
+    
+      <div class="method_details ">
+  <h3 class="signature " id="send_to_domo-instance_method">
+  
+    #<strong>send_to_domo</strong>(event, data, part_num, attempt) {|Symbol, LogStash::Event, String, java.util.concurrent.atomic.AtomicInteger, Integer| ... } &#x21d2; <tt>Object</tt> 
+  
+
+  
+
+  
+</h3><div class="docstring">
+  <div class="discussion">
+    
+<p>Send Event data using the DOMO Streams API.</p>
+
+
+  </div>
+</div>
+<div class="tags">
+  <p class="tag_title">Parameters:</p>
+<ul class="param">
+  
+    <li>
+      
+        <span class='name'>event</span>
+      
+      
+        <span class='type'>(<tt>LogStash::Event</tt>)</span>
+      
+      
+      
+        &mdash;
+        <div class='inline'>
+<p>The Event we&#39;re processing.</p>
+</div>
+      
+    </li>
+  
+    <li>
+      
+        <span class='name'>data</span>
+      
+      
+        <span class='type'>(<tt>String</tt>)</span>
+      
+      
+      
+        &mdash;
+        <div class='inline'>
+<p>The Event&#39;s encoded data.</p>
+</div>
+      
+    </li>
+  
+    <li>
+      
+        <span class='name'>part_num</span>
+      
+      
+        <span class='type'>(<tt>java.util.concurrent.atomic.AtomicInteger</tt>)</span>
+      
+      
+      
+        &mdash;
+        <div class='inline'>
+<p>The Stream Execution Upload Part Number.</p>
+</div>
+      
+    </li>
+  
+    <li>
+      
+        <span class='name'>attempt</span>
+      
+      
+        <span class='type'>(<tt>Integer</tt>)</span>
+      
+      
+      
+        &mdash;
+        <div class='inline'>
+<p>The number of attempts already made to send these data.</p>
+</div>
+      
+    </li>
+  
+</ul>
+
+<p class="tag_title">Yields:</p>
+<ul class="yield">
+  
+    <li>
+      
+      
+        <span class='type'>(<tt>Symbol</tt>, <tt>LogStash::Event</tt>, <tt>String</tt>, <tt>java.util.concurrent.atomic.AtomicInteger</tt>, <tt>Integer</tt>)</span>
+      
+      
+      
+        &mdash;
+        <div class='inline'>
+<p>Status of the attempt along with the original provided parameters.</p>
+</div>
+      
+    </li>
+  
+</ul>
+
+</div><table class="source_code">
+  <tr>
+    <td>
+      <pre class="lines">
+
+
+76
+77
+78
+79
+80
+81
+82
+83
+84
+85
+86
+87
+88
+89
+90
+91
+92
+93
+94
+95
+96
+97
+98
+99
+100</pre>
+    </td>
+    <td>
+      <pre class="code"><span class="info file"># File 'lib/logstash/outputs/domo.rb', line 76</span>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_send_to_domo'>send_to_domo</span><span class='lparen'>(</span><span class='id identifier rubyid_event'>event</span><span class='comma'>,</span> <span class='id identifier rubyid_data'>data</span><span class='comma'>,</span> <span class='id identifier rubyid_part_num'>part_num</span><span class='comma'>,</span> <span class='id identifier rubyid_attempt'>attempt</span><span class='rparen'>)</span>
+  <span class='kw'>begin</span>
+    <span class='comment'># Upload the event data to the Streams API
+</span>    <span class='ivar'>@domo_client</span><span class='period'>.</span><span class='id identifier rubyid_stream_client'>stream_client</span><span class='period'>.</span><span class='id identifier rubyid_uploadDataPart'>uploadDataPart</span><span class='lparen'>(</span><span class='ivar'>@domo_stream</span><span class='period'>.</span><span class='id identifier rubyid_getId'>getId</span><span class='comma'>,</span> <span class='ivar'>@domo_stream_execution</span><span class='period'>.</span><span class='id identifier rubyid_getId'>getId</span><span class='comma'>,</span> <span class='id identifier rubyid_part_num'>part_num</span><span class='comma'>,</span> <span class='id identifier rubyid_data'>data</span><span class='rparen'>)</span>
+    <span class='comment'># Flag the job as a success
+</span>    <span class='kw'>yield</span> <span class='symbol'>:success</span><span class='comma'>,</span> <span class='id identifier rubyid_event'>event</span><span class='comma'>,</span> <span class='id identifier rubyid_data'>data</span><span class='comma'>,</span> <span class='id identifier rubyid_part_num'>part_num</span><span class='comma'>,</span> <span class='id identifier rubyid_attempt'>attempt</span>
+  <span class='comment'># Handle exceptions from the DOMO SDK.
+</span>  <span class='kw'>rescue</span> <span class='const'>Java</span><span class='op'>::</span><span class='const'>ComDomoSdkRequest</span><span class='op'>::</span><span class='const'>RequestException</span> <span class='op'>=&gt;</span> <span class='id identifier rubyid_e'>e</span>
+    <span class='comment'># Retriable errors
+</span>    <span class='kw'>if</span> <span class='id identifier rubyid_e'>e</span><span class='period'>.</span><span class='id identifier rubyid_getStatusCode'>getStatusCode</span> <span class='op'>&lt;</span> <span class='int'>400</span> <span class='op'>&amp;&amp;</span> <span class='id identifier rubyid_e'>e</span><span class='period'>.</span><span class='id identifier rubyid_getStatusCode'>getStatusCode</span> <span class='op'>&gt;=</span> <span class='int'>500</span>
+      <span class='ivar'>@logger</span><span class='period'>.</span><span class='id identifier rubyid_warn'>warn</span><span class='lparen'>(</span><span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Got a retriable error from the DOMO Streams API.</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> 
+        <span class='symbol'>:code</span> <span class='op'>=&gt;</span> <span class='id identifier rubyid_e'>e</span><span class='period'>.</span><span class='id identifier rubyid_getStatusCode'>getStatusCode</span><span class='comma'>,</span>
+        <span class='symbol'>:exception</span> <span class='op'>=&gt;</span> <span class='id identifier rubyid_e'>e</span><span class='rparen'>)</span>
+      <span class='kw'>yield</span> <span class='symbol'>:retry</span><span class='comma'>,</span> <span class='id identifier rubyid_event'>event</span><span class='comma'>,</span> <span class='id identifier rubyid_data'>data</span><span class='comma'>,</span> <span class='id identifier rubyid_part_num'>part_num</span><span class='comma'>,</span> <span class='id identifier rubyid_attempt'>attempt</span>
+    <span class='comment'># Fatal errors
+</span>    <span class='kw'>else</span>
+      <span class='ivar'>@logger</span><span class='period'>.</span><span class='id identifier rubyid_error'>error</span><span class='lparen'>(</span><span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Encountered a fatal error interacting with the DOMO Streams API.</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> 
+        <span class='symbol'>:code</span> <span class='op'>=&gt;</span> <span class='id identifier rubyid_e'>e</span><span class='period'>.</span><span class='id identifier rubyid_getStatusCode'>getStatusCode</span><span class='comma'>,</span>
+        <span class='symbol'>:exception</span> <span class='op'>=&gt;</span> <span class='id identifier rubyid_e'>e</span><span class='comma'>,</span>
+        <span class='symbol'>:data</span> <span class='op'>=&gt;</span> <span class='id identifier rubyid_data'>data</span><span class='comma'>,</span>
+        <span class='symbol'>:event</span> <span class='op'>=&gt;</span> <span class='id identifier rubyid_event'>event</span><span class='rparen'>)</span>
+      <span class='kw'>yield</span> <span class='symbol'>:failure</span><span class='comma'>,</span> <span class='id identifier rubyid_event'>event</span><span class='comma'>,</span> <span class='id identifier rubyid_data'>data</span><span class='comma'>,</span> <span class='id identifier rubyid_part_num'>part_num</span><span class='comma'>,</span> <span class='id identifier rubyid_attempt'>attempt</span>
+    <span class='kw'>end</span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span></pre>
+    </td>
+  </tr>
+</table>
+</div>
+    
+  </div>
+
+</div>
+
+      <div id="footer">
+  Generated on Sun Nov 11 23:31:47 2018 by
+  <a href="http://yardoc.org" title="Yay! A Ruby Documentation Tool" target="_parent">yard</a>
+  0.9.16 (ruby-2.3.3).
+</div>
+
+    </div>
+  </body>
+</html>
