@@ -75,8 +75,10 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
   # @yield [Symbol, LogStash::Event, String, java.util.concurrent.atomic.AtomicInteger, Integer] Status of the attempt along with the original provided parameters.
   def send_to_domo(event, data, part_num, attempt)
     begin
-      # Upload the event data to the Streams API
-      @domo_client.stream_client.uploadDataPart(@domo_stream.getId, @domo_stream_execution.getId, part_num, data)
+      @event_mutex.synchronize do
+        # Upload the event data to the Streams API
+        @domo_client.stream_client.uploadDataPart(@domo_stream.getId, @domo_stream_execution.getId, part_num, data)
+      end
       # Flag the job as a success
       yield :success, event, data, part_num, attempt
     # Handle exceptions from the DOMO SDK.
@@ -193,7 +195,7 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
       @domo_stream_execution = @domo_client.stream_client.getExecution(@domo_stream.getId, @domo_stream_execution.getId)
       if @domo_stream_execution.currentState == "ACTIVE"
         @domo_client.stream_client.commitExecution(@domo_stream.getId, @domo_stream_execution.getId)
-        @domo_stream_execution = @domo_client.stream_client.createExecution(@domo_stream.getId)
+        @domo_stream_execution = nil
       end
 
       @part_num.set(1)
