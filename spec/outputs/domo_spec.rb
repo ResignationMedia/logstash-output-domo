@@ -22,8 +22,8 @@ describe LogStash::Outputs::Domo do
   end
   let(:event) do
     LogStash::Event.new(
-      "Column1" => 123,
-      "Column2" => 456,
+      "Column1" => 456,
+      "Column2" => 789,
     )
   end
   let(:base_config) do
@@ -72,14 +72,15 @@ describe LogStash::Outputs::Domo do
       subject.register
     end
 
-    it "should have a valid config" do
-      expect(config).to have_key("dataset_id").or have_key("stream_id")
-      expect(config["dataset_id"] || config["stream_id"]).not_to be_nil
-    end
+    # it "should have a valid config" do
+    #   expect(config).to have_key("dataset_id").or have_key("stream_id")
+    #   expect(config["dataset_id"] || config["stream_id"]).not_to be_nil
+    # end
 
     it "should send the event to DOMO" do
       subject.multi_receive(events)
-      subject.receive(event)
+      subject.multi_receive([event])
+      # subject.receive(event)
     end
 
     after(:each) do

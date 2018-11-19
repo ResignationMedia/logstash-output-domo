@@ -1,12 +1,14 @@
 # encoding: utf-8
 require "logstash/outputs/base"
 require "logstash/namespace"
+require "concurrent"
 require "csv"
 require "java"
 require "thread"
 require "logstash-output-domo_jars.rb"
 
 java_import "com.domo.sdk.streams.model.Stream"
+java_import "java.util.ArrayList"
 java_import "java.util.concurrent.atomic.AtomicReference"
 
 # Write events to a DOMO Streams Dataset.
@@ -47,99 +49,101 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
   # Retry failed requests. Enabled by default. It would be a pretty terrible idea to disable this. 
   config :retry_failures, :validate => :boolean, :default => true
 
+  # The delay (seconds) on retrying failed requests
+  config :retry_delay, :validate => :number, :default => 2.0
+
   public
   def register
     @domo_client = LogStashDomo.new(@client_id, @client_secret, @api_host, @api_ssl, Java::ComDomoSdkRequest::Scope::DATA)
-    @domo_stream, @domo_stream_execution = @domo_client.stream(@stream_id, @dataset_id, false )
+    @domo_stream, @domo_stream_execution = @domo_client.stream(@stream_id, @dataset_id, false)
 
-    # Queue for encoded events needing to be uploaded to DOMO
-    @event_queue = Queue.new
+    # Map of batch jobs (per-thread)
+    @thread_batch_map = Concurrent::Hash.new
+
     # This Mutex is primarily used for updating objects from the DOMO API
     @event_mutex = Mutex.new
-    # Timer for retrying events
-    @timer = java.util.Timer.new("DOMO Output #{self.params['id']}", true)
+
     # The Streams API Data Part Number
     @part_num = java.util.concurrent.atomic.AtomicInteger.new(1)
 
     @codec.on_event do |event, data|
-      job = DomoQueueJob.new(event, data, @part_num, 0)
-      @event_queue << job
+      job = DomoQueueJob.new(event, data, @part_num.get)
+      @thread_batch_map[Thread.current].add(job)
+      @part_num.incrementAndGet
     end
   end # def register
   
   public
   # Send Event data using the DOMO Streams API.
   #
-  # @param job [DomoQueueJob] The Queue job we're processing.
-  # @yield [Symbol, DomoQueueJob] Status of the attempt along with the modified Queue job.
-  def send_to_domo(job)
-    begin
-      @event_mutex.synchronize do
-        if @domo_stream_execution.nil?
-          @domo_stream_execution = @domo_client.stream_execution(@domo_stream)
-        end
-        # Upload the event data to the Streams API
-        @domo_client.stream_client.uploadDataPart(@domo_stream.getId, @domo_stream_execution.getId, job.part_num.get, job.data)
-      end
-      # Flag the job as a success
-      yield :success, job
-    # Handle exceptions from the DOMO SDK.
-    rescue Java::ComDomoSdkRequest::RequestException => e
-      # Retriable errors
-      if e.getStatusCode == -1 || (e.getStatusCode < 400 && e.getStatusCode >= 500)
-        @event_mutex.synchronize do
-          unless @domo_stream_execution.nil?
-            @domo_stream_execution = @domo_client.stream_client.getExecution(@domo_stream.getId, @domo_stream_execution.getId)
-            if @domo_stream_execution.currentState == "ACTIVE"
-              begin
-                @domo_client.stream_client.commitExecution(@domo_stream.getId, @domo_stream_execution.getId)
-              rescue Java::ComDomoSdkRequest::RequestException
-                begin
-                  @domo_client.stream_client.abortExecution(@domo_stream.getId, @domo_stream_execution.getId)
-                rescue Java::ComDomoSdkRequest::RequestException
-                end
-              end
+  # @param batch [java.util.ArrayList<DomoQueueJob>] The batch of events to send to DOMO.
+  def send_to_domo(batch)
+    while batch.any?
+      failures = []
+      batch.each do |job|
+        begin
+          @domo_stream_execution = @domo_client.stream_execution(@domo_stream, @domo_stream_execution)
+          @domo_client.stream_client.uploadDataPart(@domo_stream.getId, @domo_stream_execution.getId, job.part_num, job.data)
+        rescue Java::ComDomoSdkRequest::RequestException => e
+          if e.getStatusCode == -1 || (e.getStatusCode < 400 && e.getStatusCode >= 500)
+            unless @domo_stream_execution.nil?
+              @domo_stream_execution = @domo_client.stream_execution(@domo_stream, @domo_stream_execution)
             end
 
-            @domo_stream_execution = @domo_client.stream_execution(@domo_stream)
+            if @retry_failures
+              @logger.info("Got a retriable error from the DOMO Streams API.",
+                           :code => e.getStatusCode,
+                           :exception => e,
+                           :event => job.event,
+                           :data => job.data)
+
+              failures << job
+            else
+              @logger.error("Encountered a fatal error interacting with the DOMO Streams API.",
+                            :code => e.getStatusCode,
+                            :exception => e,
+                            :data => data,
+                            :event => event)
+            end
+          # TODO: Implement DLQ?
+          else
+            @logger.error("Encountered a fatal error interacting with the DOMO Streams API.",
+                          :code => e.getStatusCode,
+                          :exception => e,
+                          :data => data,
+                          :event => event)
           end
         end
-
-        @logger.info("Got a retriable error from the DOMO Streams API.",
-                     :code => e.getStatusCode,
-                     :exception => e,
-                     :event => job.event,
-                     :data => job.data)
-
-        if e.message.include? "Data version is closed for multi-part upload."
-          @event_mutex.synchronize do
-            @domo_stream_execution = @domo_client.stream_execution(@domo_stream)
+      end
+      
+      if failures.empty?
+        # @event_mutex.synchronize do
+          unless @domo_stream_execution.nil?
+            # Commit and create a new Stream Execution if that hasn't happened already
+            @domo_stream_execution = @domo_client.stream_client.getExecution(@domo_stream.getId, @domo_stream_execution.getId)
+            if @domo_stream_execution.currentState == "ACTIVE"
+              @domo_client.stream_client.commitExecution(@domo_stream.getId, @domo_stream_execution.getId)
+              @domo_stream_execution = nil
+            end
           end
-        end
 
-        job.part_num = @part_num
-        job.attempt += 1
-        yield :retry, job
-      # Fatal errors
-      else
-        @logger.error("Encountered a fatal error interacting with the DOMO Streams API.", 
-          :code => e.getStatusCode,
-          :exception => e,
-          :data => data,
-          :event => event)
-        yield :failure, job
+          @part_num.set(1)
+        # end
+
+        break
+      end
+
+      if @retry_failures
+        batch = failures
+        @logger.info("Retrying DOMO Streams API requests. Will sleep for #{@retry_delay} seconds")
+        sleep(@retry_delay)
       end
     end
   end
 
   public
   def close
-    @timer.cancel
-    unless @event_queue.closed?
-      @event_queue.close
-    end
-
-    @event_mutex.synchronize do
+    # @event_mutex.synchronize do
       # Commit or abort the stream execution if that hasn't happened already
       unless @domo_stream_execution.nil?
         @domo_stream_execution = @domo_client.stream_client.getExecution(@domo_stream.getId, @domo_stream_execution.getId)
@@ -150,109 +154,26 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
           @domo_client.stream_client.abortExecution(@domo_stream.getId, @domo_stream_execution.getId)
         end
       end
-    end
-  end
-
-  public
-  # Process the Queue of encoded Events that need to be sent to DOMO.
-  def process_queue
-    @event_mutex.synchronize do
-      # Get or create the Stream Execution
-      if @domo_stream_execution.nil?
-        @domo_stream_execution = @domo_client.stream_execution(@domo_stream)
-      else
-        @domo_stream_execution = @domo_client.stream_client.getExecution(@domo_stream.getId, @domo_stream_execution.getId)
-        # We need to make a new Stream Execution if the current one has already been aborted or committed
-        if @domo_stream_execution != "ACTIVE"
-          @domo_stream_execution = @domo_client.stream_execution(@domo_stream)
-        end
-      end
-    end
-
-    successes = java.util.concurrent.atomic.AtomicInteger.new(0)
-    failures  = java.util.concurrent.atomic.AtomicInteger.new(0)
-    retries = java.util.concurrent.atomic.AtomicInteger.new(0)
-
-    until @event_queue.empty?
-      job = @event_queue.pop
-
-      send_to_domo(job) do |action, processed_job|
-        begin
-          # If we aren't retrying failures, then don't consider retriable errors to be...retriable
-          action = :failure if action == :retry && !@retry_failures
-          case action
-          when :success
-            successes.incrementAndGet
-          when :retry
-            retries.incrementAndGet
-
-            # Calculate how long to sleep before retrying the request
-            sleep_for = sleep_for_attempt(processed_job.attempt)
-            @logger.info("Retrying DOMO Streams API request. Will sleep for #{sleep_for} seconds")
-            # Throw the job onto the timer queue
-            timer_task = RetryTimerTask.new(@event_queue, processed_job)
-            @timer.schedule(timer_task, sleep_for * 1000)
-          when :failure
-            failures.incrementAndGet
-          else
-            raise "Unknown action #{action}"
-          end
-
-          # Safeguard in case the queue size gets out of hand with retriable jobs that are destined to fail
-          if action == :success || action == :failure
-            if successes.get + failures.get == @event_count
-              @event_queue.clear
-            end
-          end
-        rescue => e
-          @logger.error("Error contacting the DOMO API.",
-                        :class => e.class.name,
-                        :message => e.message,
-                        :backtrace => e.backtrace,
-                        :event => job.event,
-                        :data => job.data)
-          failures.incrementAndGet
-        # No matter what happens increment the Part Number
-        ensure
-          @part_num.incrementAndGet
-        end
-      end
-    end
-
-    @event_mutex.synchronize do
-      unless @domo_stream_execution.nil?
-        # Commit and create a new Stream Execution if that hasn't happened already
-        @domo_stream_execution = @domo_client.stream_client.getExecution(@domo_stream.getId, @domo_stream_execution.getId)
-        if @domo_stream_execution.currentState == "ACTIVE"
-          @domo_client.stream_client.commitExecution(@domo_stream.getId, @domo_stream_execution.getId)
-          @domo_stream_execution = nil
-        end
-      end
-
-      @part_num.set(1)
-    end
-  end
-
-  public
-  def receive(event)
-    @event_mutex.synchronize do
-      @event_count = java.util.concurrent.atomic.AtomicInteger.new(1 + @event_queue.size)
-    end
-
-    @codec.encode(event)
-    process_queue
+    # end
   end
 
   public
   def multi_receive(events)
-    @event_mutex.synchronize do
-      @event_count = java.util.concurrent.atomic.AtomicInteger.new(events.size + @event_queue.size)
+    cur_thread = Thread.current
+    unless @thread_batch_map.include? cur_thread
+      @thread_batch_map[cur_thread] = ArrayList.new(events.size)
     end
 
     events.each do |event|
+      break if event == LogStash::SHUTDOWN
       @codec.encode(event)
     end
-    process_queue
+
+    batch = @thread_batch_map[cur_thread]
+    if batch.any?
+      send_to_domo(batch)
+      batch.clear
+    end
   end
 
   public
@@ -270,45 +191,12 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
   end
 
   private
-  # Calculates how long to randomly sleep when retrying a job.
-  #
-  # @param attempt [Integer] The number of attempts that have already occurred.
-  # @return [Numeric] The number of seconds to wait.
-  def sleep_for_attempt(attempt)
-    sleep_for = attempt**2
-    sleep_for = sleep_for <= 60 ? sleep_for : 60
-    (sleep_for/2) + (rand(0..sleep_for)/2)
-  end
-
-  private
   # Job that goes into a Queue and handles sending event data using the DOMO Streams API.
   class DomoQueueJob
     # @return [LogStash::Event]
     attr_accessor :event
     # @return [String] A CSV string of the event's data.
     attr_accessor :data
-    # @return [Integer] The number of attempts made to send the event to DOMO.
-    attr_accessor :attempt
-
-    # @return [Array<Symbol>] Values valid for the action attribute
-    def self.valid_actions
-      [:new, :retry, :success, :failure]
-    end
-
-    # @return [Symbol] The queue action
-    def action
-      @action
-    end
-
-    # @!attribute action [Symbol]
-    #   @return [Symbol]
-    def action=(action)
-      if self.valid_actions.include? action
-        @action = action
-      else
-        raise TypeError("#{action.to_s} is not a valid action.")
-      end
-    end
 
     # @return [java.util.concurrent.atomic.AtomicInteger]
     def part_num
@@ -328,15 +216,11 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
     # @param event [LogStash::Event]
     # @param data [String]
     # @param part_num [Integer, java.util.concurrent.atomic.AtomicInteger]
-    # @param attempt [Integer]
     # @return [DomoQueueJob]
-    def initialize(event, data, part_num, attempt)
+    def initialize(event, data, part_num)
       @event = event
       @data = data
       @part_num = part_num
-      @attempt = attempt
-
-      @action = :new
     end
   end
 
