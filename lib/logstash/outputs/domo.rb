@@ -4,6 +4,8 @@ require "logstash/namespace"
 require "csv"
 require "java"
 require "thread"
+require "redis"
+require "redlock"
 require "logstash-output-domo_jars.rb"
 
 java_import "com.domo.sdk.streams.model.Stream"
@@ -47,10 +49,58 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
   # Retry failed requests. Enabled by default. It would be a pretty terrible idea to disable this. 
   config :retry_failures, :validate => :boolean, :default => true
 
+  # Use Redis for caching DOMO API Responses. Required when using distributed locking.
+  config :use_redis_cache, :validate => :boolean, :default => false
+
+  # The hostname for the Redis cache.
+  config :redis_host, :validate => :string, :default => '127.0.0.1'
+
+  # The port for the Redis cache.
+  config :redis_port, :validate => :number, :default => 6379
+
+  # The database for the Redis cache.
+  config :redis_db, :validate => :number, :default => 0
+
+  # The password for the Redis cache.
+  config :redis_password, :validate => :string
+
+  # Use a set of redis servers to provided a distributed lock for when we're running on multiple Logstash hosts
+  config :use_distributed_lock, :validate => :boolean, :default => false
+
+  # Hosts for the distributed lock cluster.
+  config :lock_hosts, :validate => :list, :default => ['127.0.0.1']
+
+  # The ports for the distributed lock cluster.
+  config :lock_ports, :validate => :list, :default => [6379]
+
+  # The passwords for the distributed lock cluster.
+  config :lock_passwords, :validate => :list
+
+  # 3 second TTL on the lock. The DOMO API ain't always quick.
+  DISTRIBUTED_LOCK_TTL = 3000
+
   public
   def register
+    @lock_key = "logstash_domo_#{@dataset_id}_lock"
+    @redis_cache_prefix = "logstash_domo_#{@dataset_id}_"
+
+    if @use_distributed_lock
+      unless @use_redis_cache
+        raise LogStash::ConfigurationError("use_redis_cache is required when use_distributed_lock is set to true.")
+      end
+      @lock_manager = Redlock::Client.new(lock_servers)
+    else
+      @lock_manager = NoopLock.new
+    end
+
+    if @use_redis_cache
+      @redis_cache = Redis.new("host" => @redis_host, "port" => @redis_port, "db" => @redis_db, "password" => @redis_password)
+    else
+      @redis_cache = nil
+    end
+
     @domo_client = LogStashDomo.new(@client_id, @client_secret, @api_host, @api_ssl, Java::ComDomoSdkRequest::Scope::DATA)
-    @domo_stream, @domo_stream_execution = @domo_client.stream(@stream_id, @dataset_id, false )
+    @domo_stream, @domo_stream_execution = @domo_client.stream(@stream_id, @dataset_id, false)
 
     # Queue for encoded events needing to be uploaded to DOMO
     @event_queue = Queue.new
@@ -151,14 +201,21 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
   # Process the Queue of encoded Events that need to be sent to DOMO.
   def process_queue
     @event_mutex.synchronize do
-      # Get or create the Stream Execution
-      if @domo_stream_execution.nil?
-        @domo_stream_execution = @domo_client.stream_execution(@domo_stream)
-      else
-        @domo_stream_execution = @domo_client.stream_client.getExecution(@domo_stream.getId, @domo_stream_execution.getId)
-        # We need to make a new Stream Execution if the current one has already been aborted or committed
-        if @domo_stream_execution != "ACTIVE"
-          @domo_stream_execution = @domo_client.stream_execution(@domo_stream)
+      @lock_manager.lock(@lock_key, DISTRIBUTED_LOCK_TTL) do |locked|
+        if locked
+          # Get or create the Stream Execution
+          if @domo_stream_execution.nil?
+            @domo_stream_execution = @domo_client.stream_execution(@domo_stream)
+          else
+            @domo_stream_execution = @domo_client.stream_client.getExecution(@domo_stream.getId, @domo_stream_execution.getId)
+            # We need to make a new Stream Execution if the current one has already been aborted or committed
+            if @domo_stream_execution != "ACTIVE"
+              @domo_stream_execution = @domo_client.stream_execution(@domo_stream)
+            end
+          end
+        else
+          # Read from cache
+          raise "Fix me."
         end
       end
     end
@@ -261,6 +318,46 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
       @stream_id = stream_id
       super(msg)
     end
+  end
+
+  public
+  # Provides noop versions of our distributed lock methods so we don't have to throw if statements all over the goddamn place.
+  class NoopLock
+    def initialize(*args)
+    end
+
+    def lock(*args, &block)
+      if block_given?
+        yield true
+      else
+        true
+      end
+    end
+
+    def lock!(*args)
+      lock(*args) do |noop|
+        return yield
+      end
+    end
+
+    def unlock(*args)
+    end
+  end
+
+  private
+  # Builds an array of Redis clients out of the plugin's configuration parameters for distributed locking
+  #
+  # @return [Array<Redis>]
+  def lock_servers
+    lock_servers = Array.new
+    @lock_hosts.each_with_index do |host, i|
+      port = @lock_ports.fetch(i, 6379)
+      password = @lock_passwords.fetch(i, nil)
+
+      lock_servers << Redis.new("host" => host, "port" => port, "password" => password)
+    end
+
+    lock_servers
   end
 
   private
