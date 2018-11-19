@@ -111,6 +111,12 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
                      :event => job.event,
                      :data => job.data)
 
+        if e.message.include? "Data version is closed for multi-part upload."
+          @event_mutex.synchronize do
+            @domo_stream_execution = @domo_client.stream_execution(@domo_stream)
+          end
+        end
+
         job.part_num = @part_num
         job.attempt += 1
         yield :retry, job
