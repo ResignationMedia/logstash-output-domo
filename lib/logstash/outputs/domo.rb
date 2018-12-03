@@ -339,23 +339,4 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
       return stream, stream_execution
     end
   end
-
-  private
-  # Task for retrying a DomoQueueJob
-  class RetryTimerTask < java.util.TimerTask
-    # @param queue [Queue] The Queue to which the job should be added
-    # @param job [DomoQueueJob]
-    def initialize(queue, job)
-      @queue = queue
-      @job = job
-      super()
-    end
-
-    # Add @job to @queue when the timer goes off.
-    # @return [Queue]
-    def run
-      @queue << @job
-    end
-  end
-
 end # class LogStash::Outputs::Domo
