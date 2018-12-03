@@ -117,18 +117,16 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
       end
       
       if failures.empty?
-        # @event_mutex.synchronize do
-          unless @domo_stream_execution.nil?
-            # Commit and create a new Stream Execution if that hasn't happened already
-            @domo_stream_execution = @domo_client.stream_client.getExecution(@domo_stream.getId, @domo_stream_execution.getId)
-            if @domo_stream_execution.currentState == "ACTIVE"
-              @domo_client.stream_client.commitExecution(@domo_stream.getId, @domo_stream_execution.getId)
-              @domo_stream_execution = nil
-            end
+        unless @domo_stream_execution.nil?
+          # Commit and create a new Stream Execution if that hasn't happened already
+          @domo_stream_execution = @domo_client.stream_client.getExecution(@domo_stream.getId, @domo_stream_execution.getId)
+          if @domo_stream_execution.currentState == "ACTIVE"
+            @domo_client.stream_client.commitExecution(@domo_stream.getId, @domo_stream_execution.getId)
+            @domo_stream_execution = nil
           end
+        end
 
-          @part_num.set(1)
-        # end
+        @part_num.set(1)
 
         break
       end
@@ -143,18 +141,16 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
 
   public
   def close
-    # @event_mutex.synchronize do
-      # Commit or abort the stream execution if that hasn't happened already
-      unless @domo_stream_execution.nil?
-        @domo_stream_execution = @domo_client.stream_client.getExecution(@domo_stream.getId, @domo_stream_execution.getId)
+    # Commit or abort the stream execution if that hasn't happened already
+    unless @domo_stream_execution.nil?
+      @domo_stream_execution = @domo_client.stream_client.getExecution(@domo_stream.getId, @domo_stream_execution.getId)
 
-        if @domo_stream_execution.currentState == "ACTIVE"
-          @domo_client.stream_client.commitExecution(@domo_stream.getId, @domo_stream_execution.getId)
-        elsif @domo_stream_execution.currentState == "ERROR" or @domo_stream_execution.currentState == "FAILED"
-          @domo_client.stream_client.abortExecution(@domo_stream.getId, @domo_stream_execution.getId)
-        end
+      if @domo_stream_execution.currentState == "ACTIVE"
+        @domo_client.stream_client.commitExecution(@domo_stream.getId, @domo_stream_execution.getId)
+      elsif @domo_stream_execution.currentState == "ERROR" or @domo_stream_execution.currentState == "FAILED"
+        @domo_client.stream_client.abortExecution(@domo_stream.getId, @domo_stream_execution.getId)
       end
-    # end
+    end
   end
 
   public
