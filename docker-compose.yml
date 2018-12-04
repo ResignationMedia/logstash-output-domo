@@ -1,0 +1,29 @@
+version: '3'
+services:
+  test:
+    build: .
+    volumes:
+      - .:/logstash-output-domo
+    working_dir: /logstash-output-domo
+    command: bundle exec rspec
+    depends_on:
+      - zookeeper1
+      - zookeeper2
+  zookeeper1:
+    image: zookeeper
+    restart: always
+    hostname: zookeeper1
+    ports:
+      - 2181:2181
+    environment:
+      ZOO_MY_ID: 1
+      ZOO_SERVERS: server.1=0.0.0.0:2888:3888 server.2=zookeeper2:2888:3888
+  zookeeper2:
+    image: zookeeper
+    restart: always
+    hostname: zookeeper2
+    ports:
+      - 2182:2181
+    environment:
+      ZOO_MY_ID: 2
+      ZOO_SERVERS: server.1=zookeeper1:2888:3888 server.2=0.0.0.0:2888:3888

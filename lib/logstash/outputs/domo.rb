@@ -1,11 +1,15 @@
 # encoding: utf-8
 require "logstash/outputs/base"
 require "logstash/namespace"
+require "core_extensions/enumerable/flatten"
 require "concurrent"
 require "csv"
 require "java"
 require "thread"
 require "logstash-output-domo_jars.rb"
+
+# Add a method to Enumerable to flatten complex data structures
+Hash.include CoreExtensions::Enumerable::Flatten
 
 java_import "com.domo.sdk.streams.model.Stream"
 java_import "java.util.ArrayList"
@@ -23,8 +27,6 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
   config_name "domo"
 
   concurrency :shared
-
-  default :codec, "csv"
 
   # OAuth ClientID
   config :client_id, :validate => :string, :required => :true
@@ -52,10 +54,13 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
   # The delay (seconds) on retrying failed requests
   config :retry_delay, :validate => :number, :default => 2.0
 
+  attr_accessor :dataset_columns
+
   public
   def register
     @domo_client = LogStashDomo.new(@client_id, @client_secret, @api_host, @api_ssl, Java::ComDomoSdkRequest::Scope::DATA)
     @domo_stream, @domo_stream_execution = @domo_client.stream(@stream_id, @dataset_id, false)
+    @dataset_columns = @domo_client.dataset_schema_columns(@domo_stream)
 
     # Map of batch jobs (per-thread)
     @thread_batch_map = Concurrent::Hash.new
@@ -65,12 +70,6 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
 
     # The Streams API Data Part Number
     @part_num = java.util.concurrent.atomic.AtomicInteger.new(1)
-
-    @codec.on_event do |event, data|
-      job = DomoQueueJob.new(event, data, @part_num.get)
-      @thread_batch_map[Thread.current].add(job)
-      @part_num.incrementAndGet
-    end
   end # def register
   
   public
@@ -162,7 +161,11 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
 
     events.each do |event|
       break if event == LogStash::SHUTDOWN
-      @codec.encode(event)
+      # Encode the Event data and add a job to the queue
+      data = encode_event_data(event)
+      job = DomoQueueJob.new(event, data, @part_num.get)
+      @thread_batch_map[Thread.current].add(job)
+      @part_num.incrementAndGet
     end
 
     batch = @thread_batch_map[cur_thread]
@@ -184,6 +187,33 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
       @stream_id = stream_id
       super(msg)
     end
+  end
+
+  private
+  # CSV encode event data to pass to DOMO
+  #
+  # @param event [LogStash::Event] The Event to be sent to DOMO.
+  # @return [String] The CSV encoded string.
+  def encode_event_data(event)
+    encode_options = {
+        :headers => @dataset_columns,
+        :write_headers => false,
+        :return_headers => false,
+    }
+
+    csv_data = CSV.generate(String.new, encode_options) do |csv_obj|
+      data = event.to_hash.flatten_with_path
+      data = data.select { |k, _| @dataset_columns.include? k }
+      @dataset_columns.each do |col|
+        unless data.has_key? col
+          data[col] = nil
+        end
+      end
+
+      data = data.sort_by { |k, _| @dataset_columns.index(k) }.to_h
+      csv_obj << data.values
+    end
+    csv_data.strip
   end
 
   private
@@ -270,6 +300,17 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
           results = method.call(*args, offset)
         end
       end
+    end
+
+    # Get column names from the provided Stream's Dataset
+    #
+    # @param stream [Java::ComDomoSdkStreamModel::Stream] A DOMO SDK Stream object
+    # @return [Array<String>] The Dataset's column names
+    def dataset_schema_columns(stream)
+      dataset = @client.dataSetClient.get(stream.getDataset.getId)
+      schema = dataset.getSchema
+
+      schema.getColumns.map(&:getName)
     end
 
     # Get the provided Stream's ACTIVE Stream Execution or create a new one

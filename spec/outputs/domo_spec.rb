@@ -1,8 +1,6 @@
 # encoding: utf-8
 require "logstash/devutils/rspec/spec_helper"
 require "logstash/outputs/domo"
-require "logstash/codecs/plain"
-require "logstash/codecs/csv"
 require "logstash/event"
 require "yaml"
 
@@ -17,19 +15,11 @@ describe LogStash::Outputs::Domo do
       {}
     end
   end
-  let(:codec) do
-    LogStash::Plugin.lookup("codec", "csv").new("columns" => ["Column1", "Column2"])
-  end
   let(:event) do
     LogStash::Event.new(
       "Column1" => 456,
       "Column2" => 789,
     )
-  end
-  let(:base_config) do
-    {
-      "codec" => codec,
-    }
   end
 
   describe "test settings" do
@@ -57,10 +47,8 @@ describe LogStash::Outputs::Domo do
     let(:dataset_id) { user_config.fetch("dataset_id", nil) }
     let(:stream_id) { user_config.fetch("stream_id", nil) }
     let(:config) do
-      base_config.merge(
+      user_config.merge(
           {
-              "client_id" => user_config["client_id"],
-              "client_secret" => user_config["client_secret"],
               "stream_id" => stream_id,
               "dataset_id" => dataset_id
           })
@@ -80,7 +68,6 @@ describe LogStash::Outputs::Domo do
     it "should send the event to DOMO" do
       subject.multi_receive(events)
       subject.multi_receive([event])
-      # subject.receive(event)
     end
 
     after(:each) do
