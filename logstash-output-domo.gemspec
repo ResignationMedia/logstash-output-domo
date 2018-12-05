@@ -25,9 +25,7 @@ Gem::Specification.new do |s|
   s.requirements << "jar 'com.squareup.okhttp3:logging-interceptor', '3.7.0'"
   s.requirements << "jar 'com.google.code.gson:gson', '2.8.0'"
   s.requirements << "jar 'org.jetbrains.kotlin:kotlin-stdlib', '1.3.0'"
-  
   s.requirements << "jar 'org.apache.commons:commons-io', '1.3.2'"
-
   s.requirements << "jar 'org.slf4j:slf4j-api', '1.7.21'"
   s.requirements << "jar 'com.squareup.okio:okio', '2.1.0'"
 
@@ -36,6 +34,8 @@ Gem::Specification.new do |s|
   s.add_runtime_dependency "logstash-codec-plain"
   s.add_runtime_dependency "concurrent-ruby", "~> 1.0"
   s.add_runtime_dependency "jar-dependencies"
+  s.add_runtime_dependency "redis"
+  s.add_runtime_dependency "redlock"
 
   s.add_development_dependency "logstash-devutils"
 end

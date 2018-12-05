@@ -1,29 +1,54 @@
-version: '3'
+version: '3.4'
 services:
   test:
-    build: .
+    build:
+      context: .
+      target: test
     volumes:
       - .:/logstash-output-domo
     working_dir: /logstash-output-domo
     command: bundle exec rspec
+    environment:
+      - REDIS_HOST_1=redis1
+      - REDIS_PORT_1=6379
+      - REDIS_HOST_2=redis2
+      - REDIS_PORT_2=6379
+      - DEFAULT_REDIS_HOST=redis1
+      - DEFAULT_REDIS_PORT=6379
     depends_on:
-      - zookeeper1
-      - zookeeper2
-  zookeeper1:
-    image: zookeeper
-    restart: always
-    hostname: zookeeper1
-    ports:
-      - 2181:2181
-    environment:
-      ZOO_MY_ID: 1
-      ZOO_SERVERS: server.1=0.0.0.0:2888:3888 server.2=zookeeper2:2888:3888
-  zookeeper2:
-    image: zookeeper
-    restart: always
-    hostname: zookeeper2
-    ports:
-      - 2182:2181
-    environment:
-      ZOO_MY_ID: 2
-      ZOO_SERVERS: server.1=zookeeper1:2888:3888 server.2=0.0.0.0:2888:3888
+      - redis1
+      - redis2
+      - sentinel1
+      - sentinel2
+      - sentinel3
+  redis1:
+    image: redis
+  redis2:
+    build:
+      context: .
+      target: redis2
+    command: [ "redis-server", "/usr/local/etc/redis/redis.conf" ]
+    depends_on:
+      - redis1
+  sentinel1:
+    build:
+      context: .
+      target: sentinel1
+    command: [ "redis-server", "/usr/local/etc/redis/redis-sentinel.conf", "--sentinel"]
+    depends_on:
+      - redis1
+      - redis2
+  sentinel2:
+    build:
+      context: .
+      target: sentinel2
+    command: [ "redis-server", "/usr/local/etc/redis/redis-sentinel.conf", "--sentinel"]
+    depends_on:
+      - sentinel1
+  sentinel3:
+    build:
+      context: .
+      target: sentinel3
+    command: [ "redis-server", "/usr/local/etc/redis/redis-sentinel.conf", "--sentinel"]
+    depends_on:
+      - sentinel2

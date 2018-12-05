@@ -6,8 +6,9 @@ require "yaml"
 
 describe LogStash::Outputs::Domo do
   let(:user_config) do
-    test_settings_file = File.dirname(File.dirname(__FILE__))
-    test_settings_file = File.join(test_settings_file, 'test_settings.yaml')
+    test_settings_file = File.dirname(File.dirname(File.dirname(__FILE__)))
+    test_settings_file = File.join(test_settings_file, 'testing')
+    test_settings_file = File.join(test_settings_file, 'rspec_settings.yaml')
 
     if File.exists?(test_settings_file)
       YAML.load_file(test_settings_file)
@@ -20,6 +21,36 @@ describe LogStash::Outputs::Domo do
       "Column1" => 456,
       "Column2" => 789,
     )
+  end
+  let(:lock_servers) do
+    redis_servers = Array.new
+    ENV.each do |k, v|
+      if k.start_with? 'REDIS_HOST'
+        i = k.split('_')[-1].to_i
+
+        host = v
+        port = ENV.fetch("REDIS_PORT_#{i}", "6379").to_i
+        db = ENV.fetch("REDIS_DB_#{i}", "0").to_i
+        password = ENV.fetch("REDIS_PASSWORD_#{i}", nil)
+
+        server = {
+            "host"     => host,
+            "port"     => port,
+            "db"       => db,
+            "password" => password,
+        }
+
+        redis_servers << server
+      end
+    end
+
+    if redis_servers.length <= 0
+      redis_servers = [
+          {"host" => "localhost"}
+      ]
+    end
+
+    redis_servers
   end
 
   describe "test settings" do
@@ -50,7 +81,9 @@ describe LogStash::Outputs::Domo do
       user_config.merge(
           {
               "stream_id" => stream_id,
-              "dataset_id" => dataset_id
+              "dataset_id" => dataset_id,
+              "distributed_lock" => true,
+              "lock_servers" => lock_servers,
           })
     end
 
