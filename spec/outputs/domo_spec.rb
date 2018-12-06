@@ -25,13 +25,13 @@ describe LogStash::Outputs::Domo do
   let(:lock_servers) do
     redis_servers = Array.new
     ENV.each do |k, v|
-      if k.start_with? 'REDIS_HOST'
+      if k.start_with? "LOCK_HOST"
         i = k.split('_')[-1].to_i
 
         host = v
-        port = ENV.fetch("REDIS_PORT_#{i}", "6379").to_i
-        db = ENV.fetch("REDIS_DB_#{i}", "0").to_i
-        password = ENV.fetch("REDIS_PASSWORD_#{i}", nil)
+        port = ENV.fetch("LOCK_PORT_#{i}", "6379").to_i
+        db = ENV.fetch("LOCK_DB_#{i}", "0").to_i
+        password = ENV.fetch("LOCK_PASSWORD_#{i}", nil)
 
         server = {
             "host"     => host,
@@ -51,6 +51,26 @@ describe LogStash::Outputs::Domo do
     end
 
     redis_servers
+  end
+  let(:redis_client) do
+    options = {
+        "url" => ENV["REDIS_URL"],
+    }
+    sentinels = Array.new
+    ENV.each do |k, v|
+      if k.start_with? "REDIS_SENTINEL_HOST"
+        index = k.split("_")[-1].to_i
+        sentinel = {
+            "host" => v,
+            "port" => ENV.fetch("REDIS_SENTINEL_PORT_#{index}", 26379)
+        }
+
+        sentinels << sentinel
+      end
+    end
+
+    options["sentinels"] = sentinels
+    options
   end
 
   describe "test settings" do
@@ -78,12 +98,13 @@ describe LogStash::Outputs::Domo do
     let(:dataset_id) { user_config.fetch("dataset_id", nil) }
     let(:stream_id) { user_config.fetch("stream_id", nil) }
     let(:config) do
-      user_config.merge(
+      user_config.clone.merge(
           {
               "stream_id" => stream_id,
               "dataset_id" => dataset_id,
               "distributed_lock" => true,
               "lock_servers" => lock_servers,
+              "redis_client" => redis_client,
           })
     end
 

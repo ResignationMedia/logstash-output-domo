@@ -7,12 +7,16 @@ services:
     volumes:
       - .:/logstash-output-domo
     working_dir: /logstash-output-domo
-    command: bundle exec rspec
+    command: bundle exec rspec --backtrace
     environment:
-      - REDIS_HOST_1=redis1
-      - REDIS_PORT_1=6379
-      - REDIS_HOST_2=redis2
-      - REDIS_PORT_2=6379
+      - LOCK_HOST_1=redis1
+      - LOCK_PORT_1=6379
+      - LOCK_HOST_2=redis2
+      - LOCK_PORT_2=6379
+      - REDIS_URL=redis://redis1
+      - REDIS_SENTINEL_HOST_1=sentinel1
+      - REDIS_SENTINEL_HOST_2=sentinel2
+      - REDIS_SENTINEL_HOST_3=sentinel3
       - DEFAULT_REDIS_HOST=redis1
       - DEFAULT_REDIS_PORT=6379
     depends_on:
