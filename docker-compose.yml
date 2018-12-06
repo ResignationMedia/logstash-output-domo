@@ -13,7 +13,7 @@ services:
       - LOCK_PORT_1=6379
       - LOCK_HOST_2=redis2
       - LOCK_PORT_2=6379
-      - REDIS_URL=redis://redis1
+      - REDIS_URL=redis://mymaster
       - REDIS_SENTINEL_HOST_1=sentinel1
       - REDIS_SENTINEL_HOST_2=sentinel2
       - REDIS_SENTINEL_HOST_3=sentinel3

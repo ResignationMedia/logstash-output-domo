@@ -141,6 +141,7 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
       if @redis_client.nil?
         raise LogStash::ConfigurationError("The redis_client parameter is required when using distributed_lock")
       else
+        @redis_client = symbolize_redis_client_args(@redis_client)
         @redis_client = Redis.new(@redis_client)
       end
 
@@ -349,6 +350,23 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
     end
 
     lock_servers
+  end
+
+  private
+  # Convert all keys in the redis_client hash to symbols because that's how redis-rb wants them.
+  #
+  # @param redis_client_args [Hash]
+  # @return [Hash]
+  def symbolize_redis_client_args(redis_client_args)
+    redis_client_args = redis_client_args.inject({}) {|memo, (k, v)| memo[k.to_sym] = v; memo}
+    unless redis_client_args.fetch(:sentinels, nil).nil?
+
+      redis_client_args[:sentinels] = redis_client_args[:sentinels].map do |sentinel|
+        sentinel.inject({}) {|memo, (k, v)| memo[k.to_sym] = v; memo}
+      end
+    end
+
+    redis_client_args
   end
 
   private
