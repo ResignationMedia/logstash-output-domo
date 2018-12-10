@@ -93,7 +93,7 @@ module Domo
       # Iterate over all the jobs in the queue by popping them off the list in redis.
       # *In other words this will call the #pop method!* You've been warned...
       #
-      # @param &block [Proc]
+      # @param block [Proc]
       # @return [Job]
       def each(&block)
         return enum_for(:each) unless block_given?
