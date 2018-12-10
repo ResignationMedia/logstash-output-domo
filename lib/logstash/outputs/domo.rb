@@ -6,7 +6,6 @@ require "concurrent"
 require "csv"
 require "java"
 require "redis"
-require "redis/distributed"
 require "redlock"
 require "thread"
 require "logstash-output-domo_jars.rb"
@@ -27,6 +26,8 @@ java_import "java.util.concurrent.atomic.AtomicReference"
 # Streams cannot be added to existing Datasets.
 # https://developer.domo.com/docs/stream/overview
 class LogStash::Outputs::Domo < LogStash::Outputs::Base
+  require "logstash/outputs/domo/queue"
+
   config_name "domo"
 
   concurrency :shared
@@ -157,15 +158,26 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
 
       @lock_manager = Redlock::Client.new(redis_clients)
     end
+
+    if @redis_client.nil?
+      @queue = Concurrent::Hash.new
+    else
+      @queue = DomoQueue.new(@redis_client, @dataset_id)
+    end
   end # def register
   
   public
   # Send Event data using the DOMO Streams API.
   #
-  # @param batch [java.util.ArrayList<DomoQueueJob>] The batch of events to send to DOMO.
+  # @param batch [java.util.ArrayList<DomoQueueJob>, DomoQueue] The batch of events to send to DOMO.
   def send_to_domo(batch)
     while batch.any?
-      failures = []
+      if @queue.is_a? DomoQueue
+        failures = DomoQueue.new(@redis_client, @dataset_id)
+      else
+        failures = []
+      end
+
       batch.each do |job|
         begin
           @domo_stream_execution = @domo_client.stream_execution(@domo_stream, @domo_stream_execution)
@@ -213,7 +225,10 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
           end
         end
 
-        _ = @redis_client.getset("#{@dataset_id}_part_num", "0")
+        unless @redis_client.nil?
+          _ = @redis_client.getset("#{@dataset_id}_part_num", "0")
+        end
+
         break
       end
 
@@ -237,31 +252,55 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
         @domo_client.stream_client.abortExecution(@domo_stream.getId, @domo_stream_execution.getId)
       end
 
-      _ = @redis_client.getset("#{@dataset_id}_part_num", "0")
+      unless @redis_client.nil?
+        _ = @redis_client.getset("#{@dataset_id}_part_num", "0")
+      end
     end
   end
 
   public
   def multi_receive(events)
-    cur_thread = Thread.current
-    unless @thread_batch_map.include? cur_thread
-      @thread_batch_map[cur_thread] = ArrayList.new(events.size)
+    if @redis_client.nil?
+      cur_thread = Thread.current
+
+      if @queue.include? cur_thread
+        queue = @queue[cur_thread]
+      else
+        @queue[cur_thread] = ArrayList.new(events.size)
+        queue = @queue[cur_thread]
+      end
+    else
+      queue = @queue
     end
 
+    if @redis_client.nil?
+      part_num = java.util.concurrent.atomic.AtomicInteger.new(1)
+    end
     events.each do |event|
       break if event == LogStash::SHUTDOWN
-      # The Streams API Data Part Number
-      part_num = @redis_client.incr("#{@dataset_id}_part_num")
+
+      # Set the Streams API Data Part Number
+      unless @redis_client.nil?
+        part_num = @redis_client.incr("#{@dataset_id}_part_num")
+      end
+
       # Encode the Event data and add a job to the queue
       data = encode_event_data(event)
       job = DomoQueueJob.new(event, data, part_num)
-      @thread_batch_map[Thread.current].add(job)
+      queue.add(job)
+
+      if @redis_client.nil?
+        part_num.incrementAndGet
+      end
     end
 
-    batch = @thread_batch_map[cur_thread]
+    batch = queue
     if batch.any?
       send_to_domo(batch)
-      batch.clear
+      if @redis_client.nil?
+        batch.clear
+        part_num.set(1)
+      end
     end
   end
 
@@ -367,27 +406,6 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
     end
 
     redis_client_args
-  end
-
-  private
-  # Job that goes into a Queue and handles sending event data using the DOMO Streams API.
-  class DomoQueueJob
-    # @return [LogStash::Event]
-    attr_accessor :event
-    # @return [String] A CSV string of the event's data.
-    attr_accessor :data
-    # @return [Integer]
-    attr_accessor :part_num
-
-    # @param event [LogStash::Event]
-    # @param data [String]
-    # @param part_num [Integer]
-    # @return [DomoQueueJob]
-    def initialize(event, data, part_num)
-      @event = event
-      @data = data
-      @part_num = part_num
-    end
   end
 
   private
