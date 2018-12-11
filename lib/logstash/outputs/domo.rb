@@ -162,7 +162,34 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
     if @redis_client.nil?
       @queue = Concurrent::Hash.new
     else
-      @queue = Domo::Queue.new(@redis_client, @dataset_id)
+      # Attempt to load the queue from redis in case there are still active jobs
+      @queue = Domo::Queue.active_queue_from_redis(@redis_client, @dataset_id, @domo_stream.getId)
+      unless @queue.nil?
+        # Make sure the Stream Execution is still active in the Domo API.
+        stream_execution = @domo_client.stream_client.getExecution(@queue.stream_id, @queue.execution_id)
+        if stream_execution.currentState == "ACTIVE"
+          unless @domo_stream_execution.nil?
+            if @domo_stream_execution.getId != stream_execution.getId
+              @queue = nil
+            end
+          end
+        else
+          @queue = nil
+        end
+      end
+
+      if @queue.nil?
+        begin
+          @queue = Domo::Queue.new(@redis_client, @dataset_id, @domo_stream.getId, @domo_stream_execution.getId)
+        rescue NoMethodError, Domo::CachedStreamExecutionNotFound
+          @domo_stream, @domo_stream_execution = @domo_client.stream(@stream_id, @dataset_id, false)
+          if @domo_stream_execution.nil?
+            @domo_stream_execution = @domo_client.stream_execution(@domo_stream, @domo_stream_execution)
+          end
+
+          @queue = Domo::Queue.new(@redis_client, @dataset_id, @domo_stream.getId, @domo_stream_execution.getId)
+        end
+      end
     end
   end # def register
   
@@ -173,7 +200,7 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
   def send_to_domo(batch)
     while batch.any?
       if @queue.is_a? Domo::Queue
-        failures = Domo::Queue.new(@redis_client, @dataset_id)
+        failures = Domo::Queue.new(@redis_client, @dataset_id, @queue.stream_id, @queue.execution_id)
       else
         failures = []
       end
