@@ -113,6 +113,36 @@ Concurrent::Hash, which is why it has a ton of redundant methods.</p>
   
 
 </div>
+  
+    <h2>
+      Constant Summary
+      <small><a href="#" class="constants_summary_toggle">collapse</a></small>
+    </h2>
+
+    <dl class="constants">
+      
+        <dt id="REDIS_KEY_SUFFIXES-constant" class="">REDIS_KEY_SUFFIXES =
+          <div class="docstring">
+  <div class="discussion">
+    
+<p>Suffixes to add to our redis keys</p>
+
+
+  </div>
+</div>
+<div class="tags">
+  
+
+</div>
+        </dt>
+        <dd><pre class="code"><span class='lbrace'>{</span>
+    <span class='symbol'>:ACTIVE_EXECUTION</span> <span class='op'>=&gt;</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>_active_execution_id</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span>
+    <span class='symbol'>:QUEUE</span>            <span class='op'>=&gt;</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>_queue</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span>
+<span class='rbrace'>}</span></pre></dd>
+      
+    </dl>
+  
+
 
 
 
@@ -133,6 +163,60 @@ Concurrent::Hash, which is why it has a ton of redundant methods.</p>
     
       <span class="note title readonly">readonly</span>
     
+    
+  
+  
+  
+  
+  
+
+  
+    <span class="summary_desc"><div class='inline'></div></span>
+  
+</li>
+
+    
+      <li class="public ">
+  <span class="summary_signature">
+    
+      <a href="#dataset_id-instance_method" title="#dataset_id (instance method)">#<strong>dataset_id</strong>  &#x21d2; String </a>
+    
+
+    
+  </span>
+  
+  
+  
+    
+      <span class="note title readonly">readonly</span>
+    
+    
+  
+  
+  
+  
+  
+
+  
+    <span class="summary_desc"><div class='inline'></div></span>
+  
+</li>
+
+    
+      <li class="public ">
+  <span class="summary_signature">
+    
+      <a href="#execution_id=-instance_method" title="#execution_id= (instance method)">#<strong>execution_id</strong>  &#x21d2; Object </a>
+    
+
+    
+  </span>
+  
+  
+  
+    
+    
+      <span class="note title writeonly">writeonly</span>
     
   
   
@@ -173,11 +257,96 @@ Concurrent::Hash, which is why it has a ton of redundant methods.</p>
 </li>
 
     
+      <li class="public ">
+  <span class="summary_signature">
+    
+      <a href="#stream_id-instance_method" title="#stream_id (instance method)">#<strong>stream_id</strong>  &#x21d2; Integer </a>
+    
+
+    
+  </span>
+  
+  
+  
+    
+      <span class="note title readonly">readonly</span>
+    
+    
+  
+  
+  
+  
+  
+
+  
+    <span class="summary_desc"><div class='inline'></div></span>
+  
+</li>
+
+    
   </ul>
 
 
 
 
+  
+    <h2>
+      Class Method Summary
+      <small><a href="#" class="summary_toggle">collapse</a></small>
+    </h2>
+
+    <ul class="summary">
+      
+        <li class="public ">
+  <span class="summary_signature">
+    
+      <a href="#get_active_execution_id-class_method" title="get_active_execution_id (class method)">.<strong>get_active_execution_id</strong>(redis_client, dataset_id)  &#x21d2; Object </a>
+    
+
+    
+  </span>
+  
+  
+  
+  
+  
+  
+  
+
+  
+    <span class="summary_desc"><div class='inline'>
+<p>Get the active Stream Execution ID for the provided Dataset&#39;s Queue.</p>
+</div></span>
+  
+</li>
+
+      
+        <li class="public ">
+  <span class="summary_signature">
+    
+      <a href="#get_active_queue-class_method" title="get_active_queue (class method)">.<strong>get_active_queue</strong>(redis_client, dataset_id, stream_id = nil)  &#x21d2; Queue </a>
+    
+
+    
+  </span>
+  
+  
+  
+  
+  
+  
+  
+
+  
+    <span class="summary_desc"><div class='inline'>
+<p>Construct a Queue instance related to the active Stream Execution for the
+provided Dataset.</p>
+</div></span>
+  
+</li>
+
+      
+    </ul>
   
     <h2>
       Instance Method Summary
@@ -334,7 +503,34 @@ redis.</p>
         <li class="public ">
   <span class="summary_signature">
     
-      <a href="#initialize-instance_method" title="#initialize (instance method)">#<strong>initialize</strong>(redis_client, queue_name)  &#x21d2; Queue </a>
+      <a href="#execution_id-instance_method" title="#execution_id (instance method)">#<strong>execution_id</strong>  &#x21d2; Object </a>
+    
+
+    
+  </span>
+  
+  
+  
+    
+    
+      <span class="note title writeonly">writeonly</span>
+    
+  
+  
+  
+  
+  
+
+  
+    <span class="summary_desc"><div class='inline'></div></span>
+  
+</li>
+
+      
+        <li class="public ">
+  <span class="summary_signature">
+    
+      <a href="#initialize-instance_method" title="#initialize (instance method)">#<strong>initialize</strong>(redis_client, dataset_id, stream_id = nil, execution_id = nil)  &#x21d2; Queue </a>
     
 
     
@@ -438,7 +634,7 @@ redis.</p>
     <div class="method_details first">
   <h3 class="signature first" id="initialize-instance_method">
   
-    #<strong>initialize</strong>(redis_client, queue_name)  &#x21d2; <tt><span class='object_link'><a href="" title="Domo::Queue (class)">Queue</a></span></tt> 
+    #<strong>initialize</strong>(redis_client, dataset_id, stream_id = nil, execution_id = nil)  &#x21d2; <tt><span class='object_link'><a href="" title="Domo::Queue (class)">Queue</a></span></tt> 
   
 
   
@@ -469,11 +665,24 @@ redis.</p>
   
     <li>
       
-        <span class='name'>queue_name</span>
+        <span class='name'>dataset_id</span>
       
       
         <span class='type'>(<tt>String</tt>)</span>
       
+      
+      
+    </li>
+  
+    <li>
+      
+        <span class='name'>stream_id</span>
+      
+      
+        <span class='type'>(<tt>Integer</tt>)</span>
+      
+      
+        <em class="default">(defaults to: <tt>nil</tt>)</em>
       
       
     </li>
@@ -487,26 +696,60 @@ redis.</p>
       <pre class="lines">
 
 
-17
-18
-19
-20
-21
-22
-23
-24
-25
-26
-27</pre>
+79
+80
+81
+82
+83
+84
+85
+86
+87
+88
+89
+90
+91
+92
+93
+94
+95
+96
+97
+98
+99
+100
+101
+102
+103
+104
+105
+106</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/domo/queue.rb', line 17</span>
+      <pre class="code"><span class="info file"># File 'lib/domo/queue.rb', line 79</span>
 
-<span class='kw'>def</span> <span class='id identifier rubyid_initialize'>initialize</span><span class='lparen'>(</span><span class='id identifier rubyid_redis_client'>redis_client</span><span class='comma'>,</span> <span class='id identifier rubyid_queue_name'>queue_name</span><span class='rparen'>)</span>
+<span class='kw'>def</span> <span class='id identifier rubyid_initialize'>initialize</span><span class='lparen'>(</span><span class='id identifier rubyid_redis_client'>redis_client</span><span class='comma'>,</span> <span class='id identifier rubyid_dataset_id'>dataset_id</span><span class='comma'>,</span> <span class='id identifier rubyid_stream_id'>stream_id</span><span class='op'>=</span><span class='kw'>nil</span><span class='comma'>,</span> <span class='id identifier rubyid_execution_id'>execution_id</span><span class='op'>=</span><span class='kw'>nil</span><span class='rparen'>)</span>
   <span class='comment'># @type [Redis]
 </span>  <span class='ivar'>@client</span> <span class='op'>=</span> <span class='id identifier rubyid_redis_client'>redis_client</span>
+
+  <span class='ivar'>@dataset_id</span> <span class='op'>=</span> <span class='id identifier rubyid_dataset_id'>dataset_id</span>
+  <span class='ivar'>@stream_id</span> <span class='op'>=</span> <span class='id identifier rubyid_stream_id'>stream_id</span>
+
+  <span class='ivar'>@execution_id</span> <span class='op'>=</span> <span class='id identifier rubyid_execution_id'>execution_id</span>
+  <span class='kw'>if</span> <span class='ivar'>@execution_id</span><span class='period'>.</span><span class='id identifier rubyid_nil?'>nil?</span>
+    <span class='ivar'>@execution_id</span> <span class='op'>=</span> <span class='kw'>self</span><span class='period'>.</span><span class='id identifier rubyid_class'>class</span><span class='period'>.</span><span class='id identifier rubyid_get_active_execution_id'>get_active_execution_id</span><span class='lparen'>(</span><span class='ivar'>@client</span><span class='comma'>,</span> <span class='ivar'>@dataset_id</span><span class='rparen'>)</span>
+  <span class='kw'>elsif</span> <span class='ivar'>@execution_id</span> <span class='op'>!=</span> <span class='kw'>self</span><span class='period'>.</span><span class='id identifier rubyid_class'>class</span><span class='period'>.</span><span class='id identifier rubyid_get_active_execution_id'>get_active_execution_id</span><span class='lparen'>(</span><span class='ivar'>@client</span><span class='comma'>,</span> <span class='ivar'>@dataset_id</span><span class='rparen'>)</span>
+    <span class='ivar'>@client</span><span class='period'>.</span><span class='id identifier rubyid_set'>set</span><span class='lparen'>(</span><span class='tstring'><span class='tstring_beg'>&quot;</span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_dataset_id'>dataset_id</span><span class='embexpr_end'>}</span><span class='embexpr_beg'>#{</span><span class='const'><span class='object_link'><a href="#REDIS_KEY_SUFFIXES-constant" title="Domo::Queue::REDIS_KEY_SUFFIXES (constant)">REDIS_KEY_SUFFIXES</a></span></span><span class='lbracket'>[</span><span class='symbol'>:ACTIVE_EXECUTION</span><span class='rbracket'>]</span><span class='embexpr_end'>}</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> 
+                <span class='ivar'>@execution_id</span><span class='rparen'>)</span>
+  <span class='kw'>end</span>
+
+  <span class='kw'>if</span> <span class='ivar'>@execution_id</span><span class='period'>.</span><span class='id identifier rubyid_nil?'>nil?</span>
+    <span class='id identifier rubyid_raise'>raise</span> <span class='const'><span class='object_link'><a href="CachedStreamExecutionNotFound.html" title="Domo::CachedStreamExecutionNotFound (class)">CachedStreamExecutionNotFound</a></span></span><span class='period'>.</span><span class='id identifier rubyid_new'><span class='object_link'><a href="CachedStreamExecutionNotFound.html#initialize-instance_method" title="Domo::CachedStreamExecutionNotFound#initialize (method)">new</a></span></span><span class='lparen'>(</span><span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>No Stream Execution was found for DatasetID </span><span class='embexpr_beg'>#{</span><span class='ivar'>@dataset_id</span><span class='embexpr_end'>}</span><span class='tstring_content'> and StreamID </span><span class='embexpr_beg'>#{</span><span class='ivar'>@stream_id</span><span class='embexpr_end'>}</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span>
+                                            <span class='ivar'>@dataset_id</span><span class='comma'>,</span> <span class='ivar'>@stream_id</span><span class='rparen'>)</span>
+  <span class='kw'>end</span>
+
   <span class='comment'># @type [String]
-</span>  <span class='ivar'>@queue_name</span> <span class='op'>=</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_queue_name'>queue_name</span><span class='embexpr_end'>}</span><span class='tstring_content'>_queue</span><span class='tstring_end'>&quot;</span></span>
+</span>  <span class='ivar'>@queue_name</span> <span class='op'>=</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_dataset_id'>dataset_id</span><span class='embexpr_end'>}</span><span class='embexpr_beg'>#{</span><span class='const'><span class='object_link'><a href="#REDIS_KEY_SUFFIXES-constant" title="Domo::Queue::REDIS_KEY_SUFFIXES (constant)">REDIS_KEY_SUFFIXES</a></span></span><span class='lbracket'>[</span><span class='symbol'>:QUEUE</span><span class='rbracket'>]</span><span class='embexpr_end'>}</span><span class='tstring_content'>_</span><span class='embexpr_beg'>#{</span><span class='ivar'>@execution_id</span><span class='embexpr_end'>}</span><span class='tstring_end'>&quot;</span></span>
 
   <span class='comment'># Remove the queue key if it&#39;s not a list
 </span>  <span class='kw'>if</span> <span class='ivar'>@client</span><span class='period'>.</span><span class='id identifier rubyid_exists'>exists</span><span class='lparen'>(</span><span class='ivar'>@queue_name</span><span class='rparen'>)</span> <span class='kw'>and</span> <span class='ivar'>@client</span><span class='period'>.</span><span class='id identifier rubyid_type'>type</span><span class='lparen'>(</span><span class='ivar'>@queue_name</span><span class='rparen'>)</span> <span class='op'>!=</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>list</span><span class='tstring_end'>&#39;</span></span>
@@ -562,15 +805,121 @@ redis.</p>
       <pre class="lines">
 
 
-13
-14
-15</pre>
+19
+20
+21</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/domo/queue.rb', line 13</span>
+      <pre class="code"><span class="info file"># File 'lib/domo/queue.rb', line 19</span>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_client'>client</span>
   <span class='ivar'>@client</span>
+<span class='kw'>end</span></pre>
+    </td>
+  </tr>
+</table>
+</div>
+    
+      
+      <span id=""></span>
+      <div class="method_details ">
+  <h3 class="signature " id="dataset_id-instance_method">
+  
+    #<strong>dataset_id</strong>  &#x21d2; <tt>String</tt>  <span class="extras">(readonly)</span>
+  
+
+  
+
+  
+</h3><div class="docstring">
+  <div class="discussion">
+    
+
+  </div>
+</div>
+<div class="tags">
+  
+<p class="tag_title">Returns:</p>
+<ul class="return">
+  
+    <li>
+      
+      
+        <span class='type'>(<tt>String</tt>)</span>
+      
+      
+      
+    </li>
+  
+</ul>
+
+</div><table class="source_code">
+  <tr>
+    <td>
+      <pre class="lines">
+
+
+21
+22
+23</pre>
+    </td>
+    <td>
+      <pre class="code"><span class="info file"># File 'lib/domo/queue.rb', line 21</span>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_dataset_id'>dataset_id</span>
+  <span class='ivar'>@dataset_id</span>
+<span class='kw'>end</span></pre>
+    </td>
+  </tr>
+</table>
+</div>
+    
+      
+      <span id=""></span>
+      <div class="method_details ">
+  <h3 class="signature " id="execution_id=-instance_method">
+  
+    #<strong>execution_id=</strong>(value)  &#x21d2; <tt>Object</tt>  <span class="extras">(writeonly)</span>
+  
+
+  
+
+  
+</h3><table class="source_code">
+  <tr>
+    <td>
+      <pre class="lines">
+
+
+34
+35
+36
+37
+38
+39
+40
+41
+42
+43
+44
+45
+46</pre>
+    </td>
+    <td>
+      <pre class="code"><span class="info file"># File 'lib/domo/queue.rb', line 34</span>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_execution_id='>execution_id=</span><span class='lparen'>(</span><span class='id identifier rubyid_execution_id'>execution_id</span><span class='rparen'>)</span>
+  <span class='comment'># No need to block redis if nothing actually changed.
+</span>  <span class='id identifier rubyid_update_redis'>update_redis</span> <span class='op'>=</span> <span class='kw'>false</span>
+  <span class='kw'>if</span> <span class='id identifier rubyid_execution_id'>execution_id</span> <span class='op'>!=</span> <span class='ivar'>@execution_id</span>
+    <span class='id identifier rubyid_update_redis'>update_redis</span> <span class='op'>=</span> <span class='kw'>true</span>
+  <span class='kw'>end</span>
+
+  <span class='ivar'>@execution_id</span> <span class='op'>=</span> <span class='id identifier rubyid_execution_id'>execution_id</span>
+  <span class='kw'>if</span> <span class='id identifier rubyid_update_redis'>update_redis</span>
+    <span class='ivar'>@client</span><span class='period'>.</span><span class='id identifier rubyid_set'>set</span><span class='lparen'>(</span><span class='tstring'><span class='tstring_beg'>&quot;</span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_dataset_id'>dataset_id</span><span class='embexpr_end'>}</span><span class='embexpr_beg'>#{</span><span class='const'><span class='object_link'><a href="#REDIS_KEY_SUFFIXES-constant" title="Domo::Queue::REDIS_KEY_SUFFIXES (constant)">REDIS_KEY_SUFFIXES</a></span></span><span class='lbracket'>[</span><span class='symbol'>:ACTIVE_EXECUTION</span><span class='rbracket'>]</span><span class='embexpr_end'>}</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> 
+                <span class='ivar'>@execution_id</span><span class='rparen'>)</span>
+  <span class='kw'>end</span>
 <span class='kw'>end</span></pre>
     </td>
   </tr>
@@ -616,12 +965,12 @@ redis.</p>
       <pre class="lines">
 
 
-11
-12
-13</pre>
+17
+18
+19</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/domo/queue.rb', line 11</span>
+      <pre class="code"><span class="info file"># File 'lib/domo/queue.rb', line 17</span>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_queue_name'>queue_name</span>
   <span class='ivar'>@queue_name</span>
@@ -631,8 +980,249 @@ redis.</p>
 </table>
 </div>
     
+      
+      <span id=""></span>
+      <div class="method_details ">
+  <h3 class="signature " id="stream_id-instance_method">
+  
+    #<strong>stream_id</strong>  &#x21d2; <tt>Integer</tt>  <span class="extras">(readonly)</span>
+  
+
+  
+
+  
+</h3><div class="docstring">
+  <div class="discussion">
+    
+
+  </div>
+</div>
+<div class="tags">
+  
+<p class="tag_title">Returns:</p>
+<ul class="return">
+  
+    <li>
+      
+      
+        <span class='type'>(<tt>Integer</tt>)</span>
+      
+      
+      
+    </li>
+  
+</ul>
+
+</div><table class="source_code">
+  <tr>
+    <td>
+      <pre class="lines">
+
+
+23
+24
+25</pre>
+    </td>
+    <td>
+      <pre class="code"><span class="info file"># File 'lib/domo/queue.rb', line 23</span>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_stream_id'>stream_id</span>
+  <span class='ivar'>@stream_id</span>
+<span class='kw'>end</span></pre>
+    </td>
+  </tr>
+</table>
+</div>
+    
   </div>
 
+
+  <div id="class_method_details" class="method_details_list">
+    <h2>Class Method Details</h2>
+
+    
+      <div class="method_details first">
+  <h3 class="signature first" id="get_active_execution_id-class_method">
+  
+    .<strong>get_active_execution_id</strong>(redis_client, dataset_id)  &#x21d2; <tt>Object</tt> 
+  
+
+  
+
+  
+</h3><div class="docstring">
+  <div class="discussion">
+    
+<p>Get the active Stream Execution ID for the provided Dataset&#39;s Queue.</p>
+
+
+  </div>
+</div>
+<div class="tags">
+  <p class="tag_title">Parameters:</p>
+<ul class="param">
+  
+    <li>
+      
+        <span class='name'>redis_client</span>
+      
+      
+        <span class='type'>(<tt>Redis</tt>)</span>
+      
+      
+      
+    </li>
+  
+    <li>
+      
+        <span class='name'>dataset_id</span>
+      
+      
+        <span class='type'>(<tt>String</tt>)</span>
+      
+      
+      
+    </li>
+  
+</ul>
+
+
+</div><table class="source_code">
+  <tr>
+    <td>
+      <pre class="lines">
+
+
+72
+73
+74</pre>
+    </td>
+    <td>
+      <pre class="code"><span class="info file"># File 'lib/domo/queue.rb', line 72</span>
+
+<span class='kw'>def</span> <span class='kw'>self</span><span class='period'>.</span><span class='id identifier rubyid_get_active_execution_id'>get_active_execution_id</span><span class='lparen'>(</span><span class='id identifier rubyid_redis_client'>redis_client</span><span class='comma'>,</span> <span class='id identifier rubyid_dataset_id'>dataset_id</span><span class='rparen'>)</span>
+  <span class='id identifier rubyid_redis_client'>redis_client</span><span class='period'>.</span><span class='id identifier rubyid_get'>get</span><span class='lparen'>(</span><span class='tstring'><span class='tstring_beg'>&quot;</span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_dataset_id'>dataset_id</span><span class='embexpr_end'>}</span><span class='embexpr_beg'>#{</span><span class='const'><span class='object_link'><a href="#REDIS_KEY_SUFFIXES-constant" title="Domo::Queue::REDIS_KEY_SUFFIXES (constant)">REDIS_KEY_SUFFIXES</a></span></span><span class='lbracket'>[</span><span class='symbol'>:ACTIVE_EXECUTION</span><span class='rbracket'>]</span><span class='embexpr_end'>}</span><span class='tstring_end'>&quot;</span></span><span class='rparen'>)</span>
+<span class='kw'>end</span></pre>
+    </td>
+  </tr>
+</table>
+</div>
+    
+      <div class="method_details ">
+  <h3 class="signature " id="get_active_queue-class_method">
+  
+    .<strong>get_active_queue</strong>(redis_client, dataset_id, stream_id = nil)  &#x21d2; <tt><span class='object_link'><a href="" title="Domo::Queue (class)">Queue</a></span></tt> 
+  
+
+  
+
+  
+</h3><div class="docstring">
+  <div class="discussion">
+    
+<p>Construct a Queue instance related to the active Stream Execution for the
+provided Dataset.</p>
+
+
+  </div>
+</div>
+<div class="tags">
+  <p class="tag_title">Parameters:</p>
+<ul class="param">
+  
+    <li>
+      
+        <span class='name'>redis_client</span>
+      
+      
+        <span class='type'>(<tt>Redis</tt>)</span>
+      
+      
+      
+    </li>
+  
+    <li>
+      
+        <span class='name'>dataset_id</span>
+      
+      
+        <span class='type'>(<tt>String</tt>)</span>
+      
+      
+      
+    </li>
+  
+    <li>
+      
+        <span class='name'>stream_id</span>
+      
+      
+        <span class='type'>(<tt>Integer</tt>)</span>
+      
+      
+        <em class="default">(defaults to: <tt>nil</tt>)</em>
+      
+      
+    </li>
+  
+</ul>
+
+<p class="tag_title">Returns:</p>
+<ul class="return">
+  
+    <li>
+      
+      
+        <span class='type'>(<tt><span class='object_link'><a href="" title="Domo::Queue (class)">Queue</a></span></tt>)</span>
+      
+      
+      
+    </li>
+  
+</ul>
+
+</div><table class="source_code">
+  <tr>
+    <td>
+      <pre class="lines">
+
+
+54
+55
+56
+57
+58
+59
+60
+61
+62
+63
+64
+65
+66</pre>
+    </td>
+    <td>
+      <pre class="code"><span class="info file"># File 'lib/domo/queue.rb', line 54</span>
+
+<span class='kw'>def</span> <span class='kw'>self</span><span class='period'>.</span><span class='id identifier rubyid_get_active_queue'>get_active_queue</span><span class='lparen'>(</span><span class='id identifier rubyid_redis_client'>redis_client</span><span class='comma'>,</span> <span class='id identifier rubyid_dataset_id'>dataset_id</span><span class='comma'>,</span> <span class='id identifier rubyid_stream_id'>stream_id</span><span class='op'>=</span><span class='kw'>nil</span><span class='rparen'>)</span>
+  <span class='id identifier rubyid_queue'>queue</span> <span class='op'>=</span> <span class='id identifier rubyid_redis_client'>redis_client</span><span class='period'>.</span><span class='id identifier rubyid_get'>get</span><span class='lparen'>(</span><span class='tstring'><span class='tstring_beg'>&quot;</span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_dataset_id'>dataset_id</span><span class='embexpr_end'>}</span><span class='embexpr_beg'>#{</span><span class='const'><span class='object_link'><a href="#REDIS_KEY_SUFFIXES-constant" title="Domo::Queue::REDIS_KEY_SUFFIXES (constant)">REDIS_KEY_SUFFIXES</a></span></span><span class='lbracket'>[</span><span class='symbol'>:QUEUE</span><span class='rbracket'>]</span><span class='embexpr_end'>}</span><span class='tstring_end'>&quot;</span></span><span class='rparen'>)</span>
+  <span class='kw'>if</span> <span class='id identifier rubyid_queue'>queue</span><span class='period'>.</span><span class='id identifier rubyid_nil?'>nil?</span>
+    <span class='kw'>return</span> <span class='kw'>nil</span>
+  <span class='kw'>end</span>
+
+  <span class='id identifier rubyid_execution_id'>execution_id</span> <span class='op'>=</span> <span class='kw'>self</span><span class='period'>.</span><span class='id identifier rubyid_get_active_execution_id'>get_active_execution_id</span><span class='lparen'>(</span><span class='id identifier rubyid_redis_client'>redis_client</span><span class='comma'>,</span> <span class='id identifier rubyid_dataset_id'>dataset_id</span><span class='rparen'>)</span>
+  <span class='kw'>if</span> <span class='id identifier rubyid_execution_id'>execution_id</span><span class='period'>.</span><span class='id identifier rubyid_nil?'>nil?</span>
+    <span class='kw'>return</span> <span class='kw'>nil</span>
+  <span class='kw'>end</span>
+
+  <span class='kw'>self</span><span class='period'>.</span><span class='id identifier rubyid_new'>new</span><span class='lparen'>(</span><span class='id identifier rubyid_redis_client'>redis_client</span><span class='comma'>,</span> <span class='id identifier rubyid_dataset_id'>dataset_id</span><span class='comma'>,</span> <span class='id identifier rubyid_stream_id'>stream_id</span><span class='comma'>,</span> <span class='id identifier rubyid_execution_id'>execution_id</span><span class='rparen'>)</span>
+<span class='kw'>end</span></pre>
+    </td>
+  </tr>
+</table>
+</div>
+    
+  </div>
 
   <div id="instance_method_details" class="method_details_list">
     <h2>Instance Method Details</h2>
@@ -684,12 +1274,12 @@ redis.</p>
       <pre class="lines">
 
 
-75
-76
-77</pre>
+155
+156
+157</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/domo/queue.rb', line 75</span>
+      <pre class="code"><span class="info file"># File 'lib/domo/queue.rb', line 155</span>
 
 <span class='kw'>def</span> <span class='op'>&lt;&lt;</span><span class='lparen'>(</span><span class='id identifier rubyid_job'>job</span><span class='rparen'>)</span>
   <span class='id identifier rubyid_push'>push</span><span class='lparen'>(</span><span class='id identifier rubyid_job'>job</span><span class='rparen'>)</span>
@@ -745,12 +1335,12 @@ redis.</p>
       <pre class="lines">
 
 
-82
-83
-84</pre>
+162
+163
+164</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/domo/queue.rb', line 82</span>
+      <pre class="code"><span class="info file"># File 'lib/domo/queue.rb', line 162</span>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_add'>add</span><span class='lparen'>(</span><span class='id identifier rubyid_job'>job</span><span class='rparen'>)</span>
   <span class='id identifier rubyid_push'>push</span><span class='lparen'>(</span><span class='id identifier rubyid_job'>job</span><span class='rparen'>)</span>
@@ -799,16 +1389,16 @@ redis.</p>
       <pre class="lines">
 
 
-32
-33
-34
-35
-36
-37
-38</pre>
+111
+112
+113
+114
+115
+116
+117</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/domo/queue.rb', line 32</span>
+      <pre class="code"><span class="info file"># File 'lib/domo/queue.rb', line 111</span>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_any?'>any?</span>
   <span class='kw'>if</span> <span class='ivar'>@client</span><span class='period'>.</span><span class='id identifier rubyid_llen'>llen</span><span class='lparen'>(</span><span class='ivar'>@queue_name</span><span class='rparen'>)</span> <span class='op'>&gt;</span> <span class='int'>0</span>
@@ -861,15 +1451,17 @@ redis.</p>
       <pre class="lines">
 
 
-50
-51
-52</pre>
+129
+130
+131
+132</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/domo/queue.rb', line 50</span>
+      <pre class="code"><span class="info file"># File 'lib/domo/queue.rb', line 129</span>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_clear'>clear</span>
   <span class='ivar'>@client</span><span class='period'>.</span><span class='id identifier rubyid_del'>del</span><span class='lparen'>(</span><span class='ivar'>@queue_name</span><span class='rparen'>)</span>
+  <span class='ivar'>@client</span><span class='period'>.</span><span class='id identifier rubyid_del'>del</span><span class='lparen'>(</span><span class='tstring'><span class='tstring_beg'>&quot;</span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_dataset_id'>dataset_id</span><span class='embexpr_end'>}</span><span class='embexpr_beg'>#{</span><span class='const'><span class='object_link'><a href="#REDIS_KEY_SUFFIXES-constant" title="Domo::Queue::REDIS_KEY_SUFFIXES (constant)">REDIS_KEY_SUFFIXES</a></span></span><span class='lbracket'>[</span><span class='symbol'>:ACTIVE_EXECUTION</span><span class='rbracket'>]</span><span class='embexpr_end'>}</span><span class='tstring_end'>&quot;</span></span><span class='rparen'>)</span>
 <span class='kw'>end</span></pre>
     </td>
   </tr>
@@ -932,15 +1524,15 @@ warned…</p>
       <pre class="lines">
 
 
-98
-99
-100
-101
-102
-103</pre>
+178
+179
+180
+181
+182
+183</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/domo/queue.rb', line 98</span>
+      <pre class="code"><span class="info file"># File 'lib/domo/queue.rb', line 178</span>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_each'>each</span><span class='lparen'>(</span><span class='op'>&amp;</span><span class='id identifier rubyid_block'>block</span><span class='rparen'>)</span>
   <span class='kw'>return</span> <span class='id identifier rubyid_enum_for'>enum_for</span><span class='lparen'>(</span><span class='symbol'>:each</span><span class='rparen'>)</span> <span class='kw'>unless</span> <span class='id identifier rubyid_block_given?'>block_given?</span>
@@ -992,15 +1584,51 @@ warned…</p>
       <pre class="lines">
 
 
-43
-44
-45</pre>
+122
+123
+124</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/domo/queue.rb', line 43</span>
+      <pre class="code"><span class="info file"># File 'lib/domo/queue.rb', line 122</span>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_empty?'>empty?</span>
   <span class='op'>!</span><span class='id identifier rubyid_any?'>any?</span>
+<span class='kw'>end</span></pre>
+    </td>
+  </tr>
+</table>
+</div>
+    
+      <div class="method_details ">
+  <h3 class="signature " id="execution_id-instance_method">
+  
+    #<strong>execution_id</strong>  &#x21d2; <tt>Object</tt>  <span class="extras">(writeonly)</span>
+  
+
+  
+
+  
+</h3><table class="source_code">
+  <tr>
+    <td>
+      <pre class="lines">
+
+
+26
+27
+28
+29
+30
+31</pre>
+    </td>
+    <td>
+      <pre class="code"><span class="info file"># File 'lib/domo/queue.rb', line 26</span>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_execution_id'>execution_id</span>
+  <span class='kw'>if</span> <span class='ivar'>@execution_id</span><span class='period'>.</span><span class='id identifier rubyid_nil?'>nil?</span>
+    <span class='kw'>return</span> <span class='kw'>self</span><span class='period'>.</span><span class='id identifier rubyid_class'>class</span><span class='period'>.</span><span class='id identifier rubyid_get_active_execution_id'>get_active_execution_id</span><span class='lparen'>(</span><span class='ivar'>@client</span><span class='comma'>,</span> <span class='ivar'>@dataset_id</span><span class='rparen'>)</span>
+  <span class='kw'>end</span>
+  <span class='ivar'>@execution_id</span>
 <span class='kw'>end</span></pre>
     </td>
   </tr>
@@ -1046,12 +1674,12 @@ warned…</p>
       <pre class="lines">
 
 
-89
-90
-91</pre>
+169
+170
+171</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/domo/queue.rb', line 89</span>
+      <pre class="code"><span class="info file"># File 'lib/domo/queue.rb', line 169</span>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_length'>length</span>
   <span class='ivar'>@client</span><span class='period'>.</span><span class='id identifier rubyid_llen'>llen</span><span class='lparen'>(</span><span class='ivar'>@queue_name</span><span class='rparen'>)</span>
@@ -1101,19 +1729,19 @@ queue.</p>
       <pre class="lines">
 
 
-57
-58
-59
-60
-61
-62
-63</pre>
+137
+138
+139
+140
+141
+142
+143</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/domo/queue.rb', line 57</span>
+      <pre class="code"><span class="info file"># File 'lib/domo/queue.rb', line 137</span>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_pop'>pop</span>
-  <span class='id identifier rubyid__'>_</span><span class='comma'>,</span> <span class='id identifier rubyid_job'>job</span> <span class='op'>=</span> <span class='ivar'>@client</span><span class='period'>.</span><span class='id identifier rubyid_blpop'>blpop</span><span class='lparen'>(</span><span class='ivar'>@queue_name</span><span class='comma'>,</span> <span class='int'>5</span><span class='rparen'>)</span>
+  <span class='id identifier rubyid__'>_</span><span class='comma'>,</span> <span class='id identifier rubyid_job'>job</span> <span class='op'>=</span> <span class='ivar'>@client</span><span class='period'>.</span><span class='id identifier rubyid_blpop'>blpop</span><span class='lparen'>(</span><span class='ivar'>@queue_name</span><span class='comma'>,</span> <span class='int'>3</span><span class='rparen'>)</span>
   <span class='kw'>if</span> <span class='id identifier rubyid_job'>job</span><span class='period'>.</span><span class='id identifier rubyid_nil?'>nil?</span>
     <span class='kw'>return</span> <span class='kw'>nil</span>
   <span class='kw'>end</span>
@@ -1170,12 +1798,12 @@ queue.</p>
       <pre class="lines">
 
 
-68
-69
-70</pre>
+148
+149
+150</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/domo/queue.rb', line 68</span>
+      <pre class="code"><span class="info file"># File 'lib/domo/queue.rb', line 148</span>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_push'>push</span><span class='lparen'>(</span><span class='id identifier rubyid_job'>job</span><span class='rparen'>)</span>
   <span class='ivar'>@client</span><span class='period'>.</span><span class='id identifier rubyid_rpush'>rpush</span><span class='lparen'>(</span><span class='ivar'>@queue_name</span><span class='comma'>,</span> <span class='id identifier rubyid_job'>job</span><span class='period'>.</span><span class='id identifier rubyid_to_json'>to_json</span><span class='rparen'>)</span>
@@ -1190,7 +1818,7 @@ queue.</p>
 </div>
 
       <div id="footer">
-  Generated on Mon Dec 10 16:42:40 2018 by
+  Generated on Mon Dec 10 22:07:24 2018 by
   <a href="http://yardoc.org" title="Yay! A Ruby Documentation Tool" target="_parent">yard</a>
   0.9.16 (ruby-2.3.3).
 </div>

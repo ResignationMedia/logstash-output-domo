@@ -23,7 +23,6 @@ module Domo
     attr_reader :stream_id
 
     # @!attribute [r]
-    # @return [Integer]
     def execution_id
       if @execution_id.nil?
         return self.class.get_active_execution_id(@client, @dataset_id)
@@ -32,7 +31,6 @@ module Domo
     end
 
     # @!attribute [w]
-    # @param execution_id [Integer]
     def execution_id=(execution_id)
       # No need to block redis if nothing actually changed.
       update_redis = false
