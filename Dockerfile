@@ -1,3 +1,6 @@
+FROM redis AS redis1
+COPY --chown=redis:redis testing/redis1.conf /usr/local/etc/redis/redis.conf
+
 FROM redis AS redis2
 COPY --chown=redis:redis testing/redis2.conf /usr/local/etc/redis/redis.conf
 

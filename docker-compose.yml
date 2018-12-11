@@ -26,7 +26,10 @@ services:
       - sentinel2
       - sentinel3
   redis1:
-    image: redis
+    build:
+      context: .
+      target: redis1
+    command: [ "redis-server", "/usr/local/etc/redis/redis.conf" ]
   redis2:
     build:
       context: .

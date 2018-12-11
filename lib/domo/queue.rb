@@ -7,6 +7,12 @@ module Domo
   # The class is meant to be interchangeable with a "queue" of an ArrayList inside a Concurrent::Hash,
   # which is why it has a ton of redundant methods.
   class Queue
+    # Suffixes to add to our redis keys
+    REDIS_KEY_SUFFIXES = {
+        :ACTIVE_EXECUTION => "_active_execution_id",
+        :QUEUE            => "_queue",
+    }
+    
     # @return [String]
     attr_reader :queue_name
     # @return [Redis]
@@ -28,6 +34,7 @@ module Domo
     # @!attribute [w]
     # @param execution_id [Integer]
     def execution_id=(execution_id)
+      # No need to block redis if nothing actually changed.
       update_redis = false
       if execution_id != @execution_id
         update_redis = true
@@ -35,16 +42,19 @@ module Domo
 
       @execution_id = execution_id
       if update_redis
-        @client.set("#{dataset_id}_active_execution_id", @execution_id)
+        @client.set("#{dataset_id}#{REDIS_KEY_SUFFIXES[:ACTIVE_EXECUTION]}", 
+                    @execution_id)
       end
     end
 
+    # Construct a Queue instance related to the active Stream Execution for the provided Dataset.
+    #
     # @param redis_client [Redis]
     # @param dataset_id [String]
     # @param stream_id [Integer]
     # @return [Queue]
-    def self.active_queue_from_redis(redis_client, dataset_id, stream_id=nil)
-      queue = redis_client.get("#{dataset_id}_queue")
+    def self.get_active_queue(redis_client, dataset_id, stream_id=nil)
+      queue = redis_client.get("#{dataset_id}#{REDIS_KEY_SUFFIXES[:QUEUE]}")
       if queue.nil?
         return nil
       end
@@ -57,10 +67,12 @@ module Domo
       self.new(redis_client, dataset_id, stream_id, execution_id)
     end
 
+    # Get the active Stream Execution ID for the provided Dataset's Queue.
+    #
     # @param redis_client [Redis]
     # @param dataset_id [String]
     def self.get_active_execution_id(redis_client, dataset_id)
-      redis_client.get("#{dataset_id}_active_execution_id")
+      redis_client.get("#{dataset_id}#{REDIS_KEY_SUFFIXES[:ACTIVE_EXECUTION]}")
     end
 
     # @param redis_client [Redis]
@@ -77,7 +89,8 @@ module Domo
       if @execution_id.nil?
         @execution_id = self.class.get_active_execution_id(@client, @dataset_id)
       elsif @execution_id != self.class.get_active_execution_id(@client, @dataset_id)
-        @client.set("#{dataset_id}_active_execution_id", @execution_id)
+        @client.set("#{dataset_id}#{REDIS_KEY_SUFFIXES[:ACTIVE_EXECUTION]}", 
+                    @execution_id)
       end
 
       if @execution_id.nil?
@@ -86,7 +99,7 @@ module Domo
       end
 
       # @type [String]
-      @queue_name = "#{dataset_id}_queue_#{@execution_id}"
+      @queue_name = "#{dataset_id}#{REDIS_KEY_SUFFIXES[:QUEUE]}_#{@execution_id}"
 
       # Remove the queue key if it's not a list
       if @client.exists(@queue_name) and @client.type(@queue_name) != 'list'
@@ -117,14 +130,14 @@ module Domo
     # @return [nil]
     def clear
       @client.del(@queue_name)
-      @client.del("#{dataset_id}_active_execution_id")
+      @client.del("#{dataset_id}#{REDIS_KEY_SUFFIXES[:ACTIVE_EXECUTION]}")
     end
 
     # Pop the first job off the queue. Return nil if there are no jobs in the queue.
     #
     # @return [Job, nil]
     def pop
-      _, job = @client.blpop(@queue_name, 5)
+      _, job = @client.blpop(@queue_name, 3)
       if job.nil?
         return nil
       end
@@ -219,7 +232,11 @@ module Domo
     end
   end
 
+  # Raised when there is no associated Stream Execution in redis with the Dataset ID
   class CachedStreamExecutionNotFound < RuntimeError
+    # @param msg [String] The error message.
+    # @param dataset_id [String] The Domo Dataset ID.
+    # @param stream_id [Integer] The Domo Stream ID.
     def initialize(msg, dataset_id, stream_id=nil)
       @dataset_id = dataset_id
       @stream_id = stream_id
