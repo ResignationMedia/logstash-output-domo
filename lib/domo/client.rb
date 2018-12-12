@@ -58,7 +58,13 @@ module Domo
       dataset = @client.dataSetClient.get(stream.getDataset.getId)
       schema = dataset.getSchema
 
-      schema.getColumns.map(&:getName)
+      # schema.getColumns.map(&:getName)
+      schema.getColumns.map do |column|
+        {
+            :name => column.getName,
+            :type => column.getType,
+        }
+      end
     end
 
     # Get the provided Stream's ACTIVE Stream Execution or create a new one
@@ -113,7 +119,7 @@ module Domo
       end
 
       if stream.nil?
-        raise DomoStreamNotFound("No Stream found for Dataset #{dataset_id}", dataset_id, stream_id)
+        raise DomoStreamNotFound.new("No Stream found for Dataset #{dataset_id}", dataset_id, stream_id)
       end
 
       if include_execution

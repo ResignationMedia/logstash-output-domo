@@ -18,8 +18,8 @@ describe LogStash::Outputs::Domo do
   end
   let(:event) do
     LogStash::Event.new(
-      "Column1" => 456,
-      "Column2" => 789,
+      "Column1" => "string!",
+      "Column2" => "789",
     )
   end
   let(:lock_servers) do

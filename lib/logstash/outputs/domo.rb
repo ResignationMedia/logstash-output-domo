@@ -136,20 +136,22 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
     @domo_stream, @domo_stream_execution = @domo_client.stream(@stream_id, @dataset_id, false)
     @dataset_columns = @domo_client.dataset_schema_columns(@domo_stream)
 
+    @dlq_writer = dlq_enabled? ? execution_context.dlq_writer : nil
+
     # Map of batch jobs (per-thread)
     @thread_batch_map = Concurrent::Hash.new
 
     # Distributed lock requires a different queuing mechanism, among other things
     if @distributed_lock
       if @redis_client.nil?
-        raise LogStash::ConfigurationError("The redis_client parameter is required when using distributed_lock")
+        raise LogStash::ConfigurationError.new("The redis_client parameter is required when using distributed_lock")
       else
         @redis_client = symbolize_redis_client_args(@redis_client)
         @redis_client = Redis.new(@redis_client)
       end
 
       if @lock_servers.nil? or @lock_servers.length <= 0
-        raise LogStash::ConfigurationError("The lock_servers parameter is required when using distributed_lock")
+        raise LogStash::ConfigurationError.new("The lock_servers parameter is required when using distributed_lock")
       else
         redis_clients = @lock_servers.map do |server|
           # Remove the db key from the server because redlock don't care
@@ -216,7 +218,7 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
             server.connection[:host]
           end
           # Stop the show.
-          raise LogStash::PluginLoadingError("Unable to acquire distributed lock for servers [#{servers.join(', ')}]")
+          raise LogStash::PluginLoadingError.new("Unable to acquire distributed lock for servers [#{servers.join(', ')}]")
         end
       end
     end
@@ -238,7 +240,6 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
         begin
           @domo_stream_execution = @domo_client.stream_execution(@domo_stream, @domo_stream_execution)
           @domo_client.stream_client.uploadDataPart(@domo_stream.getId, @domo_stream_execution.getId, job.part_num, job.data)
-          puts job.part_num
         rescue Java::ComDomoSdkRequest::RequestException => e
           if e.getStatusCode == -1 || (e.getStatusCode < 400 && e.getStatusCode >= 500)
             unless @domo_stream_execution.nil?
@@ -260,13 +261,16 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
                             :data => data,
                             :event => event)
             end
-          # TODO: Implement DLQ?
           else
-            @logger.error("Encountered a fatal error interacting with the DOMO Streams API.",
+            log_message = "Encountered a fatal error interacting with the DOMO Streams API."
+            @logger.error(log_message,
                           :code => e.getStatusCode,
                           :exception => e,
                           :data => data,
                           :event => event)
+            unless @dlq_writer.nil?
+              @dlq_writer.write(event, "#{log_message} Exception: #{e}")
+            end
           end
         end
       end
@@ -341,19 +345,31 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
     events.each do |event|
       break if event == LogStash::SHUTDOWN
 
-      # Set the Streams API Data Part Number from redis if we're using it
-      unless @redis_client.nil?
-        part_num = @redis_client.incr("#{@dataset_id}_part_num")
-      end
-
       # Encode the Event data and add a job to the queue
-      data = encode_event_data(event)
-      job = Domo::Job.new(event, data, part_num)
-      queue.add(job)
+      begin
+        data = encode_event_data(event)
 
-      # Increment the part_num if we aren't using the redis queue.
-      if @redis_client.nil?
-        part_num.incrementAndGet
+        # Set the Streams API Data Part Number from redis if we're using it
+        unless @redis_client.nil?
+          part_num = @redis_client.incr("#{@dataset_id}_part_num")
+        end
+
+        job = Domo::Job.new(event, data, part_num)
+        queue.add(job)
+
+        # Increment the part_num if we aren't using the redis queue.
+        if @redis_client.nil?
+          part_num.incrementAndGet
+        end
+      # Reject the event and possibly send it to the DLQ if it's enabled.
+      rescue TypeError => e
+        puts e
+        unless @dlq_writer.nil?
+          @dlq_writer.write(event, e.message)
+        end
+        @logger.error(e.message,
+                      :exception => e,
+                      :event     => event)
       end
     end
 
@@ -417,25 +433,62 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
   # @param event [LogStash::Event] The Event to be sent to DOMO.
   # @return [String] The CSV encoded string.
   def encode_event_data(event)
+    column_names = @dataset_columns.map { |col| col[:name] }
     encode_options = {
-        :headers => @dataset_columns,
+        :headers => column_names,
         :write_headers => false,
         :return_headers => false,
     }
 
     csv_data = CSV.generate(String.new, encode_options) do |csv_obj|
       data = event.to_hash.flatten_with_path
-      data = data.select { |k, _| @dataset_columns.include? k }
+      data = data.select { |k, _| column_names.include? k }
+      discarded_fields = data.select { |k, _| !column_names.include? k }
+      unless discarded_fields.nil? or discarded_fields.length <= 0
+        @logger.warn("The event has fields that are not present in the Domo Dataset. They will be discarded.",
+                      :fields => discarded_fields,
+                      :event  => event)
+      end
+
       @dataset_columns.each do |col|
-        unless data.has_key? col
-          data[col] = nil
+        # Just extracting this so referencing is as a key in other hashes isn't so damn awkward to read
+        col_name = col[:name]
+        # Set the column value to null if it's missing from the event data
+        unless data.has_key? col_name
+          data[col_name] = nil
+        end
+
+        # Make sure the type matches what Domo expects.
+        mapped_type = ruby_domo_type_map(data[col_name])
+        if mapped_type != col[:type]
+          raise TypeError.new("Invalid data type for #{col_name}. It should be #{col[:type]} but instead is #{mapped_type}")
         end
       end
 
-      data = data.sort_by { |k, _| @dataset_columns.index(k) }.to_h
+      data = data.sort_by { |k, _| column_names.index(k) }.to_h
       csv_obj << data.values
     end
     csv_data.strip
+  end
+
+  private
+  # Takes a given value and maps its type to a Domo Column type.
+  #
+  # @param val [Object] The object to inspect.
+  # @return [ColumnType] The Domo Column Type.
+  def ruby_domo_type_map(val)
+    # com.domo.sdk.datasets.model.ColumnType
+    if val.is_a? Integer
+      Java::ComDomoSdkDatasetsModel::ColumnType::LONG
+    elsif val.is_a? Float
+      Java::ComDomoSdkDatasetsModel::ColumnType::DOUBLE
+    elsif val.is_a? Date
+      Java::ComDomoSdkDatasetsModel::ColumnType::DATE
+    elsif val.is_a? DateTime
+      Java::ComDomoSdkDatasetsModel::ColumnType::DATETIME
+    else
+      Java::ComDomoSdkDatasetsModel::ColumnType::STRING
+    end
   end
 
   private
@@ -469,5 +522,17 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
     end
 
     redis_client_args
+  end
+
+  private
+  # Checks if the Dead Letter Queue is enabled
+  #
+  # @return [Boolean]
+  def dlq_enabled?
+    # Thanks Elasticsearch plugin team!
+    # https://github.com/logstash-plugins/logstash-output-elasticsearch/blob/master/lib/logstash/outputs/elasticsearch/common.rb#L349
+    # See more in: https://github.com/elastic/logstash/issues/8064
+    respond_to?(:execution_context) && execution_context.respond_to?(:dlq_writer) &&
+        !execution_context.dlq_writer.inner_writer.is_a?(::LogStash::Util::DummyDeadLetterQueueWriter)
   end
 end # class LogStash::Outputs::Domo
