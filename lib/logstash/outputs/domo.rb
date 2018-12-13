@@ -274,18 +274,23 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
           end
         end
       end
-      
+
       if failures.empty?
         unless @domo_stream_execution.nil?
           # Commit and create a new Stream Execution if that hasn't happened already
           @domo_stream_execution = @domo_client.stream_client.getExecution(@domo_stream.getId, @domo_stream_execution.getId)
           if @domo_stream_execution.currentState == "ACTIVE"
-            @lock_manager.lock("#{@dataset_id}_lock", @lock_timeout) do |locked|
-              if locked
-                @domo_client.stream_client.commitExecution(@domo_stream.getId, @domo_stream_execution.getId)
-                @domo_stream_execution = nil
-                _ = @redis_client.getset("#{@dataset_id}_part_num", "0")
+            if @distributed_lock
+              @lock_manager.lock("#{@dataset_id}_lock", @lock_timeout) do |locked|
+                if locked
+                  @domo_client.stream_client.commitExecution(@domo_stream.getId, @domo_stream_execution.getId)
+                  @domo_stream_execution = nil
+                  _ = @redis_client.getset("#{@dataset_id}_part_num", "0")
+                end
               end
+            else
+              @domo_client.stream_client.commitExecution(@domo_stream.getId, @domo_stream_execution.getId)
+              @domo_stream_execution = nil
             end
           end
         end
@@ -305,18 +310,28 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
   def close
     # Commit or abort the stream execution if that hasn't happened already
     unless @domo_stream_execution.nil?
-      # We'll hold the lock for a little extra time too just to be safe.
-      @lock_manager.lock("#{@dataset_id}_lock", @lock_timeout*2) do |locked|
-        if locked
-          @domo_stream_execution = @domo_client.stream_client.getExecution(@domo_stream.getId, @domo_stream_execution.getId)
+      if @distributed_lock
+        # We'll hold the lock for a little extra time too just to be safe.
+        @lock_manager.lock("#{@dataset_id}_lock", @lock_timeout*2) do |locked|
+          if locked
+            @domo_stream_execution = @domo_client.stream_client.getExecution(@domo_stream.getId, @domo_stream_execution.getId)
 
-          if @domo_stream_execution.currentState == "ACTIVE"
-            @domo_client.stream_client.commitExecution(@domo_stream.getId, @domo_stream_execution.getId)
-          elsif @domo_stream_execution.currentState == "ERROR" or @domo_stream_execution.currentState == "FAILED"
-            @domo_client.stream_client.abortExecution(@domo_stream.getId, @domo_stream_execution.getId)
+            if @domo_stream_execution.currentState == "ACTIVE"
+              @domo_client.stream_client.commitExecution(@domo_stream.getId, @domo_stream_execution.getId)
+            elsif @domo_stream_execution.currentState == "ERROR" or @domo_stream_execution.currentState == "FAILED"
+              @domo_client.stream_client.abortExecution(@domo_stream.getId, @domo_stream_execution.getId)
+            end
+
+            _ = @redis_client.getset("#{@dataset_id}_part_num", "0")
           end
+        end
+      else
+        @domo_stream_execution = @domo_client.stream_client.getExecution(@domo_stream.getId, @domo_stream_execution.getId)
 
-          _ = @redis_client.getset("#{@dataset_id}_part_num", "0")
+        if @domo_stream_execution.currentState == "ACTIVE"
+          @domo_client.stream_client.commitExecution(@domo_stream.getId, @domo_stream_execution.getId)
+        elsif @domo_stream_execution.currentState == "ERROR" or @domo_stream_execution.currentState == "FAILED"
+          @domo_client.stream_client.abortExecution(@domo_stream.getId, @domo_stream_execution.getId)
         end
       end
     end
@@ -363,7 +378,6 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
         end
       # Reject the event and possibly send it to the DLQ if it's enabled.
       rescue TypeError => e
-        puts e
         unless @dlq_writer.nil?
           @dlq_writer.write(event, e.message)
         end
@@ -477,7 +491,6 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
   # @param val [Object] The object to inspect.
   # @return [ColumnType] The Domo Column Type.
   def ruby_domo_type_map(val)
-    # com.domo.sdk.datasets.model.ColumnType
     if val.is_a? Integer
       Java::ComDomoSdkDatasetsModel::ColumnType::LONG
     elsif val.is_a? Float
