@@ -3,7 +3,7 @@ require "java"
 require "logstash/devutils/rspec/spec_helper"
 require "logstash/outputs/domo"
 require "logstash/event"
-require_relative "../domo_spec_helper"
+require_relative "../../spec/domo_spec_helper"
 
 describe LogStash::Outputs::Domo do
   let(:test_settings) { get_test_settings }
@@ -20,7 +20,7 @@ describe LogStash::Outputs::Domo do
     redis_servers = Array.new
     ENV.each do |k, v|
       if k.start_with? "LOCK_HOST"
-        i = k.split('_')[-1].to_i
+        i = k.split("_")[-1].to_i
 
         host = v
         port = ENV.fetch("LOCK_PORT_#{i}", "6379").to_i
@@ -76,7 +76,7 @@ describe LogStash::Outputs::Domo do
     end
     let(:mistyped_event) { LogStash::Event.new("Count" => "foo", "Event Name" => "") }
 
-    context 'with distributed locking' do
+    context "with distributed locking" do
       let(:config) do
         test_settings.clone.merge(
             {

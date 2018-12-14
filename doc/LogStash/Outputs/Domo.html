@@ -329,15 +329,6 @@ href="https://developer.domo.com/docs/stream/overview">developer.domo.com/docs/s
       <pre class="lines">
 
 
-301
-302
-303
-304
-305
-306
-307
-308
-309
 310
 311
 312
@@ -347,26 +338,55 @@ href="https://developer.domo.com/docs/stream/overview">developer.domo.com/docs/s
 316
 317
 318
-319</pre>
+319
+320
+321
+322
+323
+324
+325
+326
+327
+328
+329
+330
+331
+332
+333
+334
+335
+336
+337
+338</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/logstash/outputs/domo.rb', line 301</span>
+      <pre class="code"><span class="info file"># File 'lib/logstash/outputs/domo.rb', line 310</span>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_close'>close</span>
   <span class='comment'># Commit or abort the stream execution if that hasn&#39;t happened already
 </span>  <span class='kw'>unless</span> <span class='ivar'>@domo_stream_execution</span><span class='period'>.</span><span class='id identifier rubyid_nil?'>nil?</span>
-    <span class='comment'># We&#39;ll hold the lock for a little extra time too just to be safe.
-</span>    <span class='ivar'>@lock_manager</span><span class='period'>.</span><span class='id identifier rubyid_lock'>lock</span><span class='lparen'>(</span><span class='tstring'><span class='tstring_beg'>&quot;</span><span class='embexpr_beg'>#{</span><span class='ivar'>@dataset_id</span><span class='embexpr_end'>}</span><span class='tstring_content'>_lock</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='ivar'>@lock_timeout</span><span class='op'>*</span><span class='int'>2</span><span class='rparen'>)</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_locked'>locked</span><span class='op'>|</span>
-      <span class='kw'>if</span> <span class='id identifier rubyid_locked'>locked</span>
-        <span class='ivar'>@domo_stream_execution</span> <span class='op'>=</span> <span class='ivar'>@domo_client</span><span class='period'>.</span><span class='id identifier rubyid_stream_client'>stream_client</span><span class='period'>.</span><span class='id identifier rubyid_getExecution'>getExecution</span><span class='lparen'>(</span><span class='ivar'>@domo_stream</span><span class='period'>.</span><span class='id identifier rubyid_getId'>getId</span><span class='comma'>,</span> <span class='ivar'>@domo_stream_execution</span><span class='period'>.</span><span class='id identifier rubyid_getId'>getId</span><span class='rparen'>)</span>
+    <span class='kw'>if</span> <span class='ivar'>@distributed_lock</span>
+      <span class='comment'># We&#39;ll hold the lock for a little extra time too just to be safe.
+</span>      <span class='ivar'>@lock_manager</span><span class='period'>.</span><span class='id identifier rubyid_lock'>lock</span><span class='lparen'>(</span><span class='tstring'><span class='tstring_beg'>&quot;</span><span class='embexpr_beg'>#{</span><span class='ivar'>@dataset_id</span><span class='embexpr_end'>}</span><span class='tstring_content'>_lock</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='ivar'>@lock_timeout</span><span class='op'>*</span><span class='int'>2</span><span class='rparen'>)</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_locked'>locked</span><span class='op'>|</span>
+        <span class='kw'>if</span> <span class='id identifier rubyid_locked'>locked</span>
+          <span class='ivar'>@domo_stream_execution</span> <span class='op'>=</span> <span class='ivar'>@domo_client</span><span class='period'>.</span><span class='id identifier rubyid_stream_client'>stream_client</span><span class='period'>.</span><span class='id identifier rubyid_getExecution'>getExecution</span><span class='lparen'>(</span><span class='ivar'>@domo_stream</span><span class='period'>.</span><span class='id identifier rubyid_getId'>getId</span><span class='comma'>,</span> <span class='ivar'>@domo_stream_execution</span><span class='period'>.</span><span class='id identifier rubyid_getId'>getId</span><span class='rparen'>)</span>
 
-        <span class='kw'>if</span> <span class='ivar'>@domo_stream_execution</span><span class='period'>.</span><span class='id identifier rubyid_currentState'>currentState</span> <span class='op'>==</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>ACTIVE</span><span class='tstring_end'>&quot;</span></span>
-          <span class='ivar'>@domo_client</span><span class='period'>.</span><span class='id identifier rubyid_stream_client'>stream_client</span><span class='period'>.</span><span class='id identifier rubyid_commitExecution'>commitExecution</span><span class='lparen'>(</span><span class='ivar'>@domo_stream</span><span class='period'>.</span><span class='id identifier rubyid_getId'>getId</span><span class='comma'>,</span> <span class='ivar'>@domo_stream_execution</span><span class='period'>.</span><span class='id identifier rubyid_getId'>getId</span><span class='rparen'>)</span>
-        <span class='kw'>elsif</span> <span class='ivar'>@domo_stream_execution</span><span class='period'>.</span><span class='id identifier rubyid_currentState'>currentState</span> <span class='op'>==</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>ERROR</span><span class='tstring_end'>&quot;</span></span> <span class='kw'>or</span> <span class='ivar'>@domo_stream_execution</span><span class='period'>.</span><span class='id identifier rubyid_currentState'>currentState</span> <span class='op'>==</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>FAILED</span><span class='tstring_end'>&quot;</span></span>
-          <span class='ivar'>@domo_client</span><span class='period'>.</span><span class='id identifier rubyid_stream_client'>stream_client</span><span class='period'>.</span><span class='id identifier rubyid_abortExecution'>abortExecution</span><span class='lparen'>(</span><span class='ivar'>@domo_stream</span><span class='period'>.</span><span class='id identifier rubyid_getId'>getId</span><span class='comma'>,</span> <span class='ivar'>@domo_stream_execution</span><span class='period'>.</span><span class='id identifier rubyid_getId'>getId</span><span class='rparen'>)</span>
+          <span class='kw'>if</span> <span class='ivar'>@domo_stream_execution</span><span class='period'>.</span><span class='id identifier rubyid_currentState'>currentState</span> <span class='op'>==</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>ACTIVE</span><span class='tstring_end'>&quot;</span></span>
+            <span class='ivar'>@domo_client</span><span class='period'>.</span><span class='id identifier rubyid_stream_client'>stream_client</span><span class='period'>.</span><span class='id identifier rubyid_commitExecution'>commitExecution</span><span class='lparen'>(</span><span class='ivar'>@domo_stream</span><span class='period'>.</span><span class='id identifier rubyid_getId'>getId</span><span class='comma'>,</span> <span class='ivar'>@domo_stream_execution</span><span class='period'>.</span><span class='id identifier rubyid_getId'>getId</span><span class='rparen'>)</span>
+          <span class='kw'>elsif</span> <span class='ivar'>@domo_stream_execution</span><span class='period'>.</span><span class='id identifier rubyid_currentState'>currentState</span> <span class='op'>==</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>ERROR</span><span class='tstring_end'>&quot;</span></span> <span class='kw'>or</span> <span class='ivar'>@domo_stream_execution</span><span class='period'>.</span><span class='id identifier rubyid_currentState'>currentState</span> <span class='op'>==</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>FAILED</span><span class='tstring_end'>&quot;</span></span>
+            <span class='ivar'>@domo_client</span><span class='period'>.</span><span class='id identifier rubyid_stream_client'>stream_client</span><span class='period'>.</span><span class='id identifier rubyid_abortExecution'>abortExecution</span><span class='lparen'>(</span><span class='ivar'>@domo_stream</span><span class='period'>.</span><span class='id identifier rubyid_getId'>getId</span><span class='comma'>,</span> <span class='ivar'>@domo_stream_execution</span><span class='period'>.</span><span class='id identifier rubyid_getId'>getId</span><span class='rparen'>)</span>
+          <span class='kw'>end</span>
+
+          <span class='id identifier rubyid__'>_</span> <span class='op'>=</span> <span class='ivar'>@redis_client</span><span class='period'>.</span><span class='id identifier rubyid_getset'>getset</span><span class='lparen'>(</span><span class='tstring'><span class='tstring_beg'>&quot;</span><span class='embexpr_beg'>#{</span><span class='ivar'>@dataset_id</span><span class='embexpr_end'>}</span><span class='tstring_content'>_part_num</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>0</span><span class='tstring_end'>&quot;</span></span><span class='rparen'>)</span>
         <span class='kw'>end</span>
+      <span class='kw'>end</span>
+    <span class='kw'>else</span>
+      <span class='ivar'>@domo_stream_execution</span> <span class='op'>=</span> <span class='ivar'>@domo_client</span><span class='period'>.</span><span class='id identifier rubyid_stream_client'>stream_client</span><span class='period'>.</span><span class='id identifier rubyid_getExecution'>getExecution</span><span class='lparen'>(</span><span class='ivar'>@domo_stream</span><span class='period'>.</span><span class='id identifier rubyid_getId'>getId</span><span class='comma'>,</span> <span class='ivar'>@domo_stream_execution</span><span class='period'>.</span><span class='id identifier rubyid_getId'>getId</span><span class='rparen'>)</span>
 
-        <span class='id identifier rubyid__'>_</span> <span class='op'>=</span> <span class='ivar'>@redis_client</span><span class='period'>.</span><span class='id identifier rubyid_getset'>getset</span><span class='lparen'>(</span><span class='tstring'><span class='tstring_beg'>&quot;</span><span class='embexpr_beg'>#{</span><span class='ivar'>@dataset_id</span><span class='embexpr_end'>}</span><span class='tstring_content'>_part_num</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>0</span><span class='tstring_end'>&quot;</span></span><span class='rparen'>)</span>
+      <span class='kw'>if</span> <span class='ivar'>@domo_stream_execution</span><span class='period'>.</span><span class='id identifier rubyid_currentState'>currentState</span> <span class='op'>==</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>ACTIVE</span><span class='tstring_end'>&quot;</span></span>
+        <span class='ivar'>@domo_client</span><span class='period'>.</span><span class='id identifier rubyid_stream_client'>stream_client</span><span class='period'>.</span><span class='id identifier rubyid_commitExecution'>commitExecution</span><span class='lparen'>(</span><span class='ivar'>@domo_stream</span><span class='period'>.</span><span class='id identifier rubyid_getId'>getId</span><span class='comma'>,</span> <span class='ivar'>@domo_stream_execution</span><span class='period'>.</span><span class='id identifier rubyid_getId'>getId</span><span class='rparen'>)</span>
+      <span class='kw'>elsif</span> <span class='ivar'>@domo_stream_execution</span><span class='period'>.</span><span class='id identifier rubyid_currentState'>currentState</span> <span class='op'>==</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>ERROR</span><span class='tstring_end'>&quot;</span></span> <span class='kw'>or</span> <span class='ivar'>@domo_stream_execution</span><span class='period'>.</span><span class='id identifier rubyid_currentState'>currentState</span> <span class='op'>==</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>FAILED</span><span class='tstring_end'>&quot;</span></span>
+        <span class='ivar'>@domo_client</span><span class='period'>.</span><span class='id identifier rubyid_stream_client'>stream_client</span><span class='period'>.</span><span class='id identifier rubyid_abortExecution'>abortExecution</span><span class='lparen'>(</span><span class='ivar'>@domo_stream</span><span class='period'>.</span><span class='id identifier rubyid_getId'>getId</span><span class='comma'>,</span> <span class='ivar'>@domo_stream_execution</span><span class='period'>.</span><span class='id identifier rubyid_getId'>getId</span><span class='rparen'>)</span>
       <span class='kw'>end</span>
     <span class='kw'>end</span>
   <span class='kw'>end</span>
@@ -391,25 +411,6 @@ href="https://developer.domo.com/docs/stream/overview">developer.domo.com/docs/s
       <pre class="lines">
 
 
-322
-323
-324
-325
-326
-327
-328
-329
-330
-331
-332
-333
-334
-335
-336
-337
-338
-339
-340
 341
 342
 343
@@ -438,10 +439,40 @@ href="https://developer.domo.com/docs/stream/overview">developer.domo.com/docs/s
 366
 367
 368
-369</pre>
+369
+370
+371
+372
+373
+374
+375
+376
+377
+378
+379
+380
+381
+382
+383
+384
+385
+386
+387
+388
+389
+390
+391
+392
+393
+394
+395
+396
+397
+398
+399</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/logstash/outputs/domo.rb', line 322</span>
+      <pre class="code"><span class="info file"># File 'lib/logstash/outputs/domo.rb', line 341</span>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_multi_receive'>multi_receive</span><span class='lparen'>(</span><span class='id identifier rubyid_events'>events</span><span class='rparen'>)</span>
   <span class='comment'># Get or setup a multi-threaded queue if we aren&#39;t using redis
@@ -465,19 +496,30 @@ href="https://developer.domo.com/docs/stream/overview">developer.domo.com/docs/s
   <span class='id identifier rubyid_events'>events</span><span class='period'>.</span><span class='id identifier rubyid_each'>each</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_event'>event</span><span class='op'>|</span>
     <span class='kw'>break</span> <span class='kw'>if</span> <span class='id identifier rubyid_event'>event</span> <span class='op'>==</span> <span class='const'>LogStash</span><span class='op'>::</span><span class='const'>SHUTDOWN</span>
 
-    <span class='comment'># Set the Streams API Data Part Number from redis if we&#39;re using it
-</span>    <span class='kw'>unless</span> <span class='ivar'>@redis_client</span><span class='period'>.</span><span class='id identifier rubyid_nil?'>nil?</span>
-      <span class='id identifier rubyid_part_num'>part_num</span> <span class='op'>=</span> <span class='ivar'>@redis_client</span><span class='period'>.</span><span class='id identifier rubyid_incr'>incr</span><span class='lparen'>(</span><span class='tstring'><span class='tstring_beg'>&quot;</span><span class='embexpr_beg'>#{</span><span class='ivar'>@dataset_id</span><span class='embexpr_end'>}</span><span class='tstring_content'>_part_num</span><span class='tstring_end'>&quot;</span></span><span class='rparen'>)</span>
-    <span class='kw'>end</span>
-
     <span class='comment'># Encode the Event data and add a job to the queue
-</span>    <span class='id identifier rubyid_data'>data</span> <span class='op'>=</span> <span class='id identifier rubyid_encode_event_data'>encode_event_data</span><span class='lparen'>(</span><span class='id identifier rubyid_event'>event</span><span class='rparen'>)</span>
-    <span class='id identifier rubyid_job'>job</span> <span class='op'>=</span> <span class='const'><span class='object_link'><a href="" title="LogStash::Outputs::Domo (class)">Domo</a></span></span><span class='op'>::</span><span class='const'>Job</span><span class='period'>.</span><span class='id identifier rubyid_new'>new</span><span class='lparen'>(</span><span class='id identifier rubyid_event'>event</span><span class='comma'>,</span> <span class='id identifier rubyid_data'>data</span><span class='comma'>,</span> <span class='id identifier rubyid_part_num'>part_num</span><span class='rparen'>)</span>
-    <span class='id identifier rubyid_queue'>queue</span><span class='period'>.</span><span class='id identifier rubyid_add'>add</span><span class='lparen'>(</span><span class='id identifier rubyid_job'>job</span><span class='rparen'>)</span>
+</span>    <span class='kw'>begin</span>
+      <span class='id identifier rubyid_data'>data</span> <span class='op'>=</span> <span class='id identifier rubyid_encode_event_data'>encode_event_data</span><span class='lparen'>(</span><span class='id identifier rubyid_event'>event</span><span class='rparen'>)</span>
 
-    <span class='comment'># Increment the part_num if we aren&#39;t using the redis queue.
-</span>    <span class='kw'>if</span> <span class='ivar'>@redis_client</span><span class='period'>.</span><span class='id identifier rubyid_nil?'>nil?</span>
-      <span class='id identifier rubyid_part_num'>part_num</span><span class='period'>.</span><span class='id identifier rubyid_incrementAndGet'>incrementAndGet</span>
+      <span class='comment'># Set the Streams API Data Part Number from redis if we&#39;re using it
+</span>      <span class='kw'>unless</span> <span class='ivar'>@redis_client</span><span class='period'>.</span><span class='id identifier rubyid_nil?'>nil?</span>
+        <span class='id identifier rubyid_part_num'>part_num</span> <span class='op'>=</span> <span class='ivar'>@redis_client</span><span class='period'>.</span><span class='id identifier rubyid_incr'>incr</span><span class='lparen'>(</span><span class='tstring'><span class='tstring_beg'>&quot;</span><span class='embexpr_beg'>#{</span><span class='ivar'>@dataset_id</span><span class='embexpr_end'>}</span><span class='tstring_content'>_part_num</span><span class='tstring_end'>&quot;</span></span><span class='rparen'>)</span>
+      <span class='kw'>end</span>
+
+      <span class='id identifier rubyid_job'>job</span> <span class='op'>=</span> <span class='const'><span class='object_link'><a href="" title="LogStash::Outputs::Domo (class)">Domo</a></span></span><span class='op'>::</span><span class='const'>Job</span><span class='period'>.</span><span class='id identifier rubyid_new'>new</span><span class='lparen'>(</span><span class='id identifier rubyid_event'>event</span><span class='comma'>,</span> <span class='id identifier rubyid_data'>data</span><span class='comma'>,</span> <span class='id identifier rubyid_part_num'>part_num</span><span class='rparen'>)</span>
+      <span class='id identifier rubyid_queue'>queue</span><span class='period'>.</span><span class='id identifier rubyid_add'>add</span><span class='lparen'>(</span><span class='id identifier rubyid_job'>job</span><span class='rparen'>)</span>
+
+      <span class='comment'># Increment the part_num if we aren&#39;t using the redis queue.
+</span>      <span class='kw'>if</span> <span class='ivar'>@redis_client</span><span class='period'>.</span><span class='id identifier rubyid_nil?'>nil?</span>
+        <span class='id identifier rubyid_part_num'>part_num</span><span class='period'>.</span><span class='id identifier rubyid_incrementAndGet'>incrementAndGet</span>
+      <span class='kw'>end</span>
+    <span class='comment'># Reject the event and possibly send it to the DLQ if it&#39;s enabled.
+</span>    <span class='kw'>rescue</span> <span class='const'>TypeError</span> <span class='op'>=&gt;</span> <span class='id identifier rubyid_e'>e</span>
+      <span class='kw'>unless</span> <span class='ivar'>@dlq_writer</span><span class='period'>.</span><span class='id identifier rubyid_nil?'>nil?</span>
+        <span class='ivar'>@dlq_writer</span><span class='period'>.</span><span class='id identifier rubyid_write'>write</span><span class='lparen'>(</span><span class='id identifier rubyid_event'>event</span><span class='comma'>,</span> <span class='id identifier rubyid_e'>e</span><span class='period'>.</span><span class='id identifier rubyid_message'>message</span><span class='rparen'>)</span>
+      <span class='kw'>end</span>
+      <span class='ivar'>@logger</span><span class='period'>.</span><span class='id identifier rubyid_error'>error</span><span class='lparen'>(</span><span class='id identifier rubyid_e'>e</span><span class='period'>.</span><span class='id identifier rubyid_message'>message</span><span class='comma'>,</span>
+                    <span class='symbol'>:exception</span> <span class='op'>=&gt;</span> <span class='id identifier rubyid_e'>e</span><span class='comma'>,</span>
+                    <span class='symbol'>:event</span>     <span class='op'>=&gt;</span> <span class='id identifier rubyid_event'>event</span><span class='rparen'>)</span>
     <span class='kw'>end</span>
   <span class='kw'>end</span>
 
@@ -600,7 +642,9 @@ href="https://developer.domo.com/docs/stream/overview">developer.domo.com/docs/s
 220
 221
 222
-223</pre>
+223
+224
+225</pre>
     </td>
     <td>
       <pre class="code"><span class="info file"># File 'lib/logstash/outputs/domo.rb', line 134</span>
@@ -610,20 +654,22 @@ href="https://developer.domo.com/docs/stream/overview">developer.domo.com/docs/s
   <span class='ivar'>@domo_stream</span><span class='comma'>,</span> <span class='ivar'>@domo_stream_execution</span> <span class='op'>=</span> <span class='ivar'>@domo_client</span><span class='period'>.</span><span class='id identifier rubyid_stream'>stream</span><span class='lparen'>(</span><span class='ivar'>@stream_id</span><span class='comma'>,</span> <span class='ivar'>@dataset_id</span><span class='comma'>,</span> <span class='kw'>false</span><span class='rparen'>)</span>
   <span class='ivar'>@dataset_columns</span> <span class='op'>=</span> <span class='ivar'>@domo_client</span><span class='period'>.</span><span class='id identifier rubyid_dataset_schema_columns'>dataset_schema_columns</span><span class='lparen'>(</span><span class='ivar'>@domo_stream</span><span class='rparen'>)</span>
 
+  <span class='ivar'>@dlq_writer</span> <span class='op'>=</span> <span class='id identifier rubyid_dlq_enabled?'>dlq_enabled?</span> <span class='op'>?</span> <span class='id identifier rubyid_execution_context'>execution_context</span><span class='period'>.</span><span class='id identifier rubyid_dlq_writer'>dlq_writer</span> <span class='op'>:</span> <span class='kw'>nil</span>
+
   <span class='comment'># Map of batch jobs (per-thread)
 </span>  <span class='ivar'>@thread_batch_map</span> <span class='op'>=</span> <span class='const'>Concurrent</span><span class='op'>::</span><span class='const'>Hash</span><span class='period'>.</span><span class='id identifier rubyid_new'>new</span>
 
   <span class='comment'># Distributed lock requires a different queuing mechanism, among other things
 </span>  <span class='kw'>if</span> <span class='ivar'>@distributed_lock</span>
     <span class='kw'>if</span> <span class='ivar'>@redis_client</span><span class='period'>.</span><span class='id identifier rubyid_nil?'>nil?</span>
-      <span class='id identifier rubyid_raise'>raise</span> <span class='const'>LogStash</span><span class='op'>::</span><span class='const'>ConfigurationError</span><span class='lparen'>(</span><span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>The redis_client parameter is required when using distributed_lock</span><span class='tstring_end'>&quot;</span></span><span class='rparen'>)</span>
+      <span class='id identifier rubyid_raise'>raise</span> <span class='const'>LogStash</span><span class='op'>::</span><span class='const'>ConfigurationError</span><span class='period'>.</span><span class='id identifier rubyid_new'>new</span><span class='lparen'>(</span><span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>The redis_client parameter is required when using distributed_lock</span><span class='tstring_end'>&quot;</span></span><span class='rparen'>)</span>
     <span class='kw'>else</span>
       <span class='ivar'>@redis_client</span> <span class='op'>=</span> <span class='id identifier rubyid_symbolize_redis_client_args'>symbolize_redis_client_args</span><span class='lparen'>(</span><span class='ivar'>@redis_client</span><span class='rparen'>)</span>
       <span class='ivar'>@redis_client</span> <span class='op'>=</span> <span class='const'>Redis</span><span class='period'>.</span><span class='id identifier rubyid_new'>new</span><span class='lparen'>(</span><span class='ivar'>@redis_client</span><span class='rparen'>)</span>
     <span class='kw'>end</span>
 
     <span class='kw'>if</span> <span class='ivar'>@lock_servers</span><span class='period'>.</span><span class='id identifier rubyid_nil?'>nil?</span> <span class='kw'>or</span> <span class='ivar'>@lock_servers</span><span class='period'>.</span><span class='id identifier rubyid_length'>length</span> <span class='op'>&lt;=</span> <span class='int'>0</span>
-      <span class='id identifier rubyid_raise'>raise</span> <span class='const'>LogStash</span><span class='op'>::</span><span class='const'>ConfigurationError</span><span class='lparen'>(</span><span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>The lock_servers parameter is required when using distributed_lock</span><span class='tstring_end'>&quot;</span></span><span class='rparen'>)</span>
+      <span class='id identifier rubyid_raise'>raise</span> <span class='const'>LogStash</span><span class='op'>::</span><span class='const'>ConfigurationError</span><span class='period'>.</span><span class='id identifier rubyid_new'>new</span><span class='lparen'>(</span><span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>The lock_servers parameter is required when using distributed_lock</span><span class='tstring_end'>&quot;</span></span><span class='rparen'>)</span>
     <span class='kw'>else</span>
       <span class='id identifier rubyid_redis_clients'>redis_clients</span> <span class='op'>=</span> <span class='ivar'>@lock_servers</span><span class='period'>.</span><span class='id identifier rubyid_map'>map</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_server'>server</span><span class='op'>|</span>
         <span class='comment'># Remove the db key from the server because redlock don&#39;t care
@@ -690,7 +736,7 @@ href="https://developer.domo.com/docs/stream/overview">developer.domo.com/docs/s
           <span class='id identifier rubyid_server'>server</span><span class='period'>.</span><span class='id identifier rubyid_connection'>connection</span><span class='lbracket'>[</span><span class='symbol'>:host</span><span class='rbracket'>]</span>
         <span class='kw'>end</span>
         <span class='comment'># Stop the show.
-</span>        <span class='id identifier rubyid_raise'>raise</span> <span class='const'>LogStash</span><span class='op'>::</span><span class='const'>PluginLoadingError</span><span class='lparen'>(</span><span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Unable to acquire distributed lock for servers [</span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_servers'>servers</span><span class='period'>.</span><span class='id identifier rubyid_join'>join</span><span class='lparen'>(</span><span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>, </span><span class='tstring_end'>&#39;</span></span><span class='rparen'>)</span><span class='embexpr_end'>}</span><span class='tstring_content'>]</span><span class='tstring_end'>&quot;</span></span><span class='rparen'>)</span>
+</span>        <span class='id identifier rubyid_raise'>raise</span> <span class='const'>LogStash</span><span class='op'>::</span><span class='const'>PluginLoadingError</span><span class='period'>.</span><span class='id identifier rubyid_new'>new</span><span class='lparen'>(</span><span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Unable to acquire distributed lock for servers [</span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_servers'>servers</span><span class='period'>.</span><span class='id identifier rubyid_join'>join</span><span class='lparen'>(</span><span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>, </span><span class='tstring_end'>&#39;</span></span><span class='rparen'>)</span><span class='embexpr_end'>}</span><span class='tstring_content'>]</span><span class='tstring_end'>&quot;</span></span><span class='rparen'>)</span>
       <span class='kw'>end</span>
     <span class='kw'>end</span>
   <span class='kw'>end</span>
@@ -746,8 +792,6 @@ href="https://developer.domo.com/docs/stream/overview">developer.domo.com/docs/s
       <pre class="lines">
 
 
-229
-230
 231
 232
 233
@@ -815,10 +859,19 @@ href="https://developer.domo.com/docs/stream/overview">developer.domo.com/docs/s
 295
 296
 297
-298</pre>
+298
+299
+300
+301
+302
+303
+304
+305
+306
+307</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/logstash/outputs/domo.rb', line 229</span>
+      <pre class="code"><span class="info file"># File 'lib/logstash/outputs/domo.rb', line 231</span>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_send_to_domo'>send_to_domo</span><span class='lparen'>(</span><span class='id identifier rubyid_batch'>batch</span><span class='rparen'>)</span>
   <span class='kw'>while</span> <span class='id identifier rubyid_batch'>batch</span><span class='period'>.</span><span class='id identifier rubyid_any?'>any?</span>
@@ -832,7 +885,6 @@ href="https://developer.domo.com/docs/stream/overview">developer.domo.com/docs/s
       <span class='kw'>begin</span>
         <span class='ivar'>@domo_stream_execution</span> <span class='op'>=</span> <span class='ivar'>@domo_client</span><span class='period'>.</span><span class='id identifier rubyid_stream_execution'>stream_execution</span><span class='lparen'>(</span><span class='ivar'>@domo_stream</span><span class='comma'>,</span> <span class='ivar'>@domo_stream_execution</span><span class='rparen'>)</span>
         <span class='ivar'>@domo_client</span><span class='period'>.</span><span class='id identifier rubyid_stream_client'>stream_client</span><span class='period'>.</span><span class='id identifier rubyid_uploadDataPart'>uploadDataPart</span><span class='lparen'>(</span><span class='ivar'>@domo_stream</span><span class='period'>.</span><span class='id identifier rubyid_getId'>getId</span><span class='comma'>,</span> <span class='ivar'>@domo_stream_execution</span><span class='period'>.</span><span class='id identifier rubyid_getId'>getId</span><span class='comma'>,</span> <span class='id identifier rubyid_job'>job</span><span class='period'>.</span><span class='id identifier rubyid_part_num'>part_num</span><span class='comma'>,</span> <span class='id identifier rubyid_job'>job</span><span class='period'>.</span><span class='id identifier rubyid_data'>data</span><span class='rparen'>)</span>
-        <span class='id identifier rubyid_puts'>puts</span> <span class='id identifier rubyid_job'>job</span><span class='period'>.</span><span class='id identifier rubyid_part_num'>part_num</span>
       <span class='kw'>rescue</span> <span class='const'>Java</span><span class='op'>::</span><span class='const'>ComDomoSdkRequest</span><span class='op'>::</span><span class='const'>RequestException</span> <span class='op'>=&gt;</span> <span class='id identifier rubyid_e'>e</span>
         <span class='kw'>if</span> <span class='id identifier rubyid_e'>e</span><span class='period'>.</span><span class='id identifier rubyid_getStatusCode'>getStatusCode</span> <span class='op'>==</span> <span class='op'>-</span><span class='int'>1</span> <span class='op'>||</span> <span class='lparen'>(</span><span class='id identifier rubyid_e'>e</span><span class='period'>.</span><span class='id identifier rubyid_getStatusCode'>getStatusCode</span> <span class='op'>&lt;</span> <span class='int'>400</span> <span class='op'>&amp;&amp;</span> <span class='id identifier rubyid_e'>e</span><span class='period'>.</span><span class='id identifier rubyid_getStatusCode'>getStatusCode</span> <span class='op'>&gt;=</span> <span class='int'>500</span><span class='rparen'>)</span>
           <span class='kw'>unless</span> <span class='ivar'>@domo_stream_execution</span><span class='period'>.</span><span class='id identifier rubyid_nil?'>nil?</span>
@@ -854,28 +906,36 @@ href="https://developer.domo.com/docs/stream/overview">developer.domo.com/docs/s
                           <span class='symbol'>:data</span> <span class='op'>=&gt;</span> <span class='id identifier rubyid_data'>data</span><span class='comma'>,</span>
                           <span class='symbol'>:event</span> <span class='op'>=&gt;</span> <span class='id identifier rubyid_event'>event</span><span class='rparen'>)</span>
           <span class='kw'>end</span>
-        <span class='comment'># TODO: Implement DLQ?
-</span>        <span class='kw'>else</span>
-          <span class='ivar'>@logger</span><span class='period'>.</span><span class='id identifier rubyid_error'>error</span><span class='lparen'>(</span><span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Encountered a fatal error interacting with the DOMO Streams API.</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span>
+        <span class='kw'>else</span>
+          <span class='id identifier rubyid_log_message'>log_message</span> <span class='op'>=</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Encountered a fatal error interacting with the DOMO Streams API.</span><span class='tstring_end'>&quot;</span></span>
+          <span class='ivar'>@logger</span><span class='period'>.</span><span class='id identifier rubyid_error'>error</span><span class='lparen'>(</span><span class='id identifier rubyid_log_message'>log_message</span><span class='comma'>,</span>
                         <span class='symbol'>:code</span> <span class='op'>=&gt;</span> <span class='id identifier rubyid_e'>e</span><span class='period'>.</span><span class='id identifier rubyid_getStatusCode'>getStatusCode</span><span class='comma'>,</span>
                         <span class='symbol'>:exception</span> <span class='op'>=&gt;</span> <span class='id identifier rubyid_e'>e</span><span class='comma'>,</span>
                         <span class='symbol'>:data</span> <span class='op'>=&gt;</span> <span class='id identifier rubyid_data'>data</span><span class='comma'>,</span>
                         <span class='symbol'>:event</span> <span class='op'>=&gt;</span> <span class='id identifier rubyid_event'>event</span><span class='rparen'>)</span>
+          <span class='kw'>unless</span> <span class='ivar'>@dlq_writer</span><span class='period'>.</span><span class='id identifier rubyid_nil?'>nil?</span>
+            <span class='ivar'>@dlq_writer</span><span class='period'>.</span><span class='id identifier rubyid_write'>write</span><span class='lparen'>(</span><span class='id identifier rubyid_event'>event</span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_log_message'>log_message</span><span class='embexpr_end'>}</span><span class='tstring_content'> Exception: </span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_e'>e</span><span class='embexpr_end'>}</span><span class='tstring_end'>&quot;</span></span><span class='rparen'>)</span>
+          <span class='kw'>end</span>
         <span class='kw'>end</span>
       <span class='kw'>end</span>
     <span class='kw'>end</span>
-    
+
     <span class='kw'>if</span> <span class='id identifier rubyid_failures'>failures</span><span class='period'>.</span><span class='id identifier rubyid_empty?'>empty?</span>
       <span class='kw'>unless</span> <span class='ivar'>@domo_stream_execution</span><span class='period'>.</span><span class='id identifier rubyid_nil?'>nil?</span>
         <span class='comment'># Commit and create a new Stream Execution if that hasn&#39;t happened already
 </span>        <span class='ivar'>@domo_stream_execution</span> <span class='op'>=</span> <span class='ivar'>@domo_client</span><span class='period'>.</span><span class='id identifier rubyid_stream_client'>stream_client</span><span class='period'>.</span><span class='id identifier rubyid_getExecution'>getExecution</span><span class='lparen'>(</span><span class='ivar'>@domo_stream</span><span class='period'>.</span><span class='id identifier rubyid_getId'>getId</span><span class='comma'>,</span> <span class='ivar'>@domo_stream_execution</span><span class='period'>.</span><span class='id identifier rubyid_getId'>getId</span><span class='rparen'>)</span>
         <span class='kw'>if</span> <span class='ivar'>@domo_stream_execution</span><span class='period'>.</span><span class='id identifier rubyid_currentState'>currentState</span> <span class='op'>==</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>ACTIVE</span><span class='tstring_end'>&quot;</span></span>
-          <span class='ivar'>@lock_manager</span><span class='period'>.</span><span class='id identifier rubyid_lock'>lock</span><span class='lparen'>(</span><span class='tstring'><span class='tstring_beg'>&quot;</span><span class='embexpr_beg'>#{</span><span class='ivar'>@dataset_id</span><span class='embexpr_end'>}</span><span class='tstring_content'>_lock</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='ivar'>@lock_timeout</span><span class='rparen'>)</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_locked'>locked</span><span class='op'>|</span>
-            <span class='kw'>if</span> <span class='id identifier rubyid_locked'>locked</span>
-              <span class='ivar'>@domo_client</span><span class='period'>.</span><span class='id identifier rubyid_stream_client'>stream_client</span><span class='period'>.</span><span class='id identifier rubyid_commitExecution'>commitExecution</span><span class='lparen'>(</span><span class='ivar'>@domo_stream</span><span class='period'>.</span><span class='id identifier rubyid_getId'>getId</span><span class='comma'>,</span> <span class='ivar'>@domo_stream_execution</span><span class='period'>.</span><span class='id identifier rubyid_getId'>getId</span><span class='rparen'>)</span>
-              <span class='ivar'>@domo_stream_execution</span> <span class='op'>=</span> <span class='kw'>nil</span>
-              <span class='id identifier rubyid__'>_</span> <span class='op'>=</span> <span class='ivar'>@redis_client</span><span class='period'>.</span><span class='id identifier rubyid_getset'>getset</span><span class='lparen'>(</span><span class='tstring'><span class='tstring_beg'>&quot;</span><span class='embexpr_beg'>#{</span><span class='ivar'>@dataset_id</span><span class='embexpr_end'>}</span><span class='tstring_content'>_part_num</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>0</span><span class='tstring_end'>&quot;</span></span><span class='rparen'>)</span>
+          <span class='kw'>if</span> <span class='ivar'>@distributed_lock</span>
+            <span class='ivar'>@lock_manager</span><span class='period'>.</span><span class='id identifier rubyid_lock'>lock</span><span class='lparen'>(</span><span class='tstring'><span class='tstring_beg'>&quot;</span><span class='embexpr_beg'>#{</span><span class='ivar'>@dataset_id</span><span class='embexpr_end'>}</span><span class='tstring_content'>_lock</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='ivar'>@lock_timeout</span><span class='rparen'>)</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_locked'>locked</span><span class='op'>|</span>
+              <span class='kw'>if</span> <span class='id identifier rubyid_locked'>locked</span>
+                <span class='ivar'>@domo_client</span><span class='period'>.</span><span class='id identifier rubyid_stream_client'>stream_client</span><span class='period'>.</span><span class='id identifier rubyid_commitExecution'>commitExecution</span><span class='lparen'>(</span><span class='ivar'>@domo_stream</span><span class='period'>.</span><span class='id identifier rubyid_getId'>getId</span><span class='comma'>,</span> <span class='ivar'>@domo_stream_execution</span><span class='period'>.</span><span class='id identifier rubyid_getId'>getId</span><span class='rparen'>)</span>
+                <span class='ivar'>@domo_stream_execution</span> <span class='op'>=</span> <span class='kw'>nil</span>
+                <span class='id identifier rubyid__'>_</span> <span class='op'>=</span> <span class='ivar'>@redis_client</span><span class='period'>.</span><span class='id identifier rubyid_getset'>getset</span><span class='lparen'>(</span><span class='tstring'><span class='tstring_beg'>&quot;</span><span class='embexpr_beg'>#{</span><span class='ivar'>@dataset_id</span><span class='embexpr_end'>}</span><span class='tstring_content'>_part_num</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>0</span><span class='tstring_end'>&quot;</span></span><span class='rparen'>)</span>
+              <span class='kw'>end</span>
             <span class='kw'>end</span>
+          <span class='kw'>else</span>
+            <span class='ivar'>@domo_client</span><span class='period'>.</span><span class='id identifier rubyid_stream_client'>stream_client</span><span class='period'>.</span><span class='id identifier rubyid_commitExecution'>commitExecution</span><span class='lparen'>(</span><span class='ivar'>@domo_stream</span><span class='period'>.</span><span class='id identifier rubyid_getId'>getId</span><span class='comma'>,</span> <span class='ivar'>@domo_stream_execution</span><span class='period'>.</span><span class='id identifier rubyid_getId'>getId</span><span class='rparen'>)</span>
+            <span class='ivar'>@domo_stream_execution</span> <span class='op'>=</span> <span class='kw'>nil</span>
           <span class='kw'>end</span>
         <span class='kw'>end</span>
       <span class='kw'>end</span>
@@ -900,7 +960,7 @@ href="https://developer.domo.com/docs/stream/overview">developer.domo.com/docs/s
 </div>
 
       <div id="footer">
-  Generated on Mon Dec 10 22:07:25 2018 by
+  Generated on Thu Dec 13 19:26:40 2018 by
   <a href="http://yardoc.org" title="Yay! A Ruby Documentation Tool" target="_parent">yard</a>
   0.9.16 (ruby-2.3.3).
 </div>

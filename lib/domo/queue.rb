@@ -22,7 +22,8 @@ module Domo
     # @return [Integer]
     attr_reader :stream_id
 
-    # @!attribute [r]
+    # @!attribute [r] execution_id
+    # @return [Integer]
     def execution_id
       if @execution_id.nil?
         return self.class.get_active_execution_id(@client, @dataset_id)

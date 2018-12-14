@@ -356,17 +356,17 @@ Streams API.</p>
       <pre class="lines">
 
 
-199
 200
 201
 202
 203
 204
 205
-206</pre>
+206
+207</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/domo/queue.rb', line 199</span>
+      <pre class="code"><span class="info file"># File 'lib/domo/queue.rb', line 200</span>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_initialize'>initialize</span><span class='lparen'>(</span><span class='id identifier rubyid_event'>event</span><span class='comma'>,</span> <span class='id identifier rubyid_data'>data</span><span class='comma'>,</span> <span class='id identifier rubyid_part_num'>part_num</span><span class='rparen'>)</span>
   <span class='ivar'>@event</span> <span class='op'>=</span> <span class='id identifier rubyid_event'>event</span>
@@ -432,12 +432,12 @@ Streams API.</p>
       <pre class="lines">
 
 
-191
 192
-193</pre>
+193
+194</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/domo/queue.rb', line 191</span>
+      <pre class="code"><span class="info file"># File 'lib/domo/queue.rb', line 192</span>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_data'>data</span>
   <span class='ivar'>@data</span>
@@ -486,12 +486,12 @@ Streams API.</p>
       <pre class="lines">
 
 
-189
 190
-191</pre>
+191
+192</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/domo/queue.rb', line 189</span>
+      <pre class="code"><span class="info file"># File 'lib/domo/queue.rb', line 190</span>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_event'>event</span>
   <span class='ivar'>@event</span>
@@ -540,12 +540,12 @@ Streams API.</p>
       <pre class="lines">
 
 
-193
 194
-195</pre>
+195
+196</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/domo/queue.rb', line 193</span>
+      <pre class="code"><span class="info file"># File 'lib/domo/queue.rb', line 194</span>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_part_num'>part_num</span>
   <span class='ivar'>@part_num</span>
@@ -621,14 +621,14 @@ Streams API.</p>
       <pre class="lines">
 
 
-212
 213
 214
 215
-216</pre>
+216
+217</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/domo/queue.rb', line 212</span>
+      <pre class="code"><span class="info file"># File 'lib/domo/queue.rb', line 213</span>
 
 <span class='kw'>def</span> <span class='kw'>self</span><span class='period'>.</span><span class='id identifier rubyid_from_json!'>from_json!</span><span class='lparen'>(</span><span class='id identifier rubyid_json_str'>json_str</span><span class='rparen'>)</span>
   <span class='id identifier rubyid_json_hash'>json_hash</span> <span class='op'>=</span> <span class='const'>JSON</span><span class='period'>.</span><span class='id identifier rubyid_parse'>parse</span><span class='lparen'>(</span><span class='id identifier rubyid_json_str'>json_str</span><span class='comma'>,</span> <span class='lbrace'>{</span><span class='symbol'>:symbolize_names</span> <span class='op'>=&gt;</span> <span class='kw'>true</span><span class='rbrace'>}</span><span class='rparen'>)</span>
@@ -691,7 +691,6 @@ storing the object in redis (shocker)</p>
       <pre class="lines">
 
 
-222
 223
 224
 225
@@ -699,10 +698,11 @@ storing the object in redis (shocker)</p>
 227
 228
 229
-230</pre>
+230
+231</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/domo/queue.rb', line 222</span>
+      <pre class="code"><span class="info file"># File 'lib/domo/queue.rb', line 223</span>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_to_json'>to_json</span>
   <span class='id identifier rubyid_json_hash'>json_hash</span> <span class='op'>=</span> <span class='lbrace'>{</span>
@@ -723,7 +723,7 @@ storing the object in redis (shocker)</p>
 </div>
 
       <div id="footer">
-  Generated on Mon Dec 10 22:07:24 2018 by
+  Generated on Thu Dec 13 19:26:39 2018 by
   <a href="http://yardoc.org" title="Yay! A Ruby Documentation Tool" target="_parent">yard</a>
   0.9.16 (ruby-2.3.3).
 </div>
