@@ -90,6 +90,8 @@ module DomoHelper
     columns.add(Column.new(Java::ComDomoSdkDatasetsModel::ColumnType::LONG, "Count"))
     columns.add(Column.new(Java::ComDomoSdkDatasetsModel::ColumnType::STRING, "Event Name"))
     columns.add(Column.new(Java::ComDomoSdkDatasetsModel::ColumnType::DATETIME, "Event Timestamp"))
+    columns.add(Column.new(Java::ComDomoSdkDatasetsModel::ColumnType::DATE, "Event Date"))
+    columns.add(Column.new(Java::ComDomoSdkDatasetsModel::ColumnType::DOUBLE, "Percent"))
     dsr.setSchema(Schema.new(columns))
 
     stream_request = StreamRequest.new

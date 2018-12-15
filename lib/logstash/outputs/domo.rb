@@ -504,6 +504,9 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
         return false
       end
     elsif domo_column_type == Java::ComDomoSdkDatasetsModel::ColumnType::DATETIME
+      if val.is_a? LogStash::Timestamp
+        return true
+      end
       begin
         _ = DateTime.parse(val)
         return true
