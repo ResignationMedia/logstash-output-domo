@@ -58,6 +58,9 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
   # The delay (seconds) on retrying failed requests
   config :retry_delay, :validate => :number, :default => 2.0
 
+  # Ensure that Event fields have the same data type as their corresponding columns in Domo.
+  config :type_check, :validate => :boolean, :default => true
+
   # Use a distributed lock. Necessary when running the plugin against the same Dataset on multiple Logstash servers.
   config :distributed_lock, :validate => :boolean, :default => false
 
@@ -473,9 +476,10 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
         end
 
         # Make sure the type matches what Domo expects.
-        mapped_type = ruby_domo_type_map(data[col_name])
-        if mapped_type != col[:type]
-          raise TypeError.new("Invalid data type for #{col_name}. It should be #{col[:type]} but instead is #{mapped_type}")
+        if @type_check
+          unless ruby_domo_type_match?(data[col_name], col[:type])
+            raise TypeError.new("Invalid data type for #{col_name}. It should be #{col[:type]}.")
+          end
         end
       end
 
@@ -486,21 +490,32 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
   end
 
   private
-  # Takes a given value and maps its type to a Domo Column type.
+  # Takes a given value and returns a boolean indicating if its type matches the corresponding Domo column.
   #
   # @param val [Object] The object to inspect.
-  # @return [ColumnType] The Domo Column Type.
-  def ruby_domo_type_map(val)
-    if val.is_a? Integer
-      Java::ComDomoSdkDatasetsModel::ColumnType::LONG
-    elsif val.is_a? Float
-      Java::ComDomoSdkDatasetsModel::ColumnType::DOUBLE
-    elsif val.is_a? Date
-      Java::ComDomoSdkDatasetsModel::ColumnType::DATE
-    elsif val.is_a? DateTime
-      Java::ComDomoSdkDatasetsModel::ColumnType::DATETIME
+  # @param domo_column_type [Java::ComDomoSdkDatasetsModel::ColumnType] The Domo column type.
+  # @return [Boolean] The Domo Column Type.
+  def ruby_domo_type_match?(val, domo_column_type)
+    if domo_column_type == Java::ComDomoSdkDatasetsModel::ColumnType::DATE
+      begin
+        _ = Date.parse(val)
+        return true
+      rescue ArgumentError
+        return false
+      end
+    elsif domo_column_type == Java::ComDomoSdkDatasetsModel::ColumnType::DATETIME
+      begin
+        _ = DateTime.parse(val)
+        return true
+      rescue ArgumentError
+        return false
+      end
+    elsif domo_column_type == Java::ComDomoSdkDatasetsModel::ColumnType::LONG
+      return val.is_a? Integer
+    elsif domo_column_type == Java::ComDomoSdkDatasetsModel::ColumnType::DOUBLE
+      return val.is_a? Float
     else
-      Java::ComDomoSdkDatasetsModel::ColumnType::STRING
+      true
     end
   end
 

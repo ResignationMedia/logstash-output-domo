@@ -71,10 +71,11 @@ describe LogStash::Outputs::Domo do
   describe "#multi_receive" do
     let(:events) do
       (1..5).map do |i|
-        LogStash::Event.new("Count" => i, "Event Name" => "event_#{i}")
+        cur_date = DateTime.now.to_s
+        LogStash::Event.new("Count" => i, "Event Name" => "event_#{i}", "Event Timestamp" => cur_date)
       end
     end
-    let(:mistyped_event) { LogStash::Event.new("Count" => "foo", "Event Name" => "") }
+    let(:mistyped_event) { LogStash::Event.new("Count" => 1, "Event Name" => "", "Event Timestamp" => "fz") }
 
     context "with distributed locking" do
       let(:config) do

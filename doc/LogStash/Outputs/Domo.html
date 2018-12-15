@@ -292,12 +292,12 @@ href="https://developer.domo.com/docs/stream/overview">developer.domo.com/docs/s
       <pre class="lines">
 
 
-131
-132
-133</pre>
+134
+135
+136</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/logstash/outputs/domo.rb', line 131</span>
+      <pre class="code"><span class="info file"># File 'lib/logstash/outputs/domo.rb', line 134</span>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_dataset_columns'>dataset_columns</span>
   <span class='ivar'>@dataset_columns</span>
@@ -329,9 +329,6 @@ href="https://developer.domo.com/docs/stream/overview">developer.domo.com/docs/s
       <pre class="lines">
 
 
-310
-311
-312
 313
 314
 315
@@ -357,10 +354,13 @@ href="https://developer.domo.com/docs/stream/overview">developer.domo.com/docs/s
 335
 336
 337
-338</pre>
+338
+339
+340
+341</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/logstash/outputs/domo.rb', line 310</span>
+      <pre class="code"><span class="info file"># File 'lib/logstash/outputs/domo.rb', line 313</span>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_close'>close</span>
   <span class='comment'># Commit or abort the stream execution if that hasn&#39;t happened already
@@ -411,9 +411,6 @@ href="https://developer.domo.com/docs/stream/overview">developer.domo.com/docs/s
       <pre class="lines">
 
 
-341
-342
-343
 344
 345
 346
@@ -469,10 +466,13 @@ href="https://developer.domo.com/docs/stream/overview">developer.domo.com/docs/s
 396
 397
 398
-399</pre>
+399
+400
+401
+402</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/logstash/outputs/domo.rb', line 341</span>
+      <pre class="code"><span class="info file"># File 'lib/logstash/outputs/domo.rb', line 344</span>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_multi_receive'>multi_receive</span><span class='lparen'>(</span><span class='id identifier rubyid_events'>events</span><span class='rparen'>)</span>
   <span class='comment'># Get or setup a multi-threaded queue if we aren&#39;t using redis
@@ -553,9 +553,6 @@ href="https://developer.domo.com/docs/stream/overview">developer.domo.com/docs/s
       <pre class="lines">
 
 
-134
-135
-136
 137
 138
 139
@@ -644,10 +641,13 @@ href="https://developer.domo.com/docs/stream/overview">developer.domo.com/docs/s
 222
 223
 224
-225</pre>
+225
+226
+227
+228</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/logstash/outputs/domo.rb', line 134</span>
+      <pre class="code"><span class="info file"># File 'lib/logstash/outputs/domo.rb', line 137</span>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_register'>register</span>
   <span class='ivar'>@domo_client</span> <span class='op'>=</span> <span class='const'><span class='object_link'><a href="" title="LogStash::Outputs::Domo (class)">Domo</a></span></span><span class='op'>::</span><span class='const'>Client</span><span class='period'>.</span><span class='id identifier rubyid_new'>new</span><span class='lparen'>(</span><span class='ivar'>@client_id</span><span class='comma'>,</span> <span class='ivar'>@client_secret</span><span class='comma'>,</span> <span class='ivar'>@api_host</span><span class='comma'>,</span> <span class='ivar'>@api_ssl</span><span class='comma'>,</span> <span class='const'>Java</span><span class='op'>::</span><span class='const'>ComDomoSdkRequest</span><span class='op'>::</span><span class='const'>Scope</span><span class='op'>::</span><span class='const'>DATA</span><span class='rparen'>)</span>
@@ -792,9 +792,6 @@ href="https://developer.domo.com/docs/stream/overview">developer.domo.com/docs/s
       <pre class="lines">
 
 
-231
-232
-233
 234
 235
 236
@@ -868,10 +865,13 @@ href="https://developer.domo.com/docs/stream/overview">developer.domo.com/docs/s
 304
 305
 306
-307</pre>
+307
+308
+309
+310</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/logstash/outputs/domo.rb', line 231</span>
+      <pre class="code"><span class="info file"># File 'lib/logstash/outputs/domo.rb', line 234</span>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_send_to_domo'>send_to_domo</span><span class='lparen'>(</span><span class='id identifier rubyid_batch'>batch</span><span class='rparen'>)</span>
   <span class='kw'>while</span> <span class='id identifier rubyid_batch'>batch</span><span class='period'>.</span><span class='id identifier rubyid_any?'>any?</span>
@@ -960,7 +960,7 @@ href="https://developer.domo.com/docs/stream/overview">developer.domo.com/docs/s
 </div>
 
       <div id="footer">
-  Generated on Thu Dec 13 19:26:40 2018 by
+  Generated on Sat Dec 15 14:52:27 2018 by
   <a href="http://yardoc.org" title="Yay! A Ruby Documentation Tool" target="_parent">yard</a>
   0.9.16 (ruby-2.3.3).
 </div>
