@@ -477,7 +477,7 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
 
         # Make sure the type matches what Domo expects.
         if @type_check
-          unless ruby_domo_type_match?(data[col_name], col[:type])
+          unless data[col_name].nil? or ruby_domo_type_match?(data[col_name], col[:type])
             raise TypeError.new("Invalid data type for #{col_name}. It should be #{col[:type]}.")
           end
         end
@@ -514,9 +514,25 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
         return false
       end
     elsif domo_column_type == Java::ComDomoSdkDatasetsModel::ColumnType::LONG
-      return val.is_a? Integer
+      if val.is_a? Integer
+        return true
+      end
+      begin
+        _ = Integer(val)
+        return true
+      rescue ArgumentError
+        return false
+      end
     elsif domo_column_type == Java::ComDomoSdkDatasetsModel::ColumnType::DOUBLE
-      return val.is_a? Float
+      if val.is_a? Float
+        return true
+      end
+      begin
+        _ = Float(val)
+        return true
+      rescue ArgumentError
+        return false
+      end
     else
       true
     end

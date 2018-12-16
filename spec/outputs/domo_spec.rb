@@ -86,6 +86,13 @@ describe LogStash::Outputs::Domo do
                           "Event Date" => "fz",
                           "Percent" => 2)
     end
+    let (:nil_event) do
+      LogStash::Event.new("Count" => nil,
+                          "Event Name" => "nil_event",
+                          "Event Timestamp" => LogStash::Timestamp.now,
+                          "Event Date" => nil,
+                          "Percent" => nil)
+    end
 
     context "with distributed locking" do
       let(:config) do
@@ -110,6 +117,10 @@ describe LogStash::Outputs::Domo do
         subject.multi_receive([mistyped_event])
         expect(subject.instance_variable_get(:@logger)).to have_received(:error).with(/Invalid data type/, anything).once
       end
+
+      it "should tolerate events with null values" do
+        subject.multi_receive([nil_event])
+      end
     end
 
     context "without distributed locking" do
@@ -125,6 +136,10 @@ describe LogStash::Outputs::Domo do
 
         subject.multi_receive([mistyped_event])
         expect(subject.instance_variable_get(:@logger)).to have_received(:error).with(/Invalid data type/, anything).once
+      end
+
+      it "should tolerate events with null values" do
+        subject.multi_receive([nil_event])
       end
     end
   end
