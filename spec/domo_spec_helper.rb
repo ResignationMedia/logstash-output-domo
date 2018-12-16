@@ -1,3 +1,4 @@
+require "csv"
 require "logstash/devutils/rspec/spec_helper"
 require "logstash/event"
 require "java"
@@ -27,19 +28,6 @@ module DomoHelper
       YAML.load_file(test_settings_file)
     else
       {}
-    end
-  end
-
-  # Updates the rspec_settings.yaml file with new test data.
-  #
-  # @param settings [Hash]
-  def update_test_settings(settings)
-    test_settings_file = File.dirname(File.dirname(__FILE__))
-    test_settings_file = File.join(test_settings_file, 'testing')
-    test_settings_file = File.join(test_settings_file, 'rspec_settings.yaml')
-
-    File.open(test_settings_file, 'w') do |f|
-      YAML.dump(settings, f)
     end
   end
 
@@ -77,11 +65,9 @@ module DomoHelper
 
   # Create the test Dataset
   #
-  # @param test_settings [Hash] The settings read from rspec_settings.yaml
   # @param domo_client [DomoClient]
-  def bootstrap_dataset(test_settings, domo_client)
-    puts "No test Dataset or Stream specified. Creating one."
-
+  # @return [Hash]
+  def bootstrap_dataset(domo_client)
     dsr = CreateDataSetRequest.new
     dsr.setName "logstash-output-domo rspec test"
     dsr.setDescription "Created by the rspec tests for the logstash-output-domo plugin"
@@ -102,50 +88,57 @@ module DomoHelper
     stream_id = stream.getId
     dataset_id = stream.getDataset.getId
 
-    puts "Created StreamID #{stream_id} for DatasetID #{dataset_id}"
-    test_settings["stream_id"] = stream_id
-    test_settings["dataset_id"] = dataset_id
-    update_test_settings(test_settings)
+    {
+        "dataset_id" => dataset_id,
+        "stream_id"  => stream_id,
+    }
+  end
+
+  # Throw out Event data keys that are not being passed to Domo.
+  # The values we keep also need to be coerced to Strings since the Dataset Export API sends back CSV data.
+  #
+  # @param event [LogStash::Event]
+  # @return [Hash]
+  def event_to_csv(event)
+    new_event = {}
+    event.to_hash.each do |k, v|
+      if v.is_a? LogStash::Timestamp
+        v = DateTime.parse(v.to_s)
+        v = v.strftime("%Y-%m-%d %H:%M:%S")
+      end
+      unless k == "@version" or k == "@timestamp"
+        if v.nil?
+          new_event[k] = nil
+        else
+          new_event[k] = v.to_s
+        end
+      end
+    end
+    new_event
+  end
+
+  # Export a given dataset and compare its contents to the expected data.
+  #
+  # @param domo_client [DomoClient]
+  # @param dataset_id [String]
+  # @param expected_data [Array<Hash>, Hash]
+  # @return [Boolean]
+  def dataset_data_match?(domo_client, dataset_id, expected_data)
+    # @type [IO]
+    data_stream = domo_client.dataSetClient.exportData(dataset_id, true).to_io
+    data = data_stream.read
+    data_stream.close
+
+    data = CSV.parse(data, {:headers => true}).map(&:to_h)
+    if expected_data.is_a? Hash
+      return false unless data.size == 1
+      data = data[0]
+    end
+
+    data == expected_data
   end
 end
 
 RSpec.configure do |config|
-  include DomoHelper
-
-  config.before(:suite) do
-    config.include DomoHelper
-    test_settings = get_test_settings
-
-    client_config = Java::ComDomoSdkRequest::Config.with
-                        .clientId(test_settings["client_id"])
-                        .clientSecret(test_settings["client_secret"])
-                        .apiHost("api.domo.com")
-                        .useHttps(true)
-                        .scope(Java::ComDomoSdkRequest::Scope::DATA)
-                        .build()
-    domo_client = DomoClient.create(client_config)
-
-    stream_id = test_settings.fetch("stream_id", nil)
-    dataset_id = test_settings.fetch("dataset_id", nil)
-
-    if dataset_id.nil? and stream_id.nil?
-      bootstrap_dataset(test_settings, domo_client)
-    elsif stream_id.nil?
-      begin
-        stream = get_stream(domo_client, dataset_id)
-        test_settings["stream_id"] = stream.getId
-        puts "Found StreamID #{stream.getId} for DatasetID #{dataset_id}"
-        update_test_settings(test_settings)
-      rescue => e
-        puts e.message
-        bootstrap_dataset(test_settings, domo_client)
-      end
-    else
-      stream = domo_client.streamClient.get(stream_id)
-      dataset_id = stream.getDataset.getId
-      test_settings["dataset_id"] = dataset_id
-      puts "Found DatasetID #{dataset_id} associated with StreamID #{stream_id}"
-      update_test_settings(test_settings)
-    end
-  end
+  config.include DomoHelper
 end

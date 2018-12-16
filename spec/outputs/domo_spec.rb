@@ -7,13 +7,26 @@ require_relative "../../spec/domo_spec_helper"
 
 describe LogStash::Outputs::Domo do
   let(:test_settings) { get_test_settings }
+  let!(:domo_client) do
+    client_config = Java::ComDomoSdkRequest::Config.with
+                        .clientId(test_settings["client_id"])
+                        .clientSecret(test_settings["client_secret"])
+                        .apiHost("api.domo.com")
+                        .useHttps(true)
+                        .scope(Java::ComDomoSdkRequest::Scope::DATA)
+                        .build()
+    DomoClient.create(client_config)
+  end
+  let!(:stream_config) { bootstrap_dataset(domo_client) }
 
   before(:each) do
     subject.register
   end
 
   after(:each) do
+    dataset_id = subject.instance_variable_get(:@dataset_id)
     subject.close
+    domo_client.dataSetClient.delete(dataset_id)
   end
 
   let(:lock_servers) do
@@ -104,11 +117,18 @@ describe LogStash::Outputs::Domo do
             }
         )
       end
+      let(:dataset_id) { subject.instance_variable_get(:@dataset_id) }
 
-      subject { described_class.new(config) }
+      subject do
+        config.merge!(stream_config)
+        described_class.new(config)
+      end
 
       it "should send the event to DOMO" do
         subject.multi_receive(events)
+
+        expected_domo_data = events.map { |event| event_to_csv(event) }
+        expect(dataset_data_match?(domo_client, dataset_id, expected_domo_data)).to be(true)
       end
 
       it "should reject mistyped events" do
@@ -120,15 +140,24 @@ describe LogStash::Outputs::Domo do
 
       it "should tolerate events with null values" do
         subject.multi_receive([nil_event])
+        expected_domo_data = event_to_csv(nil_event)
+        expect(dataset_data_match?(domo_client, dataset_id, expected_domo_data)).to be(true)
       end
     end
 
     context "without distributed locking" do
       let(:config) { test_settings.clone }
-      subject { described_class.new(config) }
+      let(:dataset_id) { subject.instance_variable_get(:@dataset_id) }
+
+      subject do
+        config.merge!(stream_config)
+        described_class.new(config)
+      end
 
       it "should send the event to DOMO" do
         subject.multi_receive(events)
+        expected_domo_data = events.map { |event| event_to_csv(event) }
+        expect(dataset_data_match?(domo_client, dataset_id, expected_domo_data)).to be(true)
       end
 
       it "should reject mistyped events" do
@@ -140,6 +169,8 @@ describe LogStash::Outputs::Domo do
 
       it "should tolerate events with null values" do
         subject.multi_receive([nil_event])
+        expected_domo_data = event_to_csv(nil_event)
+        expect(dataset_data_match?(domo_client, dataset_id, expected_domo_data)).to be(true)
       end
     end
   end

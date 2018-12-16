@@ -303,7 +303,7 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
 
       if @retry_failures
         batch = failures
-        @logger.info("Retrying DOMO Streams API requests. Will sleep for #{@retry_delay} seconds")
+        @logger.warn("Retrying DOMO Streams API requests. Will sleep for #{@retry_delay} seconds")
         sleep(@retry_delay)
       end
     end
@@ -496,14 +496,15 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
   # @param domo_column_type [Java::ComDomoSdkDatasetsModel::ColumnType] The Domo column type.
   # @return [Boolean] The Domo Column Type.
   def ruby_domo_type_match?(val, domo_column_type)
-    if domo_column_type == Java::ComDomoSdkDatasetsModel::ColumnType::DATE
+    case domo_column_type
+    when Java::ComDomoSdkDatasetsModel::ColumnType::DATE
       begin
         _ = Date.parse(val)
         return true
       rescue ArgumentError
         return false
       end
-    elsif domo_column_type == Java::ComDomoSdkDatasetsModel::ColumnType::DATETIME
+    when Java::ComDomoSdkDatasetsModel::ColumnType::DATETIME
       if val.is_a? LogStash::Timestamp
         return true
       end
@@ -513,7 +514,7 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
       rescue ArgumentError
         return false
       end
-    elsif domo_column_type == Java::ComDomoSdkDatasetsModel::ColumnType::LONG
+    when Java::ComDomoSdkDatasetsModel::ColumnType::LONG
       if val.is_a? Integer
         return true
       end
@@ -523,7 +524,7 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
       rescue ArgumentError
         return false
       end
-    elsif domo_column_type == Java::ComDomoSdkDatasetsModel::ColumnType::DOUBLE
+    when Java::ComDomoSdkDatasetsModel::ColumnType::DOUBLE
       if val.is_a? Float
         return true
       end
