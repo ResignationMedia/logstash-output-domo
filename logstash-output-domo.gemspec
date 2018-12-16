@@ -35,7 +35,7 @@ Gem::Specification.new do |s|
   s.add_runtime_dependency "concurrent-ruby", "~> 1.0"
   s.add_runtime_dependency "jar-dependencies"
   s.add_runtime_dependency "redis"
-  s.add_runtime_dependency "redlock"
+  s.add_runtime_dependency "redlock", "~> 1.0"
 
   s.add_development_dependency "logstash-devutils"
 end
