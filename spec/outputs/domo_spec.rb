@@ -5,6 +5,28 @@ require "logstash/outputs/domo"
 require "logstash/event"
 require_relative "../../spec/domo_spec_helper"
 
+RSpec.shared_examples "LogStash::Outputs::Domo" do
+  it "should send the event to DOMO" do
+    subject.multi_receive(events)
+
+    expected_domo_data = events.map { |event| event_to_csv(event) }
+    expect(dataset_data_match?(domo_client, dataset_id, expected_domo_data)).to be(true)
+  end
+
+  it "should reject mistyped events" do
+    allow(subject.instance_variable_get(:@logger)).to receive(:error)
+
+    subject.multi_receive([mistyped_event])
+    expect(subject.instance_variable_get(:@logger)).to have_received(:error).with(/Invalid data type/, anything).once
+  end
+
+  it "should tolerate events with null values" do
+    subject.multi_receive([nil_event])
+    expected_domo_data = event_to_csv(nil_event)
+    expect(dataset_data_match?(domo_client, dataset_id, expected_domo_data)).to be(true)
+  end
+end
+
 describe LogStash::Outputs::Domo do
   let(:test_settings) { get_test_settings }
   let!(:domo_client) do
@@ -118,30 +140,40 @@ describe LogStash::Outputs::Domo do
         )
       end
       let(:dataset_id) { subject.instance_variable_get(:@dataset_id) }
+      let(:queued_event) do
+        LogStash::Event.new("Count" => 4,
+                            "Event Name" => "queued_event",
+                            "Event Timestamp" => LogStash::Timestamp.now,
+                            "Event Date" => Date.today - 1,
+                            "Percent" => (4.to_f/5)*100)
+      end
 
       subject do
         config.merge!(stream_config)
         described_class.new(config)
       end
 
-      it "should send the event to DOMO" do
+      it_should_behave_like "LogStash::Outputs::Domo"
+
+      it "should pull events off the redis queue" do
+        queue = subject.instance_variable_get(:@queue)
+        redis_client = subject.instance_variable_get(:@redis_client)
+        data = subject.encode_event_data(queued_event)
+
+        part_num = redis_client.incr("#{dataset_id}_part_num")
+
+        job = Domo::Job.new(event, data, part_num)
+        queue.add(job)
+
+        expect(queue.size).to be > 0
+
         subject.multi_receive(events)
 
-        expected_domo_data = events.map { |event| event_to_csv(event) }
+        expected_domo_data = event_to_csv(queued_event)
+        expected_domo_data += events.map { |event| event_to_csv(event) }
         expect(dataset_data_match?(domo_client, dataset_id, expected_domo_data)).to be(true)
-      end
 
-      it "should reject mistyped events" do
-        allow(subject.instance_variable_get(:@logger)).to receive(:error)
-
-        subject.multi_receive([mistyped_event])
-        expect(subject.instance_variable_get(:@logger)).to have_received(:error).with(/Invalid data type/, anything).once
-      end
-
-      it "should tolerate events with null values" do
-        subject.multi_receive([nil_event])
-        expected_domo_data = event_to_csv(nil_event)
-        expect(dataset_data_match?(domo_client, dataset_id, expected_domo_data)).to be(true)
+        expect(queue.size).to eq(0)
       end
     end
 
@@ -154,24 +186,7 @@ describe LogStash::Outputs::Domo do
         described_class.new(config)
       end
 
-      it "should send the event to DOMO" do
-        subject.multi_receive(events)
-        expected_domo_data = events.map { |event| event_to_csv(event) }
-        expect(dataset_data_match?(domo_client, dataset_id, expected_domo_data)).to be(true)
-      end
-
-      it "should reject mistyped events" do
-        allow(subject.instance_variable_get(:@logger)).to receive(:error)
-
-        subject.multi_receive([mistyped_event])
-        expect(subject.instance_variable_get(:@logger)).to have_received(:error).with(/Invalid data type/, anything).once
-      end
-
-      it "should tolerate events with null values" do
-        subject.multi_receive([nil_event])
-        expected_domo_data = event_to_csv(nil_event)
-        expect(dataset_data_match?(domo_client, dataset_id, expected_domo_data)).to be(true)
-      end
+      it_should_behave_like "LogStash::Outputs::Domo"
     end
   end
 end

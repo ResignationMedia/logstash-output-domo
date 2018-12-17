@@ -244,7 +244,7 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
           @domo_stream_execution = @domo_client.stream_execution(@domo_stream, @domo_stream_execution)
           @domo_client.stream_client.uploadDataPart(@domo_stream.getId, @domo_stream_execution.getId, job.part_num, job.data)
         rescue Java::ComDomoSdkRequest::RequestException => e
-          if e.getStatusCode == -1 || (e.getStatusCode < 400 && e.getStatusCode >= 500)
+          if e.getStatusCode < 400 or e.getStatusCode >= 500
             unless @domo_stream_execution.nil?
               @domo_stream_execution = @domo_client.stream_execution(@domo_stream, @domo_stream_execution)
             end
@@ -401,6 +401,51 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
     end
   end
 
+  public
+  # CSV encode event data to pass to DOMO
+  #
+  # @param event [LogStash::Event] The Event to be sent to DOMO.
+  # @return [String] The CSV encoded string.
+  def encode_event_data(event)
+    column_names = @dataset_columns.map { |col| col[:name] }
+    encode_options = {
+        :headers => column_names,
+        :write_headers => false,
+        :return_headers => false,
+    }
+
+    csv_data = CSV.generate(String.new, encode_options) do |csv_obj|
+      data = event.to_hash.flatten_with_path
+      data = data.select { |k, _| column_names.include? k }
+      discarded_fields = data.select { |k, _| !column_names.include? k }
+      unless discarded_fields.nil? or discarded_fields.length <= 0
+        @logger.warn("The event has fields that are not present in the Domo Dataset. They will be discarded.",
+                     :fields => discarded_fields,
+                     :event  => event)
+      end
+
+      @dataset_columns.each do |col|
+        # Just extracting this so referencing is as a key in other hashes isn't so damn awkward to read
+        col_name = col[:name]
+        # Set the column value to null if it's missing from the event data
+        unless data.has_key? col_name
+          data[col_name] = nil
+        end
+
+        # Make sure the type matches what Domo expects.
+        if @type_check
+          unless data[col_name].nil? or ruby_domo_type_match?(data[col_name], col[:type])
+            raise TypeError.new("Invalid data type for #{col_name}. It should be #{col[:type]}.")
+          end
+        end
+      end
+
+      data = data.sort_by { |k, _| column_names.index(k) }.to_h
+      csv_obj << data.values
+    end
+    csv_data.strip
+  end
+
   private
   # Calculates an acceptable retry count for trying to acquiring a distributed lock.
   # The default values for the parameters match the defaults in the current version of redlock.
@@ -442,51 +487,6 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
         Redis.new(url: url, password: password, sentinels: sentinels, db: db)
       end
     end
-  end
-
-  private
-  # CSV encode event data to pass to DOMO
-  #
-  # @param event [LogStash::Event] The Event to be sent to DOMO.
-  # @return [String] The CSV encoded string.
-  def encode_event_data(event)
-    column_names = @dataset_columns.map { |col| col[:name] }
-    encode_options = {
-        :headers => column_names,
-        :write_headers => false,
-        :return_headers => false,
-    }
-
-    csv_data = CSV.generate(String.new, encode_options) do |csv_obj|
-      data = event.to_hash.flatten_with_path
-      data = data.select { |k, _| column_names.include? k }
-      discarded_fields = data.select { |k, _| !column_names.include? k }
-      unless discarded_fields.nil? or discarded_fields.length <= 0
-        @logger.warn("The event has fields that are not present in the Domo Dataset. They will be discarded.",
-                      :fields => discarded_fields,
-                      :event  => event)
-      end
-
-      @dataset_columns.each do |col|
-        # Just extracting this so referencing is as a key in other hashes isn't so damn awkward to read
-        col_name = col[:name]
-        # Set the column value to null if it's missing from the event data
-        unless data.has_key? col_name
-          data[col_name] = nil
-        end
-
-        # Make sure the type matches what Domo expects.
-        if @type_check
-          unless data[col_name].nil? or ruby_domo_type_match?(data[col_name], col[:type])
-            raise TypeError.new("Invalid data type for #{col_name}. It should be #{col[:type]}.")
-          end
-        end
-      end
-
-      data = data.sort_by { |k, _| column_names.index(k) }.to_h
-      csv_obj << data.values
-    end
-    csv_data.strip
   end
 
   private

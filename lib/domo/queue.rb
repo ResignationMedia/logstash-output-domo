@@ -171,6 +171,13 @@ module Domo
       @client.llen(@queue_name)
     end
 
+    # Alias of #length
+    #
+    # @return [Integer] The size of the queue.
+    def size
+      length
+    end
+
     # Iterate over all the jobs in the queue by popping them off the list in redis.
     # *In other words this will call the #pop method!* You've been warned...
     #
