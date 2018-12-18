@@ -387,9 +387,9 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
         @logger.error(e.log_entry,
                       :value       => e.val,
                       :column_name => e.col_name,
-                      :exception   => e,
                       :data        => e.data,
-                      :event       => event)
+                      :event       => event,
+                      :exception   => e)
       end
     end
 
@@ -438,7 +438,7 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
         # Make sure the type matches what Domo expects.
         if @type_check
           unless data[col_name].nil? or ruby_domo_type_match?(data[col_name], col[:type])
-            raise ColumnTypeError.new(col_name, data[col_name].class, col[:type], data[col_name], data)
+            raise ColumnTypeError.new(col_name, col[:type], data[col_name].class, data[col_name], data)
           end
         end
       end
