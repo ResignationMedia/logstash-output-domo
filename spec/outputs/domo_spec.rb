@@ -17,7 +17,7 @@ RSpec.shared_examples "LogStash::Outputs::Domo" do
     allow(subject.instance_variable_get(:@logger)).to receive(:error)
 
     subject.multi_receive([mistyped_event])
-    expect(subject.instance_variable_get(:@logger)).to have_received(:error).with(/Invalid data type/, anything).once
+    expect(subject.instance_variable_get(:@logger)).to have_received(:error).with(/^.*is an invalid type for/, anything).once
   end
 
   it "should tolerate events with null values" do
@@ -28,9 +28,9 @@ RSpec.shared_examples "LogStash::Outputs::Domo" do
 end
 
 shared_context "dataset bootstrap" do
-  let(:test_settings) { get_test_settings }
-  let(:domo_client) { get_domo_client(test_settings) }
-  let(:stream_config) { bootstrap_dataset(domo_client) }
+  let!(:test_settings) { get_test_settings }
+  let!(:domo_client) { get_domo_client(test_settings) }
+  let!(:stream_config) { bootstrap_dataset(domo_client) }
 end
 
 describe LogStash::Outputs::Domo do
@@ -121,6 +121,32 @@ describe LogStash::Outputs::Domo do
                           "Event Date" => nil,
                           "Percent" => nil)
     end
+
+    # context "with DLQ enabled" do
+    #   include_context "dataset bootstrap" do
+    #     let(:test_settings) { get_test_settings }
+    #     let(:domo_client) { get_domo_client(test_settings) }
+    #   end
+    #
+    #   let(:config) { test_settings.clone }
+    #   let(:dlq_writer) { double('DLQ writer') }
+    #
+    #   # before { subject.instance_variable_set('@dlq_writer', dlq_writer) }
+    #   subject do
+    #     config.merge!(stream_config)
+    #     plugin = described_class.new(config)
+    #     plugin.instance_variable_set(:@dlq_writer, dlq_writer)
+    #     plugin
+    #   end
+    #
+    #   it "should write invalid events to the DLQ" do
+    #     allow(subject.instance_variable_get(:@logger)).to receive(:error)
+    #
+    #     expect(dlq_writer).to receive(:write).with(anything, /Invalid data type/)
+    #     subject.multi_receive([mistyped_event])
+    #     expect(subject.instance_variable_get(:@logger)).to have_received(:error).with(/Invalid data type/, anything).once
+    #   end
+    # end
 
     context "with distributed locking" do
       include_context "dataset bootstrap" do

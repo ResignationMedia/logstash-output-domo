@@ -380,13 +380,16 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
           part_num.incrementAndGet
         end
       # Reject the event and possibly send it to the DLQ if it's enabled.
-      rescue TypeError => e
+      rescue ColumnTypeError => e
         unless @dlq_writer.nil?
-          @dlq_writer.write(event, e.message)
+          @dlq_writer.write(event, e.log_entry)
         end
-        @logger.error(e.message,
-                      :exception => e,
-                      :event     => event)
+        @logger.error(e.log_entry,
+                      :value       => e.val,
+                      :column_name => e.col_name,
+                      :exception   => e,
+                      :data        => e.data,
+                      :event       => event)
       end
     end
 
@@ -435,7 +438,7 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
         # Make sure the type matches what Domo expects.
         if @type_check
           unless data[col_name].nil? or ruby_domo_type_match?(data[col_name], col[:type])
-            raise TypeError.new("Invalid data type for #{col_name}. It should be #{col[:type]}.")
+            raise ColumnTypeError.new(col_name, data[col_name].class, col[:type], data[col_name], data)
           end
         end
       end
@@ -582,5 +585,41 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
     # See more in: https://github.com/elastic/logstash/issues/8064
     respond_to?(:execution_context) && execution_context.respond_to?(:dlq_writer) &&
         !execution_context.dlq_writer.inner_writer.is_a?(::LogStash::Util::DummyDeadLetterQueueWriter)
+  end
+
+  private
+  # Raised when an event field has a type mismatch with a Domo Dataset Column
+  class ColumnTypeError < TypeError
+    # @return [String]
+    attr_reader :col_name
+    # @return [Class]
+    attr_reader :expected_type
+    # @return [Class]
+    attr_reader :actual_type
+    # @return [Object]
+    attr_reader :val
+    # @return [Object]
+    attr_reader :data
+
+    # A human readable message for error log entries
+    # @return [String]
+    def log_entry
+      "#{@actual_type} is an invalid type for #{@col_name} with the value #{@val}. It should be #{@expected_type}"
+    end
+
+    # @param col_name [String]
+    # @param expected_type [Class]
+    # @param actual_type [Class]
+    # @param val [Object]
+    # @param data [Hash, nil]
+    def initialize(col_name, expected_type, actual_type, val=nil, data=nil)
+      @col_name = col_name
+      @expected_type = expected_type
+      @actual_type = actual_type
+      @val = val
+      @data = data
+
+      super(log_entry)
+    end
   end
 end # class LogStash::Outputs::Domo
