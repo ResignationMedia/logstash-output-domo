@@ -27,20 +27,13 @@ RSpec.shared_examples "LogStash::Outputs::Domo" do
   end
 end
 
-describe LogStash::Outputs::Domo do
+shared_context "dataset bootstrap" do
   let(:test_settings) { get_test_settings }
-  let!(:domo_client) do
-    client_config = Java::ComDomoSdkRequest::Config.with
-                        .clientId(test_settings["client_id"])
-                        .clientSecret(test_settings["client_secret"])
-                        .apiHost("api.domo.com")
-                        .useHttps(true)
-                        .scope(Java::ComDomoSdkRequest::Scope::DATA)
-                        .build()
-    DomoClient.create(client_config)
-  end
-  let!(:stream_config) { bootstrap_dataset(domo_client) }
+  let(:domo_client) { get_domo_client(test_settings) }
+  let(:stream_config) { bootstrap_dataset(domo_client) }
+end
 
+describe LogStash::Outputs::Domo do
   before(:each) do
     subject.register
   end
@@ -130,6 +123,11 @@ describe LogStash::Outputs::Domo do
     end
 
     context "with distributed locking" do
+      include_context "dataset bootstrap" do
+        let(:test_settings) { get_test_settings }
+        let(:domo_client) { get_domo_client(test_settings) }
+      end
+
       let(:config) do
         test_settings.clone.merge(
             {
@@ -144,7 +142,7 @@ describe LogStash::Outputs::Domo do
         LogStash::Event.new("Count" => 4,
                             "Event Name" => "queued_event",
                             "Event Timestamp" => LogStash::Timestamp.now,
-                            "Event Date" => Date.today - 1,
+                            "Event Date" => (Date.today - 1).to_s,
                             "Percent" => (4.to_f/5)*100)
       end
 
@@ -162,14 +160,14 @@ describe LogStash::Outputs::Domo do
 
         part_num = redis_client.incr("#{dataset_id}_part_num")
 
-        job = Domo::Job.new(event, data, part_num)
+        job = Domo::Job.new(queued_event, data, part_num)
         queue.add(job)
 
         expect(queue.size).to be > 0
 
         subject.multi_receive(events)
 
-        expected_domo_data = event_to_csv(queued_event)
+        expected_domo_data = [event_to_csv(queued_event)]
         expected_domo_data += events.map { |event| event_to_csv(event) }
         expect(dataset_data_match?(domo_client, dataset_id, expected_domo_data)).to be(true)
 
@@ -178,6 +176,11 @@ describe LogStash::Outputs::Domo do
     end
 
     context "without distributed locking" do
+      include_context "dataset bootstrap" do
+        let(:test_settings) { get_test_settings }
+        let(:domo_client) { get_domo_client(test_settings) }
+      end
+
       let(:config) { test_settings.clone }
       let(:dataset_id) { subject.instance_variable_get(:@dataset_id) }
 

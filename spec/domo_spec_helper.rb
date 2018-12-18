@@ -31,6 +31,21 @@ module DomoHelper
     end
   end
 
+  # Initializes a DomoClient object from our test settings
+  #
+  # @param test_settings [Hash] The settings read from rspec_settings.yaml
+  # @return [DomoClient]
+  def get_domo_client(test_settings)
+    client_config = Java::ComDomoSdkRequest::Config.with
+                        .clientId(test_settings["client_id"])
+                        .clientSecret(test_settings["client_secret"])
+                        .apiHost("api.domo.com")
+                        .useHttps(true)
+                        .scope(Java::ComDomoSdkRequest::Scope::DATA)
+                        .build()
+    DomoClient.create(client_config)
+  end
+
   # Gets a Domo Stream by DatasetID
   #
   # @param domo_client [DomoClient]

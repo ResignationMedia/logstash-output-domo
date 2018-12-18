@@ -191,6 +191,30 @@ href="https://developer.domo.com/docs/stream/overview">developer.domo.com/docs/s
         <li class="public ">
   <span class="summary_signature">
     
+      <a href="#encode_event_data-instance_method" title="#encode_event_data (instance method)">#<strong>encode_event_data</strong>(event)  &#x21d2; String </a>
+    
+
+    
+  </span>
+  
+  
+  
+  
+  
+  
+  
+
+  
+    <span class="summary_desc"><div class='inline'>
+<p>CSV encode event data to pass to DOMO.</p>
+</div></span>
+  
+</li>
+
+      
+        <li class="public ">
+  <span class="summary_signature">
+    
       <a href="#multi_receive-instance_method" title="#multi_receive (instance method)">#<strong>multi_receive</strong>(events)  &#x21d2; Object </a>
     
 
@@ -390,6 +414,157 @@ href="https://developer.domo.com/docs/stream/overview">developer.domo.com/docs/s
       <span class='kw'>end</span>
     <span class='kw'>end</span>
   <span class='kw'>end</span>
+<span class='kw'>end</span></pre>
+    </td>
+  </tr>
+</table>
+</div>
+    
+      <div class="method_details ">
+  <h3 class="signature " id="encode_event_data-instance_method">
+  
+    #<strong>encode_event_data</strong>(event)  &#x21d2; <tt>String</tt> 
+  
+
+  
+
+  
+</h3><div class="docstring">
+  <div class="discussion">
+    
+<p>CSV encode event data to pass to DOMO</p>
+
+
+  </div>
+</div>
+<div class="tags">
+  <p class="tag_title">Parameters:</p>
+<ul class="param">
+  
+    <li>
+      
+        <span class='name'>event</span>
+      
+      
+        <span class='type'>(<tt>LogStash::Event</tt>)</span>
+      
+      
+      
+        &mdash;
+        <div class='inline'>
+<p>The Event to be sent to DOMO.</p>
+</div>
+      
+    </li>
+  
+</ul>
+
+<p class="tag_title">Returns:</p>
+<ul class="return">
+  
+    <li>
+      
+      
+        <span class='type'>(<tt>String</tt>)</span>
+      
+      
+      
+        &mdash;
+        <div class='inline'>
+<p>The CSV encoded string.</p>
+</div>
+      
+    </li>
+  
+</ul>
+
+</div><table class="source_code">
+  <tr>
+    <td>
+      <pre class="lines">
+
+
+409
+410
+411
+412
+413
+414
+415
+416
+417
+418
+419
+420
+421
+422
+423
+424
+425
+426
+427
+428
+429
+430
+431
+432
+433
+434
+435
+436
+437
+438
+439
+440
+441
+442
+443
+444
+445
+446
+447</pre>
+    </td>
+    <td>
+      <pre class="code"><span class="info file"># File 'lib/logstash/outputs/domo.rb', line 409</span>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_encode_event_data'>encode_event_data</span><span class='lparen'>(</span><span class='id identifier rubyid_event'>event</span><span class='rparen'>)</span>
+  <span class='id identifier rubyid_column_names'>column_names</span> <span class='op'>=</span> <span class='ivar'>@dataset_columns</span><span class='period'>.</span><span class='id identifier rubyid_map'>map</span> <span class='lbrace'>{</span> <span class='op'>|</span><span class='id identifier rubyid_col'>col</span><span class='op'>|</span> <span class='id identifier rubyid_col'>col</span><span class='lbracket'>[</span><span class='symbol'>:name</span><span class='rbracket'>]</span> <span class='rbrace'>}</span>
+  <span class='id identifier rubyid_encode_options'>encode_options</span> <span class='op'>=</span> <span class='lbrace'>{</span>
+      <span class='symbol'>:headers</span> <span class='op'>=&gt;</span> <span class='id identifier rubyid_column_names'>column_names</span><span class='comma'>,</span>
+      <span class='symbol'>:write_headers</span> <span class='op'>=&gt;</span> <span class='kw'>false</span><span class='comma'>,</span>
+      <span class='symbol'>:return_headers</span> <span class='op'>=&gt;</span> <span class='kw'>false</span><span class='comma'>,</span>
+  <span class='rbrace'>}</span>
+
+  <span class='id identifier rubyid_csv_data'>csv_data</span> <span class='op'>=</span> <span class='const'>CSV</span><span class='period'>.</span><span class='id identifier rubyid_generate'>generate</span><span class='lparen'>(</span><span class='const'>String</span><span class='period'>.</span><span class='id identifier rubyid_new'>new</span><span class='comma'>,</span> <span class='id identifier rubyid_encode_options'>encode_options</span><span class='rparen'>)</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_csv_obj'>csv_obj</span><span class='op'>|</span>
+    <span class='id identifier rubyid_data'>data</span> <span class='op'>=</span> <span class='id identifier rubyid_event'>event</span><span class='period'>.</span><span class='id identifier rubyid_to_hash'>to_hash</span><span class='period'>.</span><span class='id identifier rubyid_flatten_with_path'>flatten_with_path</span>
+    <span class='id identifier rubyid_data'>data</span> <span class='op'>=</span> <span class='id identifier rubyid_data'>data</span><span class='period'>.</span><span class='id identifier rubyid_select'>select</span> <span class='lbrace'>{</span> <span class='op'>|</span><span class='id identifier rubyid_k'>k</span><span class='comma'>,</span> <span class='id identifier rubyid__'>_</span><span class='op'>|</span> <span class='id identifier rubyid_column_names'>column_names</span><span class='period'>.</span><span class='id identifier rubyid_include?'>include?</span> <span class='id identifier rubyid_k'>k</span> <span class='rbrace'>}</span>
+    <span class='id identifier rubyid_discarded_fields'>discarded_fields</span> <span class='op'>=</span> <span class='id identifier rubyid_data'>data</span><span class='period'>.</span><span class='id identifier rubyid_select'>select</span> <span class='lbrace'>{</span> <span class='op'>|</span><span class='id identifier rubyid_k'>k</span><span class='comma'>,</span> <span class='id identifier rubyid__'>_</span><span class='op'>|</span> <span class='op'>!</span><span class='id identifier rubyid_column_names'>column_names</span><span class='period'>.</span><span class='id identifier rubyid_include?'>include?</span> <span class='id identifier rubyid_k'>k</span> <span class='rbrace'>}</span>
+    <span class='kw'>unless</span> <span class='id identifier rubyid_discarded_fields'>discarded_fields</span><span class='period'>.</span><span class='id identifier rubyid_nil?'>nil?</span> <span class='kw'>or</span> <span class='id identifier rubyid_discarded_fields'>discarded_fields</span><span class='period'>.</span><span class='id identifier rubyid_length'>length</span> <span class='op'>&lt;=</span> <span class='int'>0</span>
+      <span class='ivar'>@logger</span><span class='period'>.</span><span class='id identifier rubyid_warn'>warn</span><span class='lparen'>(</span><span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>The event has fields that are not present in the Domo Dataset. They will be discarded.</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span>
+                   <span class='symbol'>:fields</span> <span class='op'>=&gt;</span> <span class='id identifier rubyid_discarded_fields'>discarded_fields</span><span class='comma'>,</span>
+                   <span class='symbol'>:event</span>  <span class='op'>=&gt;</span> <span class='id identifier rubyid_event'>event</span><span class='rparen'>)</span>
+    <span class='kw'>end</span>
+
+    <span class='ivar'>@dataset_columns</span><span class='period'>.</span><span class='id identifier rubyid_each'>each</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_col'>col</span><span class='op'>|</span>
+      <span class='comment'># Just extracting this so referencing is as a key in other hashes isn&#39;t so damn awkward to read
+</span>      <span class='id identifier rubyid_col_name'>col_name</span> <span class='op'>=</span> <span class='id identifier rubyid_col'>col</span><span class='lbracket'>[</span><span class='symbol'>:name</span><span class='rbracket'>]</span>
+      <span class='comment'># Set the column value to null if it&#39;s missing from the event data
+</span>      <span class='kw'>unless</span> <span class='id identifier rubyid_data'>data</span><span class='period'>.</span><span class='id identifier rubyid_has_key?'>has_key?</span> <span class='id identifier rubyid_col_name'>col_name</span>
+        <span class='id identifier rubyid_data'>data</span><span class='lbracket'>[</span><span class='id identifier rubyid_col_name'>col_name</span><span class='rbracket'>]</span> <span class='op'>=</span> <span class='kw'>nil</span>
+      <span class='kw'>end</span>
+
+      <span class='comment'># Make sure the type matches what Domo expects.
+</span>      <span class='kw'>if</span> <span class='ivar'>@type_check</span>
+        <span class='kw'>unless</span> <span class='id identifier rubyid_data'>data</span><span class='lbracket'>[</span><span class='id identifier rubyid_col_name'>col_name</span><span class='rbracket'>]</span><span class='period'>.</span><span class='id identifier rubyid_nil?'>nil?</span> <span class='kw'>or</span> <span class='id identifier rubyid_ruby_domo_type_match?'>ruby_domo_type_match?</span><span class='lparen'>(</span><span class='id identifier rubyid_data'>data</span><span class='lbracket'>[</span><span class='id identifier rubyid_col_name'>col_name</span><span class='rbracket'>]</span><span class='comma'>,</span> <span class='id identifier rubyid_col'>col</span><span class='lbracket'>[</span><span class='symbol'>:type</span><span class='rbracket'>]</span><span class='rparen'>)</span>
+          <span class='id identifier rubyid_raise'>raise</span> <span class='const'>TypeError</span><span class='period'>.</span><span class='id identifier rubyid_new'>new</span><span class='lparen'>(</span><span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Invalid data type for </span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_col_name'>col_name</span><span class='embexpr_end'>}</span><span class='tstring_content'>. It should be </span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_col'>col</span><span class='lbracket'>[</span><span class='symbol'>:type</span><span class='rbracket'>]</span><span class='embexpr_end'>}</span><span class='tstring_content'>.</span><span class='tstring_end'>&quot;</span></span><span class='rparen'>)</span>
+        <span class='kw'>end</span>
+      <span class='kw'>end</span>
+    <span class='kw'>end</span>
+
+    <span class='id identifier rubyid_data'>data</span> <span class='op'>=</span> <span class='id identifier rubyid_data'>data</span><span class='period'>.</span><span class='id identifier rubyid_sort_by'>sort_by</span> <span class='lbrace'>{</span> <span class='op'>|</span><span class='id identifier rubyid_k'>k</span><span class='comma'>,</span> <span class='id identifier rubyid__'>_</span><span class='op'>|</span> <span class='id identifier rubyid_column_names'>column_names</span><span class='period'>.</span><span class='id identifier rubyid_index'>index</span><span class='lparen'>(</span><span class='id identifier rubyid_k'>k</span><span class='rparen'>)</span> <span class='rbrace'>}</span><span class='period'>.</span><span class='id identifier rubyid_to_h'>to_h</span>
+    <span class='id identifier rubyid_csv_obj'>csv_obj</span> <span class='op'>&lt;&lt;</span> <span class='id identifier rubyid_data'>data</span><span class='period'>.</span><span class='id identifier rubyid_values'>values</span>
+  <span class='kw'>end</span>
+  <span class='id identifier rubyid_csv_data'>csv_data</span><span class='period'>.</span><span class='id identifier rubyid_strip'>strip</span>
 <span class='kw'>end</span></pre>
     </td>
   </tr>
@@ -886,7 +1061,7 @@ href="https://developer.domo.com/docs/stream/overview">developer.domo.com/docs/s
         <span class='ivar'>@domo_stream_execution</span> <span class='op'>=</span> <span class='ivar'>@domo_client</span><span class='period'>.</span><span class='id identifier rubyid_stream_execution'>stream_execution</span><span class='lparen'>(</span><span class='ivar'>@domo_stream</span><span class='comma'>,</span> <span class='ivar'>@domo_stream_execution</span><span class='rparen'>)</span>
         <span class='ivar'>@domo_client</span><span class='period'>.</span><span class='id identifier rubyid_stream_client'>stream_client</span><span class='period'>.</span><span class='id identifier rubyid_uploadDataPart'>uploadDataPart</span><span class='lparen'>(</span><span class='ivar'>@domo_stream</span><span class='period'>.</span><span class='id identifier rubyid_getId'>getId</span><span class='comma'>,</span> <span class='ivar'>@domo_stream_execution</span><span class='period'>.</span><span class='id identifier rubyid_getId'>getId</span><span class='comma'>,</span> <span class='id identifier rubyid_job'>job</span><span class='period'>.</span><span class='id identifier rubyid_part_num'>part_num</span><span class='comma'>,</span> <span class='id identifier rubyid_job'>job</span><span class='period'>.</span><span class='id identifier rubyid_data'>data</span><span class='rparen'>)</span>
       <span class='kw'>rescue</span> <span class='const'>Java</span><span class='op'>::</span><span class='const'>ComDomoSdkRequest</span><span class='op'>::</span><span class='const'>RequestException</span> <span class='op'>=&gt;</span> <span class='id identifier rubyid_e'>e</span>
-        <span class='kw'>if</span> <span class='id identifier rubyid_e'>e</span><span class='period'>.</span><span class='id identifier rubyid_getStatusCode'>getStatusCode</span> <span class='op'>==</span> <span class='op'>-</span><span class='int'>1</span> <span class='op'>||</span> <span class='lparen'>(</span><span class='id identifier rubyid_e'>e</span><span class='period'>.</span><span class='id identifier rubyid_getStatusCode'>getStatusCode</span> <span class='op'>&lt;</span> <span class='int'>400</span> <span class='op'>&amp;&amp;</span> <span class='id identifier rubyid_e'>e</span><span class='period'>.</span><span class='id identifier rubyid_getStatusCode'>getStatusCode</span> <span class='op'>&gt;=</span> <span class='int'>500</span><span class='rparen'>)</span>
+        <span class='kw'>if</span> <span class='id identifier rubyid_e'>e</span><span class='period'>.</span><span class='id identifier rubyid_getStatusCode'>getStatusCode</span> <span class='op'>&lt;</span> <span class='int'>400</span> <span class='kw'>or</span> <span class='id identifier rubyid_e'>e</span><span class='period'>.</span><span class='id identifier rubyid_getStatusCode'>getStatusCode</span> <span class='op'>&gt;=</span> <span class='int'>500</span>
           <span class='kw'>unless</span> <span class='ivar'>@domo_stream_execution</span><span class='period'>.</span><span class='id identifier rubyid_nil?'>nil?</span>
             <span class='ivar'>@domo_stream_execution</span> <span class='op'>=</span> <span class='ivar'>@domo_client</span><span class='period'>.</span><span class='id identifier rubyid_stream_execution'>stream_execution</span><span class='lparen'>(</span><span class='ivar'>@domo_stream</span><span class='comma'>,</span> <span class='ivar'>@domo_stream_execution</span><span class='rparen'>)</span>
           <span class='kw'>end</span>
@@ -945,7 +1120,7 @@ href="https://developer.domo.com/docs/stream/overview">developer.domo.com/docs/s
 
     <span class='kw'>if</span> <span class='ivar'>@retry_failures</span>
       <span class='id identifier rubyid_batch'>batch</span> <span class='op'>=</span> <span class='id identifier rubyid_failures'>failures</span>
-      <span class='ivar'>@logger</span><span class='period'>.</span><span class='id identifier rubyid_info'>info</span><span class='lparen'>(</span><span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Retrying DOMO Streams API requests. Will sleep for </span><span class='embexpr_beg'>#{</span><span class='ivar'>@retry_delay</span><span class='embexpr_end'>}</span><span class='tstring_content'> seconds</span><span class='tstring_end'>&quot;</span></span><span class='rparen'>)</span>
+      <span class='ivar'>@logger</span><span class='period'>.</span><span class='id identifier rubyid_warn'>warn</span><span class='lparen'>(</span><span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Retrying DOMO Streams API requests. Will sleep for </span><span class='embexpr_beg'>#{</span><span class='ivar'>@retry_delay</span><span class='embexpr_end'>}</span><span class='tstring_content'> seconds</span><span class='tstring_end'>&quot;</span></span><span class='rparen'>)</span>
       <span class='id identifier rubyid_sleep'>sleep</span><span class='lparen'>(</span><span class='ivar'>@retry_delay</span><span class='rparen'>)</span>
     <span class='kw'>end</span>
   <span class='kw'>end</span>
@@ -960,7 +1135,7 @@ href="https://developer.domo.com/docs/stream/overview">developer.domo.com/docs/s
 </div>
 
       <div id="footer">
-  Generated on Sat Dec 15 14:52:27 2018 by
+  Generated on Tue Dec 18 11:36:57 2018 by
   <a href="http://yardoc.org" title="Yay! A Ruby Documentation Tool" target="_parent">yard</a>
   0.9.16 (ruby-2.3.3).
 </div>
