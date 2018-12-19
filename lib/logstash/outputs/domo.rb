@@ -263,7 +263,7 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
             @logger.error(log_message,
                           :code => e.getStatusCode,
                           :exception => e,
-                          :data => data,
+                          :data => job.data,
                           :event => event)
             unless @dlq_writer.nil?
               @dlq_writer.write(event, "#{log_message} Exception: #{e}")
