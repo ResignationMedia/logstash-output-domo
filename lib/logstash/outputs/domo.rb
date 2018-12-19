@@ -72,64 +72,55 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
   # The default matches the default for the distributed locking library (redlock)
   config :lock_retry_delay, :validate => :number, :default => 200
 
-  # An array of hashes specifying the configuration for the lock servers. Only required if distributed_lock is true.
+  # An array of redis hosts (using the redis:// URI syntax) to connect to for the distributed lock
   #
-  # The only required key in the hash is "host", unless the "sentinels" key is provided.
-  # If the "sentinels" key is provided, then the "master" key is required.
-  # The default redis port (6379) will be used if not provided.
+  # *REDIS SENTINEL IS NOT SUPPORTED*
+  # Don't like it? Ask Elastic to make Logstash support arrays of hashes in config files.
   #
-  # An example array with all the accepted keys would be the following:
+  # An example array showcasing the various redis URI options can be found below:
   # [source,ruby]
   # ----------------------------------
-  # lock_servers => [
-  #   {
-  #     "host"     => "server1"
-  #     "port"     => 6379
-  #     "password" => "password"
-  #   }
-  #   {
-  #     "host"     => "server2"
-  #     "port"     => 6379
-  #     "password" => "password2"
-  #   }
-  #   {
-  #     "master"      => "mymaster"
-  #     "sentinels" => [
-  #       {
-  #         "host" => "sentinel1"
-  #         "port" => 26379
-  #       }
-  #     ]
-  #   }
+  # lock_hosts => [
+  #   "redis://127.0.0.1:6379"
+  #   "redis://:password@host2:6379"
+  #   "redis://host3:6379/0"
+  #   "unix+redis://some/socket/path?db=0&password=password"
   # ]
   # -----------------------
-  config :lock_servers, :validate => :array
+  config :lock_hosts, :validate => :array
 
   # A hash with connection information for the redis client for cached data
   # The hash can contain any arguments accepted by the constructor for the Redis class in the redis-rb gem
   #
-  # Below is a sample data structure making use of redis sentinel and a master named "mymaster":
+  # *There is ONE notable exception.* Redis sentinel related information must be defined in the redis_sentinels parameter.
+  # This is due to a limitation with Logstash configuration directives.
+  #
+  # Below is a sample data structure making use of redis sentinel and a master named "mymaster".
+  # The sentinels will be defined in the example for the redis_sentinels parameter.
   # [source,ruby]
   # ----------------------------------
   # redis_client => {
   #   "url"       => "redis://mymaster"
   #   "password"  => "password"
-  #   "sentinels" => [
-  #     {
-  #       "host" => "127.0.0.1"
-  #       "port" => 26379
-  #     }
-  #     {
-  #       "host" => "sentinel2"
-  #       "port" => 26379
-  #     }
-  #   ]
   # }
   # -----------------------
   #
   # The documentation for the Redis class's constructor can be found at the following URL:
   # https://www.rubydoc.info/gems/redis/Redis#initialize-instance_method
   config :redis_client, :validate => :hash
+
+  # Optional redis sentinels to associate with redis_client.
+  # Use host:port syntax
+  #
+  # Below is an example
+  # [source,ruby]
+  # ----------------------------------
+  # redis_sentinels => [
+  #   "sentinel1:26379"
+  #   "sentinel2:26379"
+  # ]
+  # -----------------------
+  config :redis_sentinels, :validate => :array
 
   attr_accessor :dataset_columns
 
@@ -150,24 +141,27 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
         raise LogStash::ConfigurationError.new("The redis_client parameter is required when using distributed_lock")
       else
         @redis_client = symbolize_redis_client_args(@redis_client)
+        unless @redis_sentinels.nil?
+          @redis_client[:sentinels] = @redis_sentinels.map do |s|
+            host, port = s.split(":")
+            {
+                :host => host,
+                :port => port,
+            }
+          end
+        end
         @redis_client = Redis.new(@redis_client)
       end
 
-      if @lock_servers.nil? or @lock_servers.length <= 0
+      if @lock_hosts.nil? or @lock_hosts.length <= 0
         raise LogStash::ConfigurationError.new("The lock_servers parameter is required when using distributed_lock")
-      else
-        redis_clients = @lock_servers.map do |server|
-          # Remove the db key from the server because redlock don't care
-          server.delete('db')
-          redis_client_from_config(server)
-        end
       end
 
       redlock_options = {
           :retry_count => redlock_retry_count(@lock_retry_delay),
           :retry_delay => (@retry_delay * 1000).to_i,
       }
-      @lock_manager = Redlock::Client.new(redis_clients, redlock_options)
+      @lock_manager = Redlock::Client.new(@lock_hosts, redlock_options)
     end
 
     # Simple multi-threaded queue
@@ -463,36 +457,6 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
   end
 
   private
-  # Build a Redis client from hash entries passed by our configuration variables (lock_servers and redis_client)
-  #
-  # @param server [Hash] An individual server entry in the configuration variable
-  # @return [Redis]
-  def redis_client_from_config(server)
-    password = server.fetch('password', nil)
-    sentinels = server.fetch('sentinels', nil)
-    db = server.fetch('db', nil)
-
-    if sentinels.nil?
-      host = server['host']
-      port = server.fetch('port', 6379)
-
-      if db.nil?
-        Redis.new(host: host, port: port, password: password)
-      else
-        Redis.new(host: host, port: port, password: password, db: db)
-      end
-    else
-      url = "redis://#{server['master']}"
-
-      if db.nil?
-        Redis.new(url: url, password: password, sentinels: sentinels)
-      else
-        Redis.new(url: url, password: password, sentinels: sentinels, db: db)
-      end
-    end
-  end
-
-  private
   # Takes a given value and returns a boolean indicating if its type matches the corresponding Domo column.
   #
   # @param val [Object] The object to inspect.
@@ -546,7 +510,7 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
   # Builds an array of Redis clients out of the plugin's configuration parameters for distributed locking
   #
   # @return [Array<Redis>]
-  def lock_servers(lock_hosts, lock_ports, lock_passwords)
+  def lock_hosts(lock_hosts, lock_ports, lock_passwords)
     lock_servers = Array.new
     lock_hosts.each_with_index do |host, i|
       port = lock_ports.fetch(i, 6379)

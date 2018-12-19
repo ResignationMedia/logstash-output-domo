@@ -9,10 +9,8 @@ services:
     working_dir: /logstash-output-domo
     command: bundle exec rspec --backtrace
     environment:
-      - LOCK_HOST_1=redis1
-      - LOCK_PORT_1=6379
-      - LOCK_HOST_2=redis2
-      - LOCK_PORT_2=6379
+      - LOCK_HOST_1=redis://redis1:6379
+      - LOCK_HOST_2=redis://redis2:6379
       - REDIS_URL=redis://mymaster
       - REDIS_SENTINEL_HOST_1=sentinel1
       - REDIS_SENTINEL_HOST_2=sentinel2

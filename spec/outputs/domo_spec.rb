@@ -44,31 +44,17 @@ describe LogStash::Outputs::Domo do
     domo_client.dataSetClient.delete(dataset_id)
   end
 
-  let(:lock_servers) do
+  let(:lock_hosts) do
     redis_servers = Array.new
     ENV.each do |k, v|
       if k.start_with? "LOCK_HOST"
-        i = k.split("_")[-1].to_i
-
-        host = v
-        port = ENV.fetch("LOCK_PORT_#{i}", "6379").to_i
-        db = ENV.fetch("LOCK_DB_#{i}", "0").to_i
-        password = ENV.fetch("LOCK_PASSWORD_#{i}", nil)
-
-        server = {
-            "host"     => host,
-            "port"     => port,
-            "db"       => db,
-            "password" => password,
-        }
-
-        redis_servers << server
+        redis_servers << v
       end
     end
 
     if redis_servers.length <= 0
       redis_servers = [
-          {"host" => "localhost"}
+          "redis://localhost:6379"
       ]
     end
 
@@ -76,24 +62,24 @@ describe LogStash::Outputs::Domo do
   end
 
   let(:redis_client) do
-    options = {
-        "url" => ENV["REDIS_URL"],
+    {
+        "url"  => ENV["REDIS_URL"],
     }
+  end
+
+  let(:redis_sentinels) do
     sentinels = Array.new
     ENV.each do |k, v|
       if k.start_with? "REDIS_SENTINEL_HOST"
         index = k.split("_")[-1].to_i
-        sentinel = {
-            "host" => v,
-            "port" => ENV.fetch("REDIS_SENTINEL_PORT_#{index}", 26379)
-        }
+        port = ENV.fetch("REDIS_SENTINEL_PORT_#{index}", 26379)
 
+        sentinel = "#{v}:#{port}"
         sentinels << sentinel
       end
     end
 
-    options["sentinels"] = sentinels
-    options
+    sentinels
   end
 
   describe "#multi_receive" do
@@ -158,8 +144,9 @@ describe LogStash::Outputs::Domo do
         test_settings.clone.merge(
             {
                 "distributed_lock" => true,
-                "lock_servers"     => lock_servers,
+                "lock_hosts"       => lock_hosts,
                 "redis_client"     => redis_client,
+                "redis_sentinels"  => redis_sentinels,
             }
         )
       end
