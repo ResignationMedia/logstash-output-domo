@@ -151,6 +151,7 @@ describe LogStash::Outputs::Domo do
         )
       end
       let(:dataset_id) { subject.instance_variable_get(:@dataset_id) }
+      let(:stream_id) { subject.instance_variable_get(:@stream_id) }
       let(:queued_event) do
         LogStash::Event.new("Count" => 4,
                             "Event Name" => "queued_event",
@@ -167,24 +168,24 @@ describe LogStash::Outputs::Domo do
       it_should_behave_like "LogStash::Outputs::Domo"
 
       it "should pull events off the redis queue" do
-        queue = subject.instance_variable_get(:@queue)
         redis_client = subject.instance_variable_get(:@redis_client)
+        part_num = redis_client.incr("#{dataset_id}_part_num")
         data = subject.encode_event_data(queued_event)
 
-        part_num = redis_client.incr("#{dataset_id}_part_num")
-
+        queue = Domo::Queue.new(redis_client, dataset_id, stream_id)
         job = Domo::Job.new(queued_event, data, part_num)
         queue.add(job)
-
-        expect(queue.size).to be > 0
+        expect(queue.size).to eq(1)
 
         subject.multi_receive(events)
+        new_queue = subject.instance_variable_get(:@queue)
+        expect(queue.size).to eq(0)
+        expect(new_queue.size).to eq(0)
+        expect(new_queue.execution_id).to be(nil)
 
         expected_domo_data = [event_to_csv(queued_event)]
         expected_domo_data += events.map { |event| event_to_csv(event) }
         expect(dataset_data_match?(domo_client, dataset_id, expected_domo_data)).to be(true)
-
-        expect(queue.size).to eq(0)
       end
     end
 

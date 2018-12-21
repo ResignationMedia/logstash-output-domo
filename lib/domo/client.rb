@@ -72,9 +72,9 @@ module Domo
     # @param stream [Java::ComDomoSdkStreamModel::Stream] A DOMO SDK Stream object
     # @param stream_execution [Java::ComDomoSdkStreamModel::Execution, nil] If provided, check for the latest state on the Stream Execution before creating a new one.
     # @return [Java::ComDomoSdkStreamModel::Execution]
-    def stream_execution(stream, stream_execution=nil)
+    def stream_execution(stream, stream_execution=nil, create=false)
       create_execution = @stream_client.java_method :createExecution, [Java::long]
-      if stream_execution.nil?
+      if stream_execution.nil? and not create
         limit = 50
         offset = 0
         list_executions = @stream_client.java_method :listExecutions, [Java::long, Java::long, Java::long]
@@ -84,7 +84,7 @@ module Domo
             return execution
           end
         end
-      else
+      elsif not stream_execution.nil?
         stream_execution = @stream_client.getExecution(stream.getId, stream_execution.getId)
         if stream_execution.currentState == "ACTIVE"
           return stream_execution
@@ -114,6 +114,7 @@ module Domo
       paginate_list(stream_list, limit, offset).each do |s|
         if s.dataset.getId == dataset_id
           stream = s
+          return stream unless include_execution
           break
         end
       end
@@ -124,10 +125,9 @@ module Domo
 
       if include_execution
         stream_execution = stream_execution(stream)
-      else
-        stream_execution = nil
+        return  stream, stream_execution
       end
-      return stream, stream_execution
+      stream
     end
   end
 

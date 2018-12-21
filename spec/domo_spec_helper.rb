@@ -150,7 +150,20 @@ module DomoHelper
       data = data[0]
     end
 
-    data == expected_data
+    # Sort the expected and actual data so we don't go chasing down row order differences.
+    unless data.is_a? Hash
+      data.sort! { |a,b| b["Event Name"] <=> a["Event Name"] }
+    end
+    unless expected_data.is_a? Hash
+      expected_data.sort! { |a,b| b["Event Name"] <=> a["Event Name"] }
+    end
+
+    unless data == expected_data
+      puts "Actual data: #{data}"
+      puts "Expected data: #{expected_data}"
+      return false
+    end
+    true
   end
 end
 

@@ -25,24 +25,16 @@ module Domo
     # @!attribute [r] execution_id
     # @return [Integer]
     def execution_id
-      if @execution_id.nil?
-        return self.class.get_active_execution_id(@client, @dataset_id)
-      end
-      @execution_id
+      execution_id = client.get("#{dataset_id}#{REDIS_KEY_SUFFIXES[:ACTIVE_EXECUTION]}")
+      if execution_id.nil? then execution_id else execution_id.to_i end
     end
 
     # @!attribute [w]
     def execution_id=(execution_id)
-      # No need to block redis if nothing actually changed.
-      update_redis = false
-      if execution_id != @execution_id
-        update_redis = true
-      end
-
-      @execution_id = execution_id
-      if update_redis
-        @client.set("#{dataset_id}#{REDIS_KEY_SUFFIXES[:ACTIVE_EXECUTION]}", 
-                    @execution_id)
+      if execution_id.nil?
+        @client.del("#{dataset_id}#{REDIS_KEY_SUFFIXES[:ACTIVE_EXECUTION]}")
+      else
+        @client.set("#{dataset_id}#{REDIS_KEY_SUFFIXES[:ACTIVE_EXECUTION]}", execution_id)
       end
     end
 
@@ -53,17 +45,9 @@ module Domo
     # @param stream_id [Integer]
     # @return [Queue]
     def self.get_active_queue(redis_client, dataset_id, stream_id=nil)
-      queue = redis_client.get("#{dataset_id}#{REDIS_KEY_SUFFIXES[:QUEUE]}")
-      if queue.nil?
-        return nil
-      end
+      return nil unless redis_client.exists("#{dataset_id}#{REDIS_KEY_SUFFIXES[:QUEUE]}")
 
-      execution_id = self.get_active_execution_id(redis_client, dataset_id)
-      if execution_id.nil?
-        return nil
-      end
-
-      self.new(redis_client, dataset_id, stream_id, execution_id)
+      self.new(redis_client, dataset_id, stream_id)
     end
 
     # Get the active Stream Execution ID for the provided Dataset's Queue.
@@ -71,12 +55,14 @@ module Domo
     # @param redis_client [Redis]
     # @param dataset_id [String]
     def self.get_active_execution_id(redis_client, dataset_id)
-      redis_client.get("#{dataset_id}#{REDIS_KEY_SUFFIXES[:ACTIVE_EXECUTION]}")
+      execution_id = redis_client.get("#{dataset_id}#{REDIS_KEY_SUFFIXES[:ACTIVE_EXECUTION]}")
+      if execution_id.nil? then execution_id else execution_id.to_i end
     end
 
     # @param redis_client [Redis]
     # @param dataset_id [String]
-    # @param stream_id [Integer]
+    # @param stream_id [Integer, nil]
+    # @param execution_id [Integer, nil]
     def initialize(redis_client, dataset_id, stream_id=nil, execution_id=nil)
       # @type [Redis]
       @client = redis_client
@@ -84,37 +70,19 @@ module Domo
       @dataset_id = dataset_id
       @stream_id = stream_id
 
-      @execution_id = execution_id
-      if @execution_id.nil?
-        @execution_id = self.class.get_active_execution_id(@client, @dataset_id)
-      elsif @execution_id != self.class.get_active_execution_id(@client, @dataset_id)
-        @client.set("#{dataset_id}#{REDIS_KEY_SUFFIXES[:ACTIVE_EXECUTION]}", 
-                    @execution_id)
-      end
-
-      if @execution_id.nil?
-        raise CachedStreamExecutionNotFound.new("No Stream Execution was found for DatasetID #{@dataset_id} and StreamID #{@stream_id}",
-                                                @dataset_id, @stream_id)
+      if execution_id != self.class.get_active_execution_id(@client, @dataset_id) and not execution_id.nil?
+        @client.set("#{dataset_id}#{REDIS_KEY_SUFFIXES[:ACTIVE_EXECUTION]}", execution_id)
       end
 
       # @type [String]
-      @queue_name = "#{dataset_id}#{REDIS_KEY_SUFFIXES[:QUEUE]}_#{@execution_id}"
-
-      # Remove the queue key if it's not a list
-      if @client.exists(@queue_name) and @client.type(@queue_name) != 'list'
-        @client.del(@queue_name)
-      end
+      @queue_name = "#{dataset_id}#{REDIS_KEY_SUFFIXES[:QUEUE]}"
     end
 
     # Check if there are any items in the queue.
     #
     # @return [Boolean]
     def any?
-      if @client.llen(@queue_name) > 0
-        return true
-      end
-
-      false
+      length > 0
     end
 
     # Check if the queue is empty
@@ -136,7 +104,7 @@ module Domo
     #
     # @return [Job, nil]
     def pop
-      _, job = @client.blpop(@queue_name, 3)
+      job = @client.lpop(@queue_name)
       if job.nil?
         return nil
       end
@@ -185,8 +153,10 @@ module Domo
     # @return [Job]
     def each(&block)
       return enum_for(:each) unless block_given?
-      while @client.llen(@queue_name) > 0
-        yield pop
+      until @client.llen(@queue_name) <= 0
+        # yield pop
+        job = pop
+        yield job unless job.nil?
       end
     end
   end
@@ -199,18 +169,22 @@ module Domo
     attr_accessor :data
     # @return [Integer]
     attr_accessor :part_num
+    # @return [Integer]
+    attr_accessor :execution_id
 
     # @param event [LogStash::Event]
     # @param data [String]
     # @param part_num [Integer, java.util.concurrent.atomic.AtomicInteger]
+    # @param execution_id [Integer, nil]
     # @return [Job]
-    def initialize(event, data, part_num)
+    def initialize(event, data, part_num, execution_id=nil)
       @event = event
       @data = data
       @part_num = part_num
       if @part_num.is_a? java.util.concurrent.atomic.AtomicInteger
         @part_num = @part_num.get
       end
+      @execution_id = execution_id
     end
 
     # Construct the class from a JSON string.
@@ -220,7 +194,7 @@ module Domo
     def self.from_json!(json_str)
       json_hash = JSON.parse(json_str, {:symbolize_names => true})
 
-      self.new(json_hash[:event], json_hash[:data], json_hash[:part_num])
+      self.new(json_hash[:event], json_hash[:data], json_hash[:part_num], json_hash[:execution_id])
     end
 
     # Convert the class's (important) attributes to a JSON string.
@@ -229,12 +203,43 @@ module Domo
     # @return [String] The JSON encoded string.
     def to_json
       json_hash = {
-          :event    => @event,
-          :data     => @data,
-          :part_num => @part_num,
+          :event        => @event,
+          :data         => @data,
+          :part_num     => @part_num,
+          :execution_id => @execution_id,
       }
 
       JSON.generate(json_hash)
+    end
+  end
+
+  class DummyLockManager
+    def initialize(*args)
+    end
+
+    def get_lock_info(resource)
+      { validity: 0, resource: resource, value: nil }
+    end
+
+    def lock(resource, *args, &block)
+      lock_info = get_lock_info(resource)
+      if block_given?
+        yield lock_info
+        !!lock_info
+      else
+        lock_info
+      end
+    end
+
+    def lock!(*args)
+      fail 'No block passed' unless block_given?
+
+      lock(*args) do |lock_info|
+        return yield
+      end
+    end
+
+    def unlock(*args)
     end
   end
 
