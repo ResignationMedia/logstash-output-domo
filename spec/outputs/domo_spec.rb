@@ -169,7 +169,7 @@ describe LogStash::Outputs::Domo do
 
       it "should pull events off the redis queue" do
         redis_client = subject.instance_variable_get(:@redis_client)
-        part_num = redis_client.incr("#{dataset_id}_part_num")
+        part_num = redis_client.incr("#{subject.part_num_key}")
         data = subject.encode_event_data(queued_event)
 
         queue = Domo::Queue.new(redis_client, dataset_id, stream_id)

@@ -2,6 +2,8 @@ require "concurrent"
 
 module CoreExtensions
   refine Concurrent::Hash do
+    attr_accessor :pipeline_id
+
     def execution_id
       begin
         @execution_id
