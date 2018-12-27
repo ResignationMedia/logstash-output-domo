@@ -1,8 +1,10 @@
-# Give credit where it's due https://stackoverflow.com/a/10715242
-# Flattens a nested hash so we can denormalize it for writing to a csv
 module CoreExtensions
   module Enumerable
     module Flatten
+      # Give credit where it's due https://stackoverflow.com/a/10715242
+      # Flattens a nested hash so we can denormalize it for writing to a csv
+      # @param parent_prefix [String, nil] The prefix for subkeys of flattened hashes.
+      # @return [Hash] The flattened hash.
       def flatten_with_path(parent_prefix = nil)
         res = {}
 

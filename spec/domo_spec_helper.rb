@@ -20,15 +20,16 @@ module DomoHelper
   #
   # @return [Hash]
   def get_test_settings
-    test_settings_file = File.dirname(File.dirname(__FILE__))
-    test_settings_file = File.join(test_settings_file, 'testing')
+    settings = Hash.new
+    base_dir = File.dirname(File.dirname(__FILE__ ))
+    test_settings_file = File.join(base_dir, 'testing')
     test_settings_file = File.join(test_settings_file, 'rspec_settings.yaml')
 
     if File.exists?(test_settings_file)
-      YAML.load_file(test_settings_file)
-    else
-      {}
+      settings.merge!(YAML.load_file(test_settings_file))
     end
+
+    settings
   end
 
   # Initializes a DomoClient object from our test settings
@@ -132,19 +133,59 @@ module DomoHelper
     new_event
   end
 
-  # Export a given dataset and compare its contents to the expected data.
+  # Export a Domo Dataset's data to a CSV parsed Hash.
+  #
+  # @param domo_client [DomoClient] A Domo API client.
+  # @param dataset_id [String] The Dataset ID.
+  # @return [Hash, nil]
+  def export_dataset(domo_client, dataset_id)
+    # Sometimes there's lag on the Domo API so we'll retry a couple of times instead of failing tests for no reason.
+    attempts = 0
+    data = nil
+    loop do
+      begin
+        # @type [IO]
+        data_stream = domo_client.dataSetClient.exportData(dataset_id, true).to_io
+        data = data_stream.read
+        data_stream.close
+
+        return CSV.parse(data, {:headers => true}).map(&:to_h)
+      rescue Java::ComDomoSdkRequest::RequestException => e
+        if e.getStatusCode < 400 or e.getStatusCode == 404 or e.getStatusCode == 406 or e.getStatusCode >= 500
+          if attempts > 3
+            raise e
+          end
+          puts "Got a retriable Domo API error."
+          sleep(2.0)
+        else
+          raise e
+        end
+      ensure
+        attempts += 1
+      end
+    end
+
+    data
+  end
+
+  # Compare expected data to what's actually in the provided Domo Dataset.
   #
   # @param domo_client [DomoClient]
   # @param dataset_id [String]
   # @param expected_data [Array<Hash>, Hash]
   # @return [Boolean]
   def dataset_data_match?(domo_client, dataset_id, expected_data)
-    # @type [IO]
-    data_stream = domo_client.dataSetClient.exportData(dataset_id, true).to_io
-    data = data_stream.read
-    data_stream.close
+    data = export_dataset(domo_client, dataset_id)
 
-    data = CSV.parse(data, {:headers => true}).map(&:to_h)
+    if data.nil?
+      unless expected_data.nil?
+        puts "Got no data back from Domo."
+        puts "Expected data: #{expected_data}"
+        return false
+      end
+      return true
+    end
+
     if expected_data.is_a? Hash
       return false unless data.size == 1
       data = data[0]

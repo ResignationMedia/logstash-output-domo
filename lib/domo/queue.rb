@@ -15,25 +15,30 @@ module Domo
         :PART_NUM         => "_part_num",
     }
 
+    # A format string for the redis key prefix
     REDIS_KEY_PREFIX_FORMAT = "logstash-output-domo:%{dataset_id}"
     
-    # @return [String]
+    # @return [String] The name of the queue.
     attr_reader :queue_name
-    # @return [String
+    # @return [String The pipeline id.
     attr_reader :pipeline_id
-    # @return [Redis]
+    # @return [Redis] An initialized redis client
     attr_reader :client
-    # @return [String]
+    # @return [String] The Domo Dataset ID
     attr_reader :dataset_id
-    # @return [Integer]
+    # @return [Integer] The Domo Stream ID
     attr_reader :stream_id
 
+    # @!attribute [r] redis_key_prefix
+    # The prefix for all redis keys.
+    # @return [String]
     def redis_key_prefix
       REDIS_KEY_PREFIX_FORMAT % {:dataset_id => @dataset_id}
     end
 
     # @!attribute [r] execution_id
-    # @return [Integer]
+    # The active Stream Execution ID (if available)
+    # @return [Integer, nil]
     def execution_id
       execution_id = client.get("#{redis_key_prefix}#{REDIS_KEY_SUFFIXES[:ACTIVE_EXECUTION]}")
       execution_id.to_i == 0 ? nil : execution_id.to_i
@@ -48,11 +53,12 @@ module Domo
       end
     end
 
-    # Construct a Queue instance related to the active Stream Execution for the provided Dataset.
+    # Find an active Queue associated with the provided Stream and Dataset.
     #
-    # @param redis_client [Redis]
-    # @param dataset_id [String]
-    # @param stream_id [Integer]
+    # @param redis_client [Redis] A redis client.
+    # @param dataset_id [String] The Domo Dataset ID.
+    # @param stream_id [Integer] The Domo Stream ID.
+    # @param pipeline_id [String] The Logstash Pipeline ID.
     # @return [Queue]
     def self.get_active_queue(redis_client, dataset_id, stream_id=nil, pipeline_id='main')
       redis_key_prefix = REDIS_KEY_PREFIX_FORMAT % {:dataset_id => dataset_id}
@@ -61,10 +67,11 @@ module Domo
       self.new(redis_client, dataset_id, stream_id, pipeline_id)
     end
 
-    # Get the active Stream Execution ID for the provided Dataset's Queue.
+    # Get the active Stream Execution ID for the provided Stream's Queue.
     #
-    # @param redis_client [Redis]
-    # @param dataset_id [String]
+    # @param redis_client [Redis] A redis client.
+    # @param dataset_id [String] The Domo Dataset ID.
+    # @param pipeline_id [String] The Logstash Pipeline ID.
     def self.get_active_execution_id(redis_client, dataset_id, pipeline_id='main')
       redis_key_prefix = REDIS_KEY_PREFIX_FORMAT % {:dataset_id => dataset_id}
       execution_id = redis_client.get("#{redis_key_prefix}#{REDIS_KEY_SUFFIXES[:ACTIVE_EXECUTION]}")
@@ -75,14 +82,18 @@ module Domo
     # @param dataset_id [String]
     # @param stream_id [Integer, nil]
     # @param execution_id [Integer, nil]
+    # @param pipeline_id [String, nil]
     def initialize(redis_client, dataset_id, stream_id=nil, execution_id=nil, pipeline_id='main')
       # @type [Redis]
       @client = redis_client
+      # @type [String]
       @pipeline_id = pipeline_id
-
+      # @type [String]
       @dataset_id = dataset_id
+      # @type [Integer]
       @stream_id = stream_id
 
+      # Set the active Execution ID if it's not nil.
       if execution_id != self.class.get_active_execution_id(@client, @dataset_id) and not execution_id.nil?
         @client.set("#{redis_key_prefix}#{REDIS_KEY_SUFFIXES[:ACTIVE_EXECUTION]}", execution_id)
       end
@@ -98,7 +109,7 @@ module Domo
       length > 0
     end
 
-    # Check if the queue is empty
+    # Check if the queue is empty.
     #
     # @return [Boolean]
     def empty?
@@ -176,22 +187,22 @@ module Domo
 
   # Job that goes into a Queue and handles sending event data using the DOMO Streams API.
   class Job
-    # @return [String]
+    # @return [String] A unique ID for the job.
     attr_reader :id
-    # @return [LogStash::Event]
+    # @return [LogStash::Event] The job's Logstash Event.
     attr_accessor :event
     # @return [String] A CSV string of the event's data.
     attr_accessor :data
-    # @return [Integer]
+    # @return [Integer] The Streams API part number.
     attr_accessor :part_num
-    # @return [Integer]
+    # @return [Integer] The Stream Execution ID.
     attr_accessor :execution_id
 
     # @param event [LogStash::Event]
     # @param data [String]
     # @param part_num [Integer, java.util.concurrent.atomic.AtomicInteger]
     # @param execution_id [Integer, nil]
-    # @return [Job]
+    # @param id [Integer, nil] A unique ID for the job. Do not set this yourself. It will be auto generated, or set from the JSON serialized instance in redis.
     def initialize(event, data, part_num, execution_id=nil, id=nil)
       @event = event
       @data = data
@@ -232,6 +243,9 @@ module Domo
     end
   end
 
+  # Dummy class that provides stub methods of the Redlock class.
+  # Used when the distributed lock is disabled so we don't have to litter the plugin's code with conditionals.
+  # All lock methods will return true to the caller allowing the code to assume the "lock" has been acquired.
   class DummyLockManager
     def initialize(*args)
     end

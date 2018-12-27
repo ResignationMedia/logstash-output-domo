@@ -2,7 +2,7 @@ default : test
 .PHONY: test
 test :
 	docker-compose build
-	docker-compose run --rm test
+	-docker-compose run --rm test
 	docker-compose down
 .PHONY: clean
 distclean : clean 

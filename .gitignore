@@ -4,6 +4,7 @@ Gemfile.lock
 .gradle
 .idea/
 vendor/
+.mvn
 *.jar
 .yardoc
 # built application files

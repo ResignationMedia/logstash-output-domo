@@ -15,6 +15,6 @@ COPY --chown=redis:redis testing/redis-sentinel.conf /usr/local/etc/redis/redis-
 
 FROM jruby:9.1.17 AS test
 RUN mkdir /logstash-output-domo
-WORKDIR /logstash-output-domo
 COPY . /logstash-output-domo
+WORKDIR /logstash-output-domo
 RUN bundle install
