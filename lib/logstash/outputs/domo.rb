@@ -1,8 +1,8 @@
 # encoding: utf-8
 require "logstash/outputs/base"
 require "logstash/namespace"
-require "core_extensions/enumerable/flatten"
-require "core_extensions/concurrent/hash"
+require "core_extensions/flatten"
+require "core_extensions"
 require "concurrent"
 require "csv"
 require "java"
@@ -14,7 +14,7 @@ require "domo/queue"
 require "logstash-output-domo_jars.rb"
 
 # Add a method to Enumerable to flatten complex data structures into CSV columns
-Hash.include CoreExtensions::Enumerable::Flatten
+Hash.include CoreExtensions::Flatten
 using CoreExtensions
 
 java_import "com.domo.sdk.streams.model.Stream"
@@ -201,18 +201,30 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
       @lock_manager = Domo::DummyLockManager.new
     end
 
+    @queue = get_queue
+  end # def register
+
+  # Sets up the appropriate queue based on our desired queue type (redis vs multi-threaded)
+  #
+  # @return [Concurrent::Hash, Domo::Queue] The appropriate queue.
+  def get_queue
     # Simple multi-threaded queue.
     if @redis_client.nil?
-      @queue = Concurrent::Hash.new
-    # Redis based queue.
+      queue = Concurrent::Hash.new
+      # Redis based queue.
     else
       # Attempt to load the queue from redis in case there are still active jobs.
-      @queue = Domo::Queue.get_active_queue(@redis_client, @dataset_id, @stream_id, pipeline_id)
+      queue = Domo::Queue.get_active_queue(@redis_client, @dataset_id, @stream_id, pipeline_id)
+      if queue.nil?
+        queue = Domo::Queue.new(@redis_client, @dataset_id, @stream_id, nil, pipeline_id)
+      end
     end
-  end # def register
+    queue
+  end
 
   public
   def multi_receive(events)
+    @queue = get_queue if @queue.nil?
     # Get or setup a multi-threaded queue if we aren't using redis.
     if @redis_client.nil?
       cur_thread = Thread.current
@@ -225,9 +237,9 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
       end
     # Get or setup a redis queue.
     else
-      @queue = Domo::Queue.get_active_queue(@redis_client, @dataset_id, @stream_id, pipeline_id)
+      @queue = get_queue if @queue.nil?
       # Create a new Queue (and possibly Stream Execution) if there's no active queue or Stream Execution associated with a queue.
-      if @queue.nil? or @queue.execution_id.nil?
+      if @queue.execution_id.nil?
         begin
           @queue = @lock_manager.lock!("#{lock_key}", @lock_timeout) do
             # Get or create the Stream Execution.
@@ -261,6 +273,7 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
     # Get or create a Stream Execution to associate with the queue.
     @lock_manager.lock("#{lock_key}", @lock_timeout) do |locked|
       if locked
+        @queue = get_queue if @queue.nil?
         stream_execution = nil
         # Check if the Queue's existing Stream Execution is still valid.
         unless @queue.execution_id.nil?
@@ -295,8 +308,13 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
           part_num = @redis_client.incr("#{part_num_key}")
         end
 
+        if queue.methods.include? 'execution_id'
+          job_execution_id = queue.execution_id
+        else
+          job_execution_id = @queue.execution_id
+        end
         # Create a job for the event + data and add it to the queue.
-        job = Domo::Job.new(event, data, part_num, @queue.execution_id)
+        job = Domo::Job.new(event, data, part_num, job_execution_id)
         queue.add(job)
       # Reject the invalid event and send it to the DLQ if it's enabled.
       rescue ColumnTypeError => e
@@ -340,6 +358,7 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
 
       # Process the jobs.
       batch.each do |job|
+        @queue = batch if @queue.nil?
         begin
           # Make sure we're still using the correct Stream Execution.
           @lock_manager.lock("#{lock_key}", @lock_timeout) do |locked|
@@ -361,18 +380,22 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
           # Upload it
           job.execution_id = @queue.execution_id if job.execution_id.nil?
           @domo_client.stream_client.uploadDataPart(@stream_id, job.execution_id, job.part_num, job.data)
+
+          execution_id = @queue.nil? ? job.execution_id : @queue.execution_id
+          queue_pipeline_id = @queue.nil? ? pipeline_id : @queue.pipeline_id
           @logger.debug("Successfully wrote data to DOMO.",
-                        :stream_id        => @stream_id,
-                        :execution_id     => @queue.execution_id,
-                        :queue_pipeline_id => @queue.pipeline_id,
-                        :job_id           => job.id,
-                        :job_execution_id => job.execution_id,
-                        :event            => job.event,
-                        :data             => job.data)
+                        :stream_id         => @stream_id,
+                        :execution_id      => execution_id,
+                        :queue_pipeline_id => queue_pipeline_id,
+                        :job_id            => job.id,
+                        :job_execution_id  => job.execution_id,
+                        :event             => job.event,
+                        :data              => job.data)
         rescue Java::ComDomoSdkRequest::RequestException => e
           if e.getStatusCode < 400 or e.getStatusCode >= 500
             # Queue the job to be retried if we're using the distributed lock or configured to retry.
             if @retry_failures or @distributed_lock
+              @queue = get_queue if @queue.nil?
               @logger.info("Got a retriable error from the DOMO Streams API.",
                            :code      => e.getStatusCode,
                            :exception => e,
@@ -410,7 +433,8 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
       end
       # The queue is empty and there are no failures so let's fire off a commit.
       if failures.empty?
-        unless @queue.execution_id.nil?
+        @queue = get_queue if @queue.nil?
+        unless @queue.nil? or @queue.execution_id.nil?
           @lock_manager.lock("#{lock_key}", @lock_timeout) do |locked|
             if locked
               # Validate the active Stream Execution

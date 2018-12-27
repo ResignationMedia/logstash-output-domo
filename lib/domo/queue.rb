@@ -75,7 +75,7 @@ module Domo
     def self.get_active_execution_id(redis_client, dataset_id, pipeline_id='main')
       redis_key_prefix = REDIS_KEY_PREFIX_FORMAT % {:dataset_id => dataset_id}
       execution_id = redis_client.get("#{redis_key_prefix}#{REDIS_KEY_SUFFIXES[:ACTIVE_EXECUTION]}")
-      if execution_id.nil? then execution_id else execution_id.to_i end
+      execution_id.to_i == 0 ? nil : execution_id.to_i
     end
 
     # @param redis_client [Redis]
@@ -94,8 +94,10 @@ module Domo
       @stream_id = stream_id
 
       # Set the active Execution ID if it's not nil.
-      if execution_id != self.class.get_active_execution_id(@client, @dataset_id) and not execution_id.nil?
-        @client.set("#{redis_key_prefix}#{REDIS_KEY_SUFFIXES[:ACTIVE_EXECUTION]}", execution_id)
+      unless execution_id.nil?
+        if execution_id != self.class.get_active_execution_id(@client, @dataset_id)
+          @client.set("#{redis_key_prefix}#{REDIS_KEY_SUFFIXES[:ACTIVE_EXECUTION]}", execution_id)
+        end
       end
 
       # @type [String]

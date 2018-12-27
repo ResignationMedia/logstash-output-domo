@@ -3,6 +3,7 @@ require "java"
 require "logstash/devutils/rspec/spec_helper"
 require "logstash/outputs/domo"
 require "logstash/event"
+require "core_extensions/flatten"
 require_relative "../../spec/domo_spec_helper"
 
 RSpec.shared_examples "LogStash::Outputs::Domo" do
@@ -31,6 +32,24 @@ shared_context "dataset bootstrap" do
   let!(:test_settings) { get_test_settings }
   let!(:domo_client) { get_domo_client(test_settings) }
   let!(:stream_config) { bootstrap_dataset(domo_client) }
+end
+
+describe CoreExtensions do
+  subject do
+    LogStash::Event.new("venue_id"=>8186, "index"=>"atv", "subscription_id"=>3083,
+                        "geoip"=>{"country_name"=>"United States", "dma_code"=>635, "country_code2"=>"US", "region_name"=>"Texas", "city_name"=>"Austin", "country_code3"=>"US", "latitude"=>30.2414, "postal_code"=>"78704", "region_code"=>"TX",
+                                  "location"=>{"lon"=>-97.7687, "lat"=>30.2414}, "timezone"=>"America/Chicago", "continent_code"=>"NA", "longitude"=>-97.7687, "ip"=>"71.42.223.130"},
+                        "client"=>"Roku", "@timestamp"=>"2018-12-27T19:01:01.000Z", "event"=>"channel.playback", "customer_type"=>"business", "date"=>1545937261, "organization_id"=>3193, "@version"=>"1", "device_id"=>5729, "ip"=>"71.42.223.130")
+  end
+
+  before(:each) { Hash.include CoreExtensions::Flatten }
+
+  it "should properly flatten complex events", :data_structure => true do
+    flattened_event = subject.to_hash.flatten_with_path
+    expect(flattened_event).not_to eq(subject)
+    expect(flattened_event).to be_a(Hash)
+    expect(flattened_event).to satisfy("not have sub-hashes") { |v| v.each {|k, v| if v.is_a? Hash then false; break end }}
+  end
 end
 
 describe LogStash::Outputs::Domo do
