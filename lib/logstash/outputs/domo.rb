@@ -379,6 +379,8 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
 
           # Upload it
           job.execution_id = @queue.execution_id if job.execution_id.nil?
+          # Add a little jitter so Domo's API doesn't shit itself
+          sleep(Random.new.rand(0.5))
           @domo_client.stream_client.uploadDataPart(@stream_id, job.execution_id, job.part_num, job.data)
 
           execution_id = @queue.nil? ? job.execution_id : @queue.execution_id
@@ -441,6 +443,11 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
               stream_execution = @domo_client.stream_client.getExecution(@stream_id, @queue.execution_id)
               if stream_execution.currentState == "ERROR" or stream_execution.currentState == "FAILED"
                 @domo_client.stream_client.abortExecution(@stream_id, stream_execution.getId)
+                @logger.error("Execution ID for #{stream_execution.getId} for Stream ID #{@stream_id} was aborted due to an error.",
+                              :stream_id => @stream_id,
+                              :execution_id => stream_execution.getId,
+                              :execution_state => stream_execution.currentState,
+                              :execution => stream_execution)
               elsif stream_execution.currentState == "ACTIVE"
                 @domo_client.stream_client.commitExecution(@stream_id, stream_execution.getId)
                 # Clear the queue unless we're using a redis queue.
@@ -481,6 +488,11 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
 
           if stream_execution.currentState == "ERROR" or stream_execution.currentState == "FAILED"
             @domo_client.stream_client.abortExecution(@stream_id, stream_execution.getId)
+            @logger.error("Execution ID for #{stream_execution.getId} for Stream ID #{@stream_id} was aborted due to an error.",
+                          :stream_id => @stream_id,
+                          :execution_id    => stream_execution.getId,
+                          :execution_state => stream_execution.currentState,
+                          :execution => stream_execution)
 
             @queue.execution_id = nil
             _ = @redis_client.getset("#{part_num_key}", "0") unless @redis_client.nil?
@@ -494,7 +506,7 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
           # Clear the queue unless it's got data in it (i.e. another worker is processing events).
           # If we're using a multi-threaded queue, this should always be empty on close, hence the check.
           unless @queue.any?
-            @queue.clear
+            @queue.clear unless @queue.is_a? Domo::Queue
             _ = @redis_client.getset("#{part_num_key}", "0") unless @redis_client.nil?
           end
         end
