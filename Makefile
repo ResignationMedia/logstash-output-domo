@@ -1,7 +1,6 @@
 default : test
 .PHONY: test
 test :
-	docker-compose build
 	-docker-compose run --rm test
 	docker-compose down
 .PHONY: clean
@@ -11,8 +10,9 @@ clean :
 	docker-compose down
 .PHONY: build
 build : libbuild
-	bundle install
+	docker-compose build
 .PHONY: libbuild
 libbuild :
 	gradle wrapper
 	./gradlew vendor
+	bundle install

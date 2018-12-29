@@ -191,7 +191,7 @@ describe LogStash::Outputs::Domo do
         part_num = redis_client.incr("#{subject.part_num_key}")
         data = subject.encode_event_data(queued_event)
 
-        queue = Domo::Queue.new(redis_client, dataset_id, stream_id)
+        queue = Domo::JobQueue.new(redis_client, dataset_id, stream_id)
         job = Domo::Job.new(queued_event, data, part_num)
         queue.add(job)
         expect(queue.size).to eq(1)
@@ -203,6 +203,26 @@ describe LogStash::Outputs::Domo do
         expect(new_queue.execution_id).to be(nil)
 
         expected_domo_data = [event_to_csv(queued_event)]
+        expected_domo_data += events.map { |event| event_to_csv(event) }
+        expect(dataset_data_match?(domo_client, dataset_id, expected_domo_data)).to be(true)
+      end
+
+      it "should process events in the failures queue", :failure_queue => true do
+        failed_event = queued_event
+        redis_client = subject.instance_variable_get(:@redis_client)
+        part_num = 2
+        data = subject.encode_event_data(failed_event)
+
+        failed_job = Domo::Job.new(failed_event, data, part_num, 10000)
+        expect(failed_job.part_num).to eq(part_num)
+        expect(failed_job.execution_id).to eq(10000)
+        failed_queue = Domo::FailureQueue.new(redis_client, dataset_id, stream_id)
+
+        failed_queue << failed_job
+        expect(failed_queue.size).to eq(1)
+
+        subject.multi_receive(events)
+        expected_domo_data = [event_to_csv(failed_event)]
         expected_domo_data += events.map { |event| event_to_csv(event) }
         expect(dataset_data_match?(domo_client, dataset_id, expected_domo_data)).to be(true)
       end
