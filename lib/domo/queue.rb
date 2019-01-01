@@ -166,7 +166,8 @@ module Domo
       redis_key_prefix = REDIS_KEY_PREFIX_FORMAT % {:dataset_id => dataset_id}
       return nil unless redis_client.exists("#{redis_key_prefix}#{REDIS_KEY_SUFFIXES[:QUEUE]}")
 
-      self.new(redis_client, dataset_id, stream_id, pipeline_id)
+      execution_id = self.get_active_execution_id(redis_client, dataset_id, pipeline_id)
+      self.new(redis_client, dataset_id, stream_id, execution_id, pipeline_id)
     end
 
     # Get the active Stream Execution ID for the provided Stream's JobQueue.
@@ -267,17 +268,32 @@ module Domo
     attr_accessor :event
     # @return [String] A CSV string of the event's data.
     attr_accessor :data
-    # @return [Integer] The Streams API part number.
-    attr_accessor :part_num
     # @return [Integer] The Stream Execution ID.
     attr_accessor :execution_id
 
+    # @!attribute [r] part_num
+    # The Streams API part number.
+    # @return [Integer]
+    def part_num
+      return @part_num.get if @part_num.is_a? java.util.concurrent.atomic.AtomicInteger
+      @part_num
+    end
+
+    # @!attribute [w]
+    def part_num=(part_num)
+      if part_num.is_a? java.util.concurrent.atomic.AtomicInteger
+        @part_num = part_num.get
+      else
+        @part_num = part_num
+      end
+    end
+
     # @param event [LogStash::Event]
     # @param data [String]
-    # @param part_num [Integer, java.util.concurrent.atomic.AtomicInteger]
+    # @param part_num [Integer, java.util.concurrent.atomic.AtomicInteger, nil]
     # @param execution_id [Integer, nil]
     # @param id [Integer, nil] A unique ID for the job. Do not set this yourself. It will be auto generated, or set from the JSON serialized instance in redis.
-    def initialize(event, data, part_num, execution_id=nil, id=nil)
+    def initialize(event, data, part_num=nil, execution_id=nil, id=nil)
       @event = event
       @data = data
       @part_num = part_num

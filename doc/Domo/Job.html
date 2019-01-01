@@ -304,7 +304,7 @@ Streams API.</p>
         <li class="public ">
   <span class="summary_signature">
     
-      <a href="#initialize-instance_method" title="#initialize (instance method)">#<strong>initialize</strong>(event, data, part_num, execution_id = nil, id = nil)  &#x21d2; Job </a>
+      <a href="#initialize-instance_method" title="#initialize (instance method)">#<strong>initialize</strong>(event, data, part_num = nil, execution_id = nil, id = nil)  &#x21d2; Job </a>
     
 
     
@@ -322,6 +322,30 @@ Streams API.</p>
   
     <span class="summary_desc"><div class='inline'>
 <p>A new instance of Job.</p>
+</div></span>
+  
+</li>
+
+      
+        <li class="public ">
+  <span class="summary_signature">
+    
+      <a href="#to_hash-instance_method" title="#to_hash (instance method)">#<strong>to_hash</strong>  &#x21d2; Hash </a>
+    
+
+    
+  </span>
+  
+  
+  
+  
+  
+  
+  
+
+  
+    <span class="summary_desc"><div class='inline'>
+<p>Return a hash representation of the Job.</p>
 </div></span>
   
 </li>
@@ -360,7 +384,7 @@ Streams API.</p>
     <div class="method_details first">
   <h3 class="signature first" id="initialize-instance_method">
   
-    #<strong>initialize</strong>(event, data, part_num, execution_id = nil, id = nil)  &#x21d2; <tt><span class='object_link'><a href="" title="Domo::Job (class)">Job</a></span></tt> 
+    #<strong>initialize</strong>(event, data, part_num = nil, execution_id = nil, id = nil)  &#x21d2; <tt><span class='object_link'><a href="" title="Domo::Job (class)">Job</a></span></tt> 
   
 
   
@@ -405,8 +429,10 @@ Streams API.</p>
         <span class='name'>part_num</span>
       
       
-        <span class='type'>(<tt>Integer</tt>, <tt>java.util.concurrent.atomic.AtomicInteger</tt>)</span>
+        <span class='type'>(<tt>Integer</tt>, <tt>java.util.concurrent.atomic.AtomicInteger</tt>, <tt>nil</tt>)</span>
       
+      
+        <em class="default">(defaults to: <tt>nil</tt>)</em>
       
       
     </li>
@@ -452,22 +478,22 @@ generated, or set from the JSON serialized instance in redis.</p>
       <pre class="lines">
 
 
-208
-209
-210
-211
-212
-213
-214
-215
-216
-217
-218</pre>
+296
+297
+298
+299
+300
+301
+302
+303
+304
+305
+306</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/domo/queue.rb', line 208</span>
+      <pre class="code"><span class="info file"># File 'lib/domo/queue.rb', line 296</span>
 
-<span class='kw'>def</span> <span class='id identifier rubyid_initialize'>initialize</span><span class='lparen'>(</span><span class='id identifier rubyid_event'>event</span><span class='comma'>,</span> <span class='id identifier rubyid_data'>data</span><span class='comma'>,</span> <span class='id identifier rubyid_part_num'>part_num</span><span class='comma'>,</span> <span class='id identifier rubyid_execution_id'>execution_id</span><span class='op'>=</span><span class='kw'>nil</span><span class='comma'>,</span> <span class='id identifier rubyid_id'>id</span><span class='op'>=</span><span class='kw'>nil</span><span class='rparen'>)</span>
+<span class='kw'>def</span> <span class='id identifier rubyid_initialize'>initialize</span><span class='lparen'>(</span><span class='id identifier rubyid_event'>event</span><span class='comma'>,</span> <span class='id identifier rubyid_data'>data</span><span class='comma'>,</span> <span class='id identifier rubyid_part_num'>part_num</span><span class='op'>=</span><span class='kw'>nil</span><span class='comma'>,</span> <span class='id identifier rubyid_execution_id'>execution_id</span><span class='op'>=</span><span class='kw'>nil</span><span class='comma'>,</span> <span class='id identifier rubyid_id'>id</span><span class='op'>=</span><span class='kw'>nil</span><span class='rparen'>)</span>
   <span class='ivar'>@event</span> <span class='op'>=</span> <span class='id identifier rubyid_event'>event</span>
   <span class='ivar'>@data</span> <span class='op'>=</span> <span class='id identifier rubyid_data'>data</span>
   <span class='ivar'>@part_num</span> <span class='op'>=</span> <span class='id identifier rubyid_part_num'>part_num</span>
@@ -534,12 +560,12 @@ generated, or set from the JSON serialized instance in redis.</p>
       <pre class="lines">
 
 
-197
-198
-199</pre>
+270
+271
+272</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/domo/queue.rb', line 197</span>
+      <pre class="code"><span class="info file"># File 'lib/domo/queue.rb', line 270</span>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_data'>data</span>
   <span class='ivar'>@data</span>
@@ -595,12 +621,12 @@ generated, or set from the JSON serialized instance in redis.</p>
       <pre class="lines">
 
 
-195
-196
-197</pre>
+268
+269
+270</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/domo/queue.rb', line 195</span>
+      <pre class="code"><span class="info file"># File 'lib/domo/queue.rb', line 268</span>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_event'>event</span>
   <span class='ivar'>@event</span>
@@ -656,12 +682,12 @@ generated, or set from the JSON serialized instance in redis.</p>
       <pre class="lines">
 
 
-201
-202
-203</pre>
+272
+273
+274</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/domo/queue.rb', line 201</span>
+      <pre class="code"><span class="info file"># File 'lib/domo/queue.rb', line 272</span>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_execution_id'>execution_id</span>
   <span class='ivar'>@execution_id</span>
@@ -717,12 +743,12 @@ generated, or set from the JSON serialized instance in redis.</p>
       <pre class="lines">
 
 
-193
-194
-195</pre>
+266
+267
+268</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/domo/queue.rb', line 193</span>
+      <pre class="code"><span class="info file"># File 'lib/domo/queue.rb', line 266</span>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_id'>id</span>
   <span class='ivar'>@id</span>
@@ -746,7 +772,7 @@ generated, or set from the JSON serialized instance in redis.</p>
 </h3><div class="docstring">
   <div class="discussion">
     
-<p>Returns The Streams API part number.</p>
+<p>The Streams API part number.</p>
 
 
   </div>
@@ -763,11 +789,6 @@ generated, or set from the JSON serialized instance in redis.</p>
       
       
       
-        &mdash;
-        <div class='inline'>
-<p>The Streams API part number.</p>
-</div>
-      
     </li>
   
 </ul>
@@ -778,14 +799,16 @@ generated, or set from the JSON serialized instance in redis.</p>
       <pre class="lines">
 
 
-199
-200
-201</pre>
+277
+278
+279
+280</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/domo/queue.rb', line 199</span>
+      <pre class="code"><span class="info file"># File 'lib/domo/queue.rb', line 277</span>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_part_num'>part_num</span>
+  <span class='kw'>return</span> <span class='ivar'>@part_num</span><span class='period'>.</span><span class='id identifier rubyid_get'>get</span> <span class='kw'>if</span> <span class='ivar'>@part_num</span><span class='period'>.</span><span class='id identifier rubyid_is_a?'>is_a?</span> <span class='id identifier rubyid_java'>java</span><span class='period'>.</span><span class='id identifier rubyid_util'>util</span><span class='period'>.</span><span class='id identifier rubyid_concurrent'>concurrent</span><span class='period'>.</span><span class='id identifier rubyid_atomic'>atomic</span><span class='period'>.</span><span class='const'>AtomicInteger</span>
   <span class='ivar'>@part_num</span>
 <span class='kw'>end</span></pre>
     </td>
@@ -859,15 +882,15 @@ generated, or set from the JSON serialized instance in redis.</p>
       <pre class="lines">
 
 
-224
-225
-226
-227
-228
-229</pre>
+312
+313
+314
+315
+316
+317</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/domo/queue.rb', line 224</span>
+      <pre class="code"><span class="info file"># File 'lib/domo/queue.rb', line 312</span>
 
 <span class='kw'>def</span> <span class='kw'>self</span><span class='period'>.</span><span class='id identifier rubyid_from_json!'>from_json!</span><span class='lparen'>(</span><span class='id identifier rubyid_json_str'>json_str</span><span class='rparen'>)</span>
   <span class='id identifier rubyid_json_hash'>json_hash</span> <span class='op'>=</span> <span class='const'>JSON</span><span class='period'>.</span><span class='id identifier rubyid_parse'>parse</span><span class='lparen'>(</span><span class='id identifier rubyid_json_str'>json_str</span><span class='comma'>,</span> <span class='lbrace'>{</span><span class='symbol'>:symbolize_names</span> <span class='op'>=&gt;</span> <span class='kw'>true</span><span class='rbrace'>}</span><span class='rparen'>)</span>
@@ -887,7 +910,73 @@ generated, or set from the JSON serialized instance in redis.</p>
 
     
       <div class="method_details first">
-  <h3 class="signature first" id="to_json-instance_method">
+  <h3 class="signature first" id="to_hash-instance_method">
+  
+    #<strong>to_hash</strong>  &#x21d2; <tt>Hash</tt> 
+  
+
+  
+
+  
+</h3><div class="docstring">
+  <div class="discussion">
+    
+<p>Return a hash representation of the Job. Useful for debugging.</p>
+
+
+  </div>
+</div>
+<div class="tags">
+  
+<p class="tag_title">Returns:</p>
+<ul class="return">
+  
+    <li>
+      
+      
+        <span class='type'>(<tt>Hash</tt>)</span>
+      
+      
+      
+    </li>
+  
+</ul>
+
+</div><table class="source_code">
+  <tr>
+    <td>
+      <pre class="lines">
+
+
+339
+340
+341
+342
+343
+344
+345
+346
+347</pre>
+    </td>
+    <td>
+      <pre class="code"><span class="info file"># File 'lib/domo/queue.rb', line 339</span>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_to_hash'>to_hash</span>
+  <span class='lbrace'>{</span>
+      <span class='symbol'>:id</span>           <span class='op'>=&gt;</span> <span class='ivar'>@id</span><span class='comma'>,</span>
+      <span class='symbol'>:event</span>        <span class='op'>=&gt;</span> <span class='ivar'>@event</span><span class='period'>.</span><span class='id identifier rubyid_to_hash'>to_hash</span><span class='comma'>,</span>
+      <span class='symbol'>:data</span>         <span class='op'>=&gt;</span> <span class='ivar'>@data</span><span class='comma'>,</span>
+      <span class='symbol'>:part_num</span>     <span class='op'>=&gt;</span> <span class='ivar'>@part_num</span><span class='comma'>,</span>
+      <span class='symbol'>:execution_id</span> <span class='op'>=&gt;</span> <span class='ivar'>@execution_id</span><span class='comma'>,</span>
+  <span class='rbrace'>}</span>
+<span class='kw'>end</span></pre>
+    </td>
+  </tr>
+</table>
+</div>
+    
+      <div class="method_details ">
+  <h3 class="signature " id="to_json-instance_method">
   
     #<strong>to_json</strong>  &#x21d2; <tt>String</tt> 
   
@@ -931,20 +1020,20 @@ storing the object in redis (shocker)</p>
       <pre class="lines">
 
 
-235
-236
-237
-238
-239
-240
-241
-242
-243
-244
-245</pre>
+323
+324
+325
+326
+327
+328
+329
+330
+331
+332
+333</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/domo/queue.rb', line 235</span>
+      <pre class="code"><span class="info file"># File 'lib/domo/queue.rb', line 323</span>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_to_json'>to_json</span>
   <span class='id identifier rubyid_json_hash'>json_hash</span> <span class='op'>=</span> <span class='lbrace'>{</span>
@@ -967,7 +1056,7 @@ storing the object in redis (shocker)</p>
 </div>
 
       <div id="footer">
-  Generated on Thu Dec 27 16:35:48 2018 by
+  Generated on Mon Dec 31 18:26:30 2018 by
   <a href="http://yardoc.org" title="Yay! A Ruby Documentation Tool" target="_parent">yard</a>
   0.9.16 (ruby-2.3.3).
 </div>

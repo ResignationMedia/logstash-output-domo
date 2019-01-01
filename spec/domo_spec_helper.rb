@@ -153,15 +153,16 @@ module DomoHelper
       rescue Java::ComDomoSdkRequest::RequestException => e
         if e.getStatusCode < 400 or e.getStatusCode == 404 or e.getStatusCode == 406 or e.getStatusCode >= 500
           if attempts > 3
+            puts "Ran out of retries on API errors for DatasetID #{dataset_id}. Status code is #{e.getStatusCode}"
             raise e
           end
-          puts "Got a retriable Domo API error."
-          sleep(2.0)
+          sleep(2.0*attempts)
         else
           raise e
         end
       ensure
         attempts += 1
+        data_stream.close if defined? data_stream and data_stream
       end
     end
 
