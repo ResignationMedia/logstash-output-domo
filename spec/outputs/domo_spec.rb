@@ -191,8 +191,8 @@ describe LogStash::Outputs::Domo do
         part_num = redis_client.incr("#{subject.part_num_key}")
         data = subject.encode_event_data(queued_event)
 
-        queue = Domo::JobQueue.new(redis_client, dataset_id, stream_id)
-        job = Domo::Job.new(queued_event, data, part_num)
+        queue = Domo::Queue::Redis::JobQueue.new(redis_client, dataset_id, stream_id)
+        job = Domo::Queue::Job.new(queued_event, data, part_num)
         queue.add(job)
         expect(queue.size).to eq(1)
 
@@ -213,10 +213,10 @@ describe LogStash::Outputs::Domo do
         part_num = 2
         data = subject.encode_event_data(failed_event)
 
-        failed_job = Domo::Job.new(failed_event, data, part_num, 10000)
+        failed_job = Domo::Queue::Job.new(failed_event, data, part_num, 10000)
         expect(failed_job.part_num).to eq(part_num)
         expect(failed_job.execution_id).to eq(10000)
-        failed_queue = Domo::FailureQueue.new(redis_client, dataset_id, stream_id)
+        failed_queue = Domo::Queue::Redis::FailureQueue.new(redis_client, dataset_id, stream_id)
 
         failed_queue << failed_job
         expect(failed_queue.size).to eq(1)
