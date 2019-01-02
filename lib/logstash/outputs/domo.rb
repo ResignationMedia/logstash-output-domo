@@ -209,7 +209,7 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
     # Simple multi-threaded queue.
     return @queue if @queue.is_a? Domo::Queue::ThreadQueue
     if @redis_client.nil?
-      queue = Domo::Queue::ThreadQueue.new(@dataset_id, @stream_id, nil, pipeline_id)
+      queue = Domo::Queue::ThreadQueue.new(@dataset_id, @stream_id, nil, pipeline_id, @lock_manager)
     # Redis based queue.
     else
       # Attempt to load the queue from redis in case there are still active jobs.
@@ -293,43 +293,19 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
       queue = @queue[Thread.current]
       failures = []
     end
-    # Get or create a Stream Execution
-    @lock_manager.lock(lock_key, @lock_timeout) do |locked|
-      @queue = get_queue
-      if locked
-        stream_execution = nil
-        # Check if the Queue's existing Stream Execution is still valid.
-        unless @queue.execution_id.nil?
-          stream_execution = @domo_client.stream_client.getExecution(@stream_id, @queue.execution_id)
-          if stream_execution.currentState != "ACTIVE"
-            stream_execution = nil
-          end
-        end
-        # We didn't find an execution so let's make one.
-        if stream_execution.nil?
-          stream_execution = @domo_client.stream_client.createExecution(@stream_id)
-          @queue.execution_id = stream_execution.getId
-          if @queue.is_a? Domo::Queue::ThreadQueue
-            @queue.part_num.set(0)
-          else
-            _ = @redis_client.getset(part_num_key, "0") unless @redis_client.nil?
-          end
-        end
-      end
-    end
 
     @queue = get_queue
     if @queue.is_a? Domo::Queue::ThreadQueue
       queue = @queue.fetch(Thread.current, [])
-    else
-      queue = @queue
     end
 
     loop do
       @queue = get_queue
       if @queue.is_a? Domo::Queue::RedisQueue
         queue = @queue
+        failures = Domo::Queue::Redis::FailureQueue.from_job_queue!(queue)
       end
+
       break if queue.length <= 0 and failures.length <= 0
 
       job = queue.pop
@@ -340,7 +316,7 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
           # Clear out or update the Job's Execution ID if its associated Stream Execution is no longer valid.
           @lock_manager.lock(lock_key, @lock_timeout) do |locked|
             break unless locked
-            @queue = queue if queue.is_a? Domo::Queue::RedisQueue
+            @queue = get_queue
             execution_id = nil
 
             unless @queue.nil? or @queue.execution_id.nil?
@@ -379,30 +355,35 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
       end
 
       begin
-        # Make sure we're still using the correct Stream Execution.
+        # Get or create a Stream Execution
         @lock_manager.lock(lock_key, @lock_timeout) do |locked|
+          @queue = get_queue
           if locked
+            stream_execution = nil
+            # Check if the Queue's existing Stream Execution is still valid.
             unless @queue.execution_id.nil?
               stream_execution = @domo_client.stream_client.getExecution(@stream_id, @queue.execution_id)
-            end
-
-            # We aren't using a valid execution so let's make one.
-            if @queue.execution_id.nil? or stream_execution.currentState != "ACTIVE"
-              stream_execution = @domo_client.stream_client.createExecution(@stream_id)
-              # Update the queue's execution id and reset the part number.
-              @queue.execution_id = stream_execution.getId
-              job.execution_id = stream_execution.getId
-              # Reset the job's part number
-              if @redis_client.nil?
-                @queue.part_num.set(0)
-                job.part_num = @queue.part_num.incrementAndGet
-              else
-                _ = @redis_client.getset(part_num_key, "0") unless @redis_client.nil?
-                job.part_num = @redis_client.incr(part_num_key)
+              if stream_execution.currentState != "ACTIVE"
+                @logger.debug("Stream Exuection ID #{stream_execution.getId} for Stream ID #{@stream_id} is no longer active. Its current status is #{stream_execution.currentState}. A new Stream Execution will be created.",
+                              :stream_id         => @stream_id,
+                              :execution_id      => stream_execution.getId,
+                              :queue_pipeline_id => pipeline_id,
+                              :job               => job.to_hash(true),
+                              :event             => job.event.to_hash,
+                              :data              => job.data)
+                stream_execution = nil
               end
             end
-          else
-            @queue = get_queue
+            # We didn't find an execution so let's make one.
+            if stream_execution.nil?
+              stream_execution = @domo_client.stream_client.createExecution(@stream_id)
+              @queue.execution_id = stream_execution.getId
+              if @queue.is_a? Domo::Queue::ThreadQueue
+                @queue.part_num.set(0)
+              else
+                _ = @redis_client.getset(part_num_key, "0") unless @redis_client.nil?
+              end
+            end
           end
         end
 
@@ -424,10 +405,19 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
             job.part_num = @redis_client.incr(part_num_key)
           end
         end
+        # Add a little jitter so Domo's API doesn't shit itself
+        sleep(Random.new.rand(0.5))
 
-        # Upload it
+        # If the queue is missing an Execution ID (e.g. another worker committed the execution before we got here),
+        # then it's time to defer this job to the next round of processing.
+        if @queue.execution_id.nil?
+          job.execution_id = nil
+          queue.unshift(job)
+          next
+        end
+
         # Ensure that the job has the right Execution ID and update its part number if we have to change the ID.
-        unless @queue.execution_id.nil? or job.execution_id == @queue.execution_id
+        if job.execution_id != @queue.execution_id
           job.execution_id = @queue.execution_id
           if @queue.is_a? Domo::Queue::ThreadQueue
             job.part_num = @queue.part_num.incrementAndGet
@@ -435,8 +425,7 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
             job.part_num = @redis_client.incr(part_num_key)
           end
         end
-        # Add a little jitter so Domo's API doesn't shit itself
-        sleep(Random.new.rand(0.5))
+        # Upload the job
         @domo_client.stream_client.uploadDataPart(@stream_id, job.execution_id, job.part_num, job.data)
         # Debug log output
         execution_id = @queue.nil? ? job.execution_id : @queue.execution_id
@@ -445,8 +434,7 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
                       :stream_id         => @stream_id,
                       :execution_id      => execution_id,
                       :queue_pipeline_id => queue_pipeline_id,
-                      :job_id            => job.id,
-                      :job_execution_id  => job.execution_id,
+                      :job               => job.to_hash(true),
                       :event             => job.event.to_hash,
                       :data              => job.data)
       rescue Java::ComDomoSdkRequest::RequestException => e
@@ -458,7 +446,7 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
                          :exception         => e,
                          :stream_id         => @stream_id,
                          :execution_id      => job.execution_id,
-                         :job_id            => job.id,
+                         :job               => job.to_hash(true ),
                          :event             => job.event.to_hash,
                          :data              => job.data)
 
@@ -467,7 +455,7 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
             @logger.error("Encountered a fatal error interacting with the DOMO Streams API.",
                           :code => e.getStatusCode,
                           :exception  => e,
-                          :job_id     => job.id,
+                          :job        => job.to_hash(true),
                           :event      => job.event.to_hash,
                           :data       => job.data)
           end
@@ -477,7 +465,7 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
           @logger.error(log_message,
                         :code       => e.getStatusCode,
                         :exception  => e,
-                        :job_id     => job.id,
+                        :job        => job.to_hash(true),
                         :event      => job.event.to_hash,
                         :data       => job.data)
           unless @dlq_writer.nil?
@@ -492,18 +480,25 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
     queue = @queue if @queue.is_a? Domo::Queue::RedisQueue
     # If the queue is empty and has an active Execution ID, fire off a commit
     unless @queue.nil? or queue.length > 0 or @queue.execution_id.nil?
+      if @queue.is_a? Domo::Queue::ThreadQueue and @queue.length > 0
+        queue_processed = @queue.any? do |k ,v|
+          !v or v.length <= 0
+        end
+      else
+        queue_processed = true
+      end
       @lock_manager.lock(lock_key, @lock_timeout) do |locked|
-        if locked
+        if locked and queue_processed
           # Validate the active Stream Execution
           stream_execution = @domo_client.stream_client.getExecution(@stream_id, @queue.execution_id)
           # Abort errored out streams
           if stream_execution.currentState == "ERROR" or stream_execution.currentState == "FAILED"
             @domo_client.stream_client.abortExecution(@stream_id, stream_execution.getId)
             @logger.error("Execution ID for #{stream_execution.getId} for Stream ID #{@stream_id} was aborted due to an error.",
-                          :stream_id => @stream_id,
-                          :execution_id => stream_execution.getId,
-                          :execution_state => stream_execution.currentState,
-                          :execution => stream_execution)
+                          :stream_id        => @stream_id,
+                          :execution_id     => stream_execution.getId,
+                          :execution_state  => stream_execution.currentState,
+                          :execution        => stream_execution)
           # Commit!
           elsif stream_execution.currentState == "ACTIVE"
             @domo_client.stream_client.commitExecution(@stream_id, stream_execution.getId)
@@ -511,6 +506,12 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
             if @queue.is_a? Domo::Queue::ThreadQueue
               queue.clear
             end
+          else
+            @logger.warn("Stream Execution ID #{stream_execution.getId} for Stream ID #{@stream_id} could not be committed or aborted because its state is #{stream_execution.currentState}",
+                          :stream_id        => @stream_id,
+                          :execution_id     => stream_execution.getId,
+                          :execution_state  => stream_execution.currentState,
+                          :execution        => stream_execution)
           end
           # There is no execution to associate with the queue at this point.
           @queue.execution_id = nil

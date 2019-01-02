@@ -3,6 +3,7 @@ require "redis"
 
 module Domo
   module Queue
+    # Base class for any queues that are redis-based
     class RedisQueue
       # Suffixes to add to our redis keys
       KEY_SUFFIXES = {
@@ -88,6 +89,13 @@ module Domo
       # @param job [Job] The job to be added.
       def push(job)
         @client.rpush(@queue_name, job.to_json)
+      end
+
+      # Prepend a job to the queue. Useful for quick retries
+      #
+      # @param job [Job] The job to be added.
+      def unshift(job)
+        @client.lpush(@queue_name, job.to_json)
       end
 
       # Alias of #push
@@ -209,6 +217,7 @@ module Domo
         end
       end
 
+      # A redis-based queue for failed jobs.
       class FailureQueue < RedisQueue
         # @param job_queue [JobQueue]
         # @return [FailureQueue]
@@ -243,6 +252,11 @@ module Domo
           @client.del(@queue_name)
         end
 
+        # Pop all of the jobs out of the queue and add them back to the regular job queue so they can be processed again
+        # If a stream_execution_id is provided, then the jobs will have their Execution ID updated and their part numbers reset (if necessary).
+        #
+        # @param stream_execution_id [Integer, nil] The Stream Execution ID to associated with the new queue.
+        # @return [JobQueue]
         def reprocess_jobs!(stream_execution_id=nil)
           queue = job_queue
           each do |job|
@@ -252,7 +266,7 @@ module Domo
             job.execution_id = stream_execution_id
             queue.add(job)
           end
-
+          # Clear this queue out and return the new queue
           clear
           queue
         end

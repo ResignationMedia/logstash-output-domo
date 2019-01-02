@@ -82,15 +82,21 @@ module Domo
       # Return a hash representation of the Job.
       # Useful for debugging.
       #
+      # @param exclude_event [Boolean] Exclude the Event + Data from the Hash output. This is useful for logging.
       # @return [Hash]
-      def to_hash
-        {
+      def to_hash(exclude_event=false)
+        job = {
             :id           => @id,
             :event        => @event.to_hash,
             :data         => @data,
             :part_num     => @part_num,
             :execution_id => @execution_id,
         }
+        if exclude_event
+          _ = job.delete(:event)
+          _ = job.delete(:data)
+        end
+        job
       end
     end
   end
