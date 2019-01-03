@@ -340,9 +340,9 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
                 failure
               end
               failures.clear
-              break if queue.length <= 0
             end
           end
+          break if queue.length <= 0 and failures.length <= 0
 
           @logger.warn("Retrying DOMO Streams API requests. Will sleep for #{@retry_delay} seconds")
           sleep(@retry_delay)
@@ -501,11 +501,15 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
                           :execution        => stream_execution)
           # Commit!
           elsif stream_execution.currentState == "ACTIVE"
-            @domo_client.stream_client.commitExecution(@stream_id, stream_execution.getId)
+            execution_id = stream_execution.getId
+            @domo_client.stream_client.commitExecution(@stream_id, execution_id)
             # Clear the queue unless we're using a redis queue.
             if @queue.is_a? Domo::Queue::ThreadQueue
               queue.clear
             end
+            @logger.debug("Committed Execution ID for #{execution_id} for Stream ID #{@stream_id}.",
+                          :stream_id        => @stream_id,
+                          :execution_id     => execution_id)
           else
             @logger.warn("Stream Execution ID #{stream_execution.getId} for Stream ID #{@stream_id} could not be committed or aborted because its state is #{stream_execution.currentState}",
                           :stream_id        => @stream_id,
