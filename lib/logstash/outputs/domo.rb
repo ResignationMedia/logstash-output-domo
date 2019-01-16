@@ -425,7 +425,7 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
             job.part_num = @redis_client.incr(part_num_key)
           end
         end
-        # Upload the job
+        # Upload the job's data
         @domo_client.stream_client.uploadDataPart(@stream_id, job.execution_id, job.part_num, job.data)
         # Debug log output
         execution_id = @queue.nil? ? job.execution_id : @queue.execution_id
@@ -491,6 +491,8 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
         if locked and queue_processed
           # Validate the active Stream Execution
           stream_execution = @domo_client.stream_client.getExecution(@stream_id, @queue.execution_id)
+          # There is no execution to associate with the queue at this point.
+          @queue.execution_id = nil
           # Abort errored out streams
           if stream_execution.currentState == "ERROR" or stream_execution.currentState == "FAILED"
             @domo_client.stream_client.abortExecution(@stream_id, stream_execution.getId)
@@ -517,8 +519,6 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
                           :execution_state  => stream_execution.currentState,
                           :execution        => stream_execution)
           end
-          # There is no execution to associate with the queue at this point.
-          @queue.execution_id = nil
         end
       end
     end
@@ -544,6 +544,7 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
       @lock_manager.lock(lock_key, @lock_timeout*2) do |locked|
         if locked and not @queue.execution_id.nil?
           stream_execution = @domo_client.stream_client.getExecution(@stream_id, @queue.execution_id)
+          @queue.execution_id = nil
 
           if stream_execution.currentState == "ERROR" or stream_execution.currentState == "FAILED"
             @domo_client.stream_client.abortExecution(@stream_id, stream_execution.getId)
@@ -552,12 +553,8 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
                           :execution_id    => stream_execution.getId,
                           :execution_state => stream_execution.currentState,
                           :execution => stream_execution)
-
-            @queue.execution_id = nil
           elsif stream_execution.currentState == "ACTIVE"
             @domo_client.stream_client.commitExecution(@stream_id, stream_execution.getId)
-
-            @queue.execution_id = nil
           end
           # This looks weird. I know. It's because of our fake news polymorphism on the queue attribute.
           # Clear the queue unless it's got data in it (i.e. another worker is processing events).
