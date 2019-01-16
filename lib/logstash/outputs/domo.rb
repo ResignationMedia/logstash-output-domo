@@ -56,7 +56,7 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
   config :retry_failures, :validate => :boolean, :default => true
 
   # The delay (seconds) on retrying failed requests
-  config :retry_delay, :validate => :number, :default => 2.0
+  config :retry_delay, :validate => :number, :default => 2
 
   # Ensure that Event fields have the same data type as their corresponding columns in Domo.
   config :type_check, :validate => :boolean, :default => true
@@ -192,7 +192,7 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
 
       redlock_options = {
           :retry_count => redlock_retry_count(@lock_retry_delay),
-          :retry_delay => (@retry_delay * 1000).to_i,
+          :retry_delay => @lock_retry_delay,
       }
       @lock_manager = Redlock::Client.new(@lock_hosts, redlock_options)
     else
@@ -220,7 +220,7 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
           queue = @lock_manager.lock!(lock_key, @lock_timeout) do |locked|
             Domo::Queue::Redis::JobQueue.new(@redis_client, @dataset_id, @stream_id, nil, pipeline_id)
           end
-        rescue LockError => e
+        rescue Redlock::LockError => e
           raise e if @queue.nil?
           return @queue
         end
@@ -621,7 +621,11 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
   # @param minimum_retry_count [Integer] The smallest number of allowable retries.
   # @return [Integer] The number of times redlock can retry acquiring a lock.
   def redlock_retry_count(retry_delay=200, minimum_retry_count=3)
-    retry_count = @lock_timeout / retry_delay
+    if @lock_timeout < 1000
+      retry_count = @lock_timeout / retry_delay
+    else
+      retry_count = @lock_timeout / 1000 / retry_delay
+    end
     return retry_count unless retry_count < minimum_retry_count
     minimum_retry_count
   end
