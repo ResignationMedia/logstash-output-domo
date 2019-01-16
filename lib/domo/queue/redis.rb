@@ -260,7 +260,7 @@ module Domo
         def reprocess_jobs!(stream_execution_id=nil)
           queue = job_queue
           each do |job|
-            if job.execution_id != stream_execution_id
+            if stream_execution_id.nil? or job.execution_id != stream_execution_id
               job.part_num = nil
             end
             job.execution_id = stream_execution_id

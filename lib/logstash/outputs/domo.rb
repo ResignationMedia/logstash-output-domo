@@ -387,27 +387,6 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
           end
         end
 
-        # Set the job's execution id if it hasn't been set already.
-        if job.execution_id.nil?
-          if queue.is_a? Domo::Queue::RedisQueue
-            job.execution_id = queue.execution_id
-          else
-            job.execution_id = @queue.execution_id
-          end
-          job.part_num = nil
-        end
-
-        # Set the job's part number if it hasn't been set already.
-        if job.part_num.nil?
-          if @queue.is_a? Domo::Queue::ThreadQueue
-            job.part_num = @queue.part_num.incrementAndGet
-          else
-            job.part_num = @redis_client.incr(part_num_key)
-          end
-        end
-        # Add a little jitter so Domo's API doesn't shit itself
-        sleep(Random.new.rand(0.5))
-
         # If the queue is missing an Execution ID (e.g. another worker committed the execution before we got here),
         # then it's time to defer this job to the next round of processing.
         if @queue.execution_id.nil?
@@ -419,12 +398,18 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
         # Ensure that the job has the right Execution ID and update its part number if we have to change the ID.
         if job.execution_id != @queue.execution_id
           job.execution_id = @queue.execution_id
+          job.part_num = nil
+        end
+        if job.part_num.nil?
           if @queue.is_a? Domo::Queue::ThreadQueue
             job.part_num = @queue.part_num.incrementAndGet
           else
             job.part_num = @redis_client.incr(part_num_key)
           end
         end
+
+        # Add a little jitter so Domo's API doesn't shit itself
+        sleep(Random.new.rand(0.5))
         # Upload the job's data
         @domo_client.stream_client.uploadDataPart(@stream_id, job.execution_id, job.part_num, job.data)
         # Debug log output
@@ -446,6 +431,7 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
                          :exception         => e,
                          :stream_id         => @stream_id,
                          :execution_id      => job.execution_id,
+                         :execution         => @domo_client.stream_client.getExecution(@stream_id, job.execution_id).to_s,
                          :job               => job.to_hash(true ),
                          :event             => job.event.to_hash,
                          :data              => job.data)
