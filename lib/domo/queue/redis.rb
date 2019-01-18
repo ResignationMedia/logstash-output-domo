@@ -29,6 +29,44 @@ module Domo
       # @return [String] The redis key for the part number.
       attr_reader :part_num_key
 
+      # @return [DateTime] The last time a commit was fired
+      def last_commit
+        last_commit = @client.hget("#{redis_key_prefix}#{KEY_SUFFIXES[:ACTIVE_EXECUTION]}", "last_commit")
+        return if last_commit.nil?
+        begin
+          last_commit = Integer(last_commit)
+          last_commit = Time.at(last_commit)
+        rescue TypeError => e
+          @client.hdel("#{redis_key_prefix}#{KEY_SUFFIXES[:ACTIVE_EXECUTION]}", "last_commit")
+          last_commit = nil
+        end
+        last_commit
+      end
+
+      # @param last_commit_time [DateTime, Time, Date, String]
+      def set_last_commit(last_commit_time=nil)
+        if last_commit_time.nil?
+          last_commit_time = Time.now.utc
+        else
+          case last_commit_time.class
+          when DateTime
+            last_commit_time = last_commit_time.to_time
+          when Date
+            last_commit_time = last_commit_time.to_time
+          when String
+            last_commit_time = DateTime.parse(last_commit_time).to_time
+          when Integer
+            last_commit_time = Time.at(last_commit_time)
+          when Float
+            last_commit_time = Time.at(last_commit_time)
+          else
+            last_commit_time = last_commit_time
+          end
+        end
+
+        @client.hset("#{redis_key_prefix}#{KEY_SUFFIXES[:ACTIVE_EXECUTION]}", "last_commit", last_commit_time.to_i)
+      end
+
       # @!attribute [r] redis_key_prefix
       # The prefix for all redis keys.
       # @return [String]
@@ -40,7 +78,8 @@ module Domo
       # @param dataset_id [String]
       # @param stream_id [Integer, nil]
       # @param pipeline_id [String, nil]
-      def initialize(redis_client, dataset_id, stream_id=nil, pipeline_id='main')
+      # @param last_commit_time [DateTime, nil] The last time a commit API event was fired
+      def initialize(redis_client, dataset_id, stream_id=nil, pipeline_id='main', last_commit_time=nil)
         # @type [Redis]
         @client = redis_client
         # @type [String]
@@ -49,9 +88,14 @@ module Domo
         @stream_id = stream_id
         # @type [String]
         @pipeline_id = pipeline_id
-
         # @type [String]
         @part_num_key = "#{redis_key_prefix}#{KEY_SUFFIXES[:PART_NUM]}"
+
+        if last_commit.nil?
+          @client.hdel("#{redis_key_prefix}#{KEY_SUFFIXES[:ACTIVE_EXECUTION]}", "last_commit")
+        else
+          set_last_commit(last_commit_time)
+        end
       end
 
       # Check if there are any items in the queue.
@@ -139,6 +183,13 @@ module Domo
           yield job
         end
       end
+
+      def commit(timestamp=nil)
+        @client.hdel("#{redis_key_prefix}#{KEY_SUFFIXES[:ACTIVE_EXECUTION]}", "id")
+
+        timestamp = Time.now.utc if timestamp.nil?
+        @client.hset("#{redis_key_prefix}#{KEY_SUFFIXES[:ACTIVE_EXECUTION]}", "last_commit", timestamp.to_i)
+      end
     end
 
     module Redis
@@ -150,16 +201,16 @@ module Domo
         # The active Stream Execution ID (if available)
         # @return [Integer, nil]
         def execution_id
-          execution_id = client.get("#{redis_key_prefix}#{KEY_SUFFIXES[:ACTIVE_EXECUTION]}")
+          execution_id = @client.hget("#{redis_key_prefix}#{KEY_SUFFIXES[:ACTIVE_EXECUTION]}", "id")
           execution_id.to_i == 0 ? nil : execution_id.to_i
         end
 
         # @!attribute [w]
         def execution_id=(execution_id)
           if execution_id.nil? or execution_id == 0
-            @client.del("#{redis_key_prefix}#{KEY_SUFFIXES[:ACTIVE_EXECUTION]}")
+            @client.hdel("#{redis_key_prefix}#{KEY_SUFFIXES[:ACTIVE_EXECUTION]}", "id")
           else
-            @client.set("#{redis_key_prefix}#{KEY_SUFFIXES[:ACTIVE_EXECUTION]}", execution_id)
+            @client.hset("#{redis_key_prefix}#{KEY_SUFFIXES[:ACTIVE_EXECUTION]}", "id", execution_id)
           end
         end
 
@@ -175,7 +226,8 @@ module Domo
           return nil unless redis_client.exists("#{redis_key_prefix}#{KEY_SUFFIXES[:QUEUE]}")
 
           execution_id = self.get_active_execution_id(redis_client, dataset_id, pipeline_id)
-          self.new(redis_client, dataset_id, stream_id, execution_id, pipeline_id)
+          last_commit = redis_client.hget("#{redis_key_prefix}#{KEY_SUFFIXES[:ACTIVE_EXECUTION]}", "last_commit")
+          self.new(redis_client, dataset_id, stream_id, execution_id, pipeline_id, last_commit)
         end
 
         # Get the active Stream Execution ID for the provided Stream's JobQueue.
@@ -185,7 +237,7 @@ module Domo
         # @param pipeline_id [String] The Logstash Pipeline ID.
         def self.get_active_execution_id(redis_client, dataset_id, pipeline_id='main')
           redis_key_prefix = KEY_PREFIX_FORMAT % {:dataset_id => dataset_id}
-          execution_id = redis_client.get("#{redis_key_prefix}#{KEY_SUFFIXES[:ACTIVE_EXECUTION]}")
+          execution_id = redis_client.hget("#{redis_key_prefix}#{KEY_SUFFIXES[:ACTIVE_EXECUTION]}", "id")
           execution_id.to_i == 0 ? nil : execution_id.to_i
         end
 
@@ -194,13 +246,14 @@ module Domo
         # @param stream_id [Integer, nil]
         # @param execution_id [Integer, nil]
         # @param pipeline_id [String, nil]
-        def initialize(redis_client, dataset_id, stream_id=nil, execution_id=nil, pipeline_id='main')
-          super(redis_client, dataset_id, stream_id, pipeline_id)
+        # @param last_commit [DateTime, String, nil]
+        def initialize(redis_client, dataset_id, stream_id=nil, execution_id=nil, pipeline_id='main', last_commit=nil)
+          super(redis_client, dataset_id, stream_id, pipeline_id, last_commit)
 
           # Set the active Execution ID if it's not nil.
           unless execution_id.nil?
             if execution_id != self.class.get_active_execution_id(@client, @dataset_id)
-              @client.set("#{redis_key_prefix}#{KEY_SUFFIXES[:ACTIVE_EXECUTION]}", execution_id)
+              @client.hset("#{redis_key_prefix}#{KEY_SUFFIXES[:ACTIVE_EXECUTION]}", "id", execution_id)
             end
           end
 
@@ -222,15 +275,16 @@ module Domo
         # @param job_queue [JobQueue]
         # @return [FailureQueue]
         def self.from_job_queue!(job_queue)
-          self.new(job_queue.client, job_queue.dataset_id, job_queue.stream_id, job_queue.pipeline_id)
+          self.new(job_queue.client, job_queue.dataset_id, job_queue.stream_id, job_queue.pipeline_id, job_queue.last_commit)
         end
 
         # @param redis_client [Redis]
         # @param dataset_id [String]
         # @param stream_id [Integer, nil]
         # @param pipeline_id [String, nil]
-        def initialize(redis_client, dataset_id, stream_id=nil, pipeline_id='main')
-          super(redis_client, dataset_id, stream_id, pipeline_id)
+        # @param last_commit [DateTime, String, nil]
+        def initialize(redis_client, dataset_id, stream_id=nil, pipeline_id='main', last_commit=nil)
+          super(redis_client, dataset_id, stream_id, pipeline_id, last_commit)
 
           # @type [String]
           @queue_name = "#{redis_key_prefix}#{KEY_SUFFIXES[:FAILURE]}"
@@ -242,7 +296,7 @@ module Domo
         def job_queue
           queue = JobQueue.get_active_queue(@client, @dataset_id, @stream_id, @pipeline_id)
           return queue unless queue.nil?
-          JobQueue.new(@client, @dataset_id, @stream_id, nil, @pipeline_id)
+          JobQueue.new(@client, @dataset_id, @stream_id, nil, @pipeline_id, last_commit)
         end
 
         # Clear the queue. You should probably lock something if you do this.

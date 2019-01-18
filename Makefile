@@ -9,7 +9,7 @@ distclean : clean
 clean :
 	docker-compose down
 .PHONY: build
-build : libbuild
+build :
 	docker-compose build
 .PHONY: libbuild
 libbuild :

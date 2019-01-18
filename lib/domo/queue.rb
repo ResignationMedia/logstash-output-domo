@@ -1,4 +1,5 @@
 # encoding: utf-8
+require "date"
 require "securerandom"
 require "json"
 require "thread"
@@ -11,6 +12,8 @@ module Domo
     class Job
       # @return [String] A unique ID for the job.
       attr_reader :id
+      # @return [DateTime] The job's creation time.
+      attr_reader :timestamp
       # @return [LogStash::Event] The job's Logstash Event.
       attr_accessor :event
       # @return [String] A CSV string of the event's data.
@@ -40,7 +43,8 @@ module Domo
       # @param part_num [Integer, java.util.concurrent.atomic.AtomicInteger, nil]
       # @param execution_id [Integer, nil]
       # @param id [Integer, nil] A unique ID for the job. Do not set this yourself. It will be auto generated, or set from the JSON serialized instance in redis.
-      def initialize(event, data, part_num=nil, execution_id=nil, id=nil)
+      # @param timestamp [String, DateTime] The timestamp when the job was created. Set to now (UTC) if not provided.
+      def initialize(event, data, part_num=nil, execution_id=nil, id=nil, timestamp=nil)
         @event = event
         @data = data
         @part_num = part_num
@@ -50,6 +54,30 @@ module Domo
         @execution_id = execution_id
 
         @id = id.nil? ? SecureRandom.uuid : id
+        # Parse the timestamp from a string into a date, if possible.
+        unless timestamp.nil?
+          case timestamp.class
+          when DateTime
+            timestamp = timestamp.to_time
+          when Date
+            timestamp = timestamp.to_time
+          when Float
+            timestamp = Time.at(timestamp)
+          when Integer
+            timestamp = Time.at(timestamp)
+          when String
+            begin
+              timestamp = DateTime.parse(timestamp).to_time
+            rescue ArgumentError
+              timestamp = nil
+            end
+          else
+            timestamp = timestamp
+          end
+
+        end
+        # Either generate or set the timestamp
+        @timestamp = timestamp.nil? ? Time.now.utc : timestamp
       end
 
       # Construct the class from a JSON string.
@@ -60,7 +88,7 @@ module Domo
         json_hash = JSON.parse(json_str, {:symbolize_names => true})
 
         self.new(json_hash[:event], json_hash[:data], json_hash[:part_num],
-                 json_hash[:execution_id], json_hash[:id])
+                 json_hash[:execution_id], json_hash[:id], json_hash[:timestamp])
       end
 
       # Convert the class's (important) attributes to a JSON string.
@@ -70,6 +98,7 @@ module Domo
       def to_json
         json_hash = {
             :id           => @id,
+            :timestamp    => @timestamp.to_s,
             :event        => @event,
             :data         => @data,
             :part_num     => @part_num,
@@ -87,6 +116,7 @@ module Domo
       def to_hash(exclude_event=false)
         job = {
             :id           => @id,
+            :timestamp    => @timestamp,
             :event        => @event.to_hash,
             :data         => @data,
             :part_num     => @part_num,

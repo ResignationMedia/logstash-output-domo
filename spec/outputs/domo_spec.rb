@@ -26,6 +26,21 @@ RSpec.shared_examples "LogStash::Outputs::Domo" do
     expected_domo_data = event_to_csv(nil_event)
     expect(dataset_data_match?(domo_client, dataset_id, expected_domo_data)).to be(true)
   end
+
+  it "should honor commit delays" do
+    allow(subject.instance_variable_get(:@logger)).to receive(:debug)
+
+    subject.instance_variable_set(:@commit_delay, 10)
+    queue = subject.instance_variable_get(:@queue)
+    queue.set_last_commit(Time.now.utc - 1)
+    subject.instance_variable_set(:@queue, queue)
+
+    expected_domo_data = events.map { |event| event_to_csv(event) }
+    subject.multi_receive(events)
+
+    expect(subject.instance_variable_get(:@logger)).to have_received(:debug).with(/The API is not ready for committing yet/, anything).once
+    expect(dataset_data_match?(domo_client, dataset_id, expected_domo_data)).to be(true)
+  end
 end
 
 shared_context "dataset bootstrap" do
