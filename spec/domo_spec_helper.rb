@@ -1,6 +1,7 @@
 require "csv"
 require "logstash/devutils/rspec/spec_helper"
 require "logstash/event"
+require "core_extensions/flatten"
 require "java"
 require "logstash-output-domo_jars.rb"
 require "yaml"
@@ -13,6 +14,8 @@ java_import "com.domo.sdk.datasets.model.Schema"
 java_import "com.domo.sdk.streams.model.Stream"
 java_import "com.domo.sdk.streams.model.StreamRequest"
 java_import "com.domo.sdk.streams.model.UpdateMethod"
+
+Hash.include CoreExtensions::Flatten
 
 module DomoHelper
   # Reads test related settings from an rspec_settings.yaml file located in the testing directory at the project root.
@@ -88,13 +91,7 @@ module DomoHelper
     dsr.setName "logstash-output-domo rspec test"
     dsr.setDescription "Created by the rspec tests for the logstash-output-domo plugin"
 
-    columns = ArrayList.new
-    columns.add(Column.new(Java::ComDomoSdkDatasetsModel::ColumnType::LONG, "Count"))
-    columns.add(Column.new(Java::ComDomoSdkDatasetsModel::ColumnType::STRING, "Event Name"))
-    columns.add(Column.new(Java::ComDomoSdkDatasetsModel::ColumnType::DATETIME, "Event Timestamp"))
-    columns.add(Column.new(Java::ComDomoSdkDatasetsModel::ColumnType::DATE, "Event Date"))
-    columns.add(Column.new(Java::ComDomoSdkDatasetsModel::ColumnType::DOUBLE, "Percent"))
-    dsr.setSchema(Schema.new(columns))
+    dsr.setSchema(Schema.new(test_dataset_columns))
 
     stream_request = StreamRequest.new
     stream_request.setDataSet(dsr)
@@ -110,12 +107,22 @@ module DomoHelper
     }
   end
 
+  def test_dataset_columns
+    columns = ArrayList.new
+    columns.add(Column.new(Java::ComDomoSdkDatasetsModel::ColumnType::LONG, "Count"))
+    columns.add(Column.new(Java::ComDomoSdkDatasetsModel::ColumnType::STRING, "Event Name"))
+    columns.add(Column.new(Java::ComDomoSdkDatasetsModel::ColumnType::DATETIME, "Event Timestamp"))
+    columns.add(Column.new(Java::ComDomoSdkDatasetsModel::ColumnType::DATE, "Event Date"))
+    columns.add(Column.new(Java::ComDomoSdkDatasetsModel::ColumnType::DOUBLE, "Percent"))
+    columns
+  end
+
   # Throw out Event data keys that are not being passed to Domo.
   # The values we keep also need to be coerced to Strings since the Dataset Export API sends back CSV data.
   #
   # @param event [LogStash::Event]
   # @return [Hash]
-  def event_to_csv(event)
+  def event_to_domo_hash(event)
     new_event = {}
     event.to_hash.each do |k, v|
       if v.is_a? LogStash::Timestamp
@@ -131,6 +138,24 @@ module DomoHelper
       end
     end
     new_event
+  end
+
+  def event_to_csv(event)
+    event = event_to_domo_hash(event)
+    column_names = test_dataset_columns.map { |c| c.name }
+
+    encode_options = {
+        :headers => column_names,
+        :write_headers => false,
+        :return_headers => false,
+    }
+
+    csv_data = CSV.generate(String.new, encode_options) do |csv_obj|
+      data = event.flatten_with_path
+      data = data.sort_by { |k, _| column_names.index(k) }.to_h
+      csv_obj << data.values
+    end
+    csv_data.strip
   end
 
   # Export a Domo Dataset's data to a CSV parsed Hash.

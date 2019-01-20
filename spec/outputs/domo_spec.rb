@@ -1,6 +1,7 @@
 # encoding: utf-8
 require "java"
 require "logstash/devutils/rspec/spec_helper"
+require "domo/queue"
 require "logstash/outputs/domo"
 require "logstash/event"
 require "core_extensions/flatten"
@@ -11,7 +12,7 @@ RSpec.shared_examples "LogStash::Outputs::Domo" do
     it "should send the events to DOMO" do
       subject.multi_receive(events)
 
-      expected_domo_data = events.map { |event| event_to_csv(event) }
+      expected_domo_data = events.map { |event| event_to_domo_hash(event) }
       expect(dataset_data_match?(domo_client, dataset_id, expected_domo_data)).to be(true)
     end
 
@@ -24,7 +25,7 @@ RSpec.shared_examples "LogStash::Outputs::Domo" do
 
     it "should tolerate events with null values" do
       subject.multi_receive([nil_event])
-      expected_domo_data = event_to_csv(nil_event)
+      expected_domo_data = event_to_domo_hash(nil_event)
       expect(dataset_data_match?(domo_client, dataset_id, expected_domo_data)).to be(true)
     end
 
@@ -36,7 +37,7 @@ RSpec.shared_examples "LogStash::Outputs::Domo" do
       queue.set_last_commit(Time.now.utc - 1)
       subject.instance_variable_set(:@queue, queue)
 
-      expected_domo_data = events.map { |event| event_to_csv(event) }
+      expected_domo_data = events.map { |event| event_to_domo_hash(event) }
       expected_domo_data += expected_domo_data
 
       subject.multi_receive(events)
@@ -117,8 +118,8 @@ describe CoreExtensions, extensions: true do
 end
 
 describe LogStash::Outputs::Domo do
-  before(:each) do
-    subject.register
+  before(:each) do |example|
+    subject.register unless example.metadata[:skip_before]
   end
 
   after(:each) do
@@ -127,50 +128,50 @@ describe LogStash::Outputs::Domo do
     domo_client.dataSetClient.delete(dataset_id)
   end
 
-  let(:lock_hosts) do
-    redis_servers = Array.new
-    ENV.each do |k, v|
-      if k.start_with? "LOCK_HOST"
-        redis_servers << v
-      end
-    end
-
-    if redis_servers.length <= 0
-      redis_servers = [
-          "redis://localhost:6379"
-      ]
-    end
-
-    redis_servers
-  end
-
-  let(:redis_client) do
-    {
-        "url"  => ENV["REDIS_URL"],
-    }
-  end
-
-  let(:redis_sentinels) do
-    sentinels = Array.new
-    ENV.each do |k, v|
-      if k.start_with? "REDIS_SENTINEL_HOST"
-        index = k.split("_")[-1].to_i
-        port = ENV.fetch("REDIS_SENTINEL_PORT_#{index}", 26379)
-
-        sentinel = "#{v}:#{port}"
-        sentinels << sentinel
-      end
-    end
-
-    sentinels
-  end
-
   describe "with distributed locking", redlock: true do
     include_context "dataset bootstrap" do
       let(:test_settings) { get_test_settings }
       let(:domo_client) { get_domo_client(test_settings) }
     end
     include_context "events"
+
+    let(:lock_hosts) do
+      redis_servers = Array.new
+      ENV.each do |k, v|
+        if k.start_with? "LOCK_HOST"
+          redis_servers << v
+        end
+      end
+
+      if redis_servers.length <= 0
+        redis_servers = [
+            "redis://localhost:6379"
+        ]
+      end
+
+      redis_servers
+    end
+
+    let(:redis_client) do
+      {
+          "url"  => ENV["REDIS_URL"],
+      }
+    end
+
+    let(:redis_sentinels) do
+      sentinels = Array.new
+      ENV.each do |k, v|
+        if k.start_with? "REDIS_SENTINEL_HOST"
+          index = k.split("_")[-1].to_i
+          port = ENV.fetch("REDIS_SENTINEL_PORT_#{index}", 26379)
+
+          sentinel = "#{v}:#{port}"
+          sentinels << sentinel
+        end
+      end
+
+      sentinels
+    end
 
     let(:config) do
       test_settings.clone.merge(
@@ -215,8 +216,34 @@ describe LogStash::Outputs::Domo do
       expect(new_queue.size).to eq(0)
       expect(new_queue.execution_id).to be(nil)
 
-      expected_domo_data = [event_to_csv(queued_event)]
-      expected_domo_data += events.map { |event| event_to_csv(event) }
+      expected_domo_data = [event_to_domo_hash(queued_event)]
+      expected_domo_data += events.map { |event| event_to_domo_hash(event) }
+      expect(dataset_data_match?(domo_client, dataset_id, expected_domo_data)).to be(true)
+    end
+
+    it "should process events in the queue on #register", redis_queue: true, skip_before: true do
+      sentinels = redis_sentinels.map do |s|
+        host, port = s.split(":")
+        {
+            :host => host,
+            :port => port,
+        }
+      end
+      client = Redis.new(url: ENV["REDIS_URL"], sentinels: sentinels)
+      part_num_key = "#{Domo::Queue::RedisQueue::KEY_PREFIX_FORMAT}" % {:dataset_id => dataset_id}
+      part_num_key = "#{part_num_key}#{Domo::Queue::RedisQueue::KEY_SUFFIXES[:PART_NUM]}"
+      part_num = client.incr(part_num_key)
+
+      data = event_to_csv(queued_event)
+      queue = Domo::Queue::Redis::JobQueue.new(client, dataset_id, stream_id)
+      job = Domo::Queue::Job.new(queued_event, data, part_num)
+      queue.add(job)
+      expect(queue.size).to eq(1)
+
+      subject.register
+      expected_domo_data = [event_to_domo_hash(queued_event)]
+
+      expect(queue.size).to eq(0)
       expect(dataset_data_match?(domo_client, dataset_id, expected_domo_data)).to be(true)
     end
 
@@ -235,8 +262,8 @@ describe LogStash::Outputs::Domo do
       expect(failed_queue.size).to eq(1)
 
       subject.multi_receive(events)
-      expected_domo_data = [event_to_csv(failed_event)]
-      expected_domo_data += events.map { |event| event_to_csv(event) }
+      expected_domo_data = [event_to_domo_hash(failed_event)]
+      expected_domo_data += events.map { |event| event_to_domo_hash(event) }
       expect(dataset_data_match?(domo_client, dataset_id, expected_domo_data)).to be(true)
     end
   end

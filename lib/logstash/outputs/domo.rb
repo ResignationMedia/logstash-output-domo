@@ -162,8 +162,8 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
     if @queue.is_a? Domo::Queue::RedisQueue
       return @queue.part_num_key
     end
-    part_num_key = "#{RedisQueue::KEY_PREFIX_FORMAT}" % {:dataset_id => @dataset_id}
-    "#{part_num_key}#{RedisQueue::KEY_SUFFIXES[:PART_NUM]}"
+    part_num_key = "#{Domo::Queue::RedisQueue::KEY_PREFIX_FORMAT}" % {:dataset_id => @dataset_id}
+    "#{part_num_key}#{Domo::Queue::RedisQueue::KEY_SUFFIXES[:PART_NUM]}"
   end
 
   # Establishes whether or not the queue is empty.
@@ -224,6 +224,15 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
     end
 
     @queue = get_queue
+    # Attempt a commit if there's an empty but active queue or start processing the queue if it already has jobs
+    # This is a failsafe in case all workers on all servers stopped without committing
+    if @queue.is_a? Domo::Queue::RedisQueue
+      if @queue.execution_id and queue_processed?
+        commit_stream
+      elsif @queue.length > 0
+        send_to_domo
+      end
+    end
   end # def register
 
   # Sets up the appropriate queue based on our desired queue type (redis vs multi-threaded)
