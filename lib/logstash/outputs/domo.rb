@@ -52,9 +52,9 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
   # Use TLS for API requests
   config :api_ssl, :validate => :boolean, :default => true
 
-  # The amount of time (in minutes) to wait between committing the Stream to Domo.
+  # The amount of time (seconds) to wait between committing the Stream to Domo.
   # Domo Support recommends setting this to at least 15 minutes.
-  # Disabled by default.
+  # Set to 0 (default) to disable.
   config :commit_delay, :validate => :number, :default => 0
 
   # Retry failed requests. Enabled by default. It would be a pretty terrible idea to disable this. 
@@ -166,6 +166,18 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
     "#{part_num_key}#{RedisQueue::KEY_SUFFIXES[:PART_NUM]}"
   end
 
+  # Establishes whether or not the queue is empty.
+  # @return [Boolean]
+  def queue_processed?
+    if @queue.is_a? Domo::Queue::ThreadQueue and @queue.length > 0
+      @queue.any? do |k ,v|
+        !v or v.length <= 0
+      end
+    else
+      @queue.length <= 0
+    end
+  end
+
   public
   def register
     # @type [Domo::Client] A client connection to Domo's APIs.
@@ -178,8 +190,6 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
     @dataset_columns = @domo_client.dataset_schema_columns(stream)
     # Get the dead letter queue writer if it's enabled.
     @dlq_writer = dlq_enabled? ? execution_context.dlq_writer : nil
-    # Convert the commit delay from minutes to seconds
-    @commit_delay = @commit_delay * 60
 
     # Distributed lock requires a redis queuing mechanism, among other things.
     if @distributed_lock
@@ -218,12 +228,12 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
 
   # Sets up the appropriate queue based on our desired queue type (redis vs multi-threaded)
   #
-  # @return [Concurrent::Hash, Domo::JobQueue] The appropriate queue.
+  # @return [Domo::Queue::ThreadQueue, Domo::Queue::Redis::JobQueue] The appropriate queue.
   def get_queue
     # Simple multi-threaded queue.
     return @queue if @queue.is_a? Domo::Queue::ThreadQueue
     if @redis_client.nil?
-      queue = Domo::Queue::ThreadQueue.new(@dataset_id, @stream_id, nil, pipeline_id, @lock_manager)
+      queue = Domo::Queue::ThreadQueue.new(@dataset_id, @stream_id, nil, pipeline_id, @lock_manager, lock_key)
     # Redis based queue.
     else
       # Attempt to load the queue from redis in case there are still active jobs.
@@ -480,93 +490,95 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
     queue = @queue if @queue.is_a? Domo::Queue::RedisQueue
     # If the queue is empty and has an active Execution ID, fire off a commit
     unless @queue.nil? or queue.length > 0 or @queue.execution_id.nil?
-      stream_committed = commit_stream
-      if stream_committed and @queue.is_a? Domo::Queue::ThreadQueue
+      commit_status = commit_stream
+      if commit_status == :success and @queue.is_a? Domo::Queue::ThreadQueue
         queue.clear
       end
-    end
-    # Failsafe to make sure an execution doesn't hang at the end of processing a large batch of events.
-    if queue.length > 0
-      send_to_domo
     end
   end
 
   public
+  # Commit the active Stream Execution, and (re)set all the appropriate attributes on the queue.
+  #
+  # @param plugin_closing [Boolean] Indicates that Logstash is shutting down which may trigger an override of commit_delay
+  # @return [Symbol] The status of the commit operation.
   def commit_stream(plugin_closing=false)
-    success = false
-    if @queue.is_a? Domo::Queue::ThreadQueue and @queue.length > 0
-      queue_processed = @queue.any? do |k ,v|
-        !v or v.length <= 0
+    commit_status = :failed
+    # Convert commit_delay to ms
+    lock_ttl = @commit_delay * 1000
+    lock_ttl = @lock_timeout if lock_ttl < @lock_timeout
+
+    lock_info = @lock_manager.lock(commit_lock_key, lock_ttl)
+    return :wait unless lock_info or plugin_closing
+
+    while lock_info or (plugin_closing and !@distributed_lock)
+      # Don't commit unless we're ready or shutting down Logstash
+      unless commit_ready? or plugin_closing
+        # The amount of time to sleep before committing.
+        sleep_time = (@queue.last_commit + @commit_delay) - Time.now.utc
+        unless sleep_time <= 0
+          @logger.debug("The API is not ready for committing yet. Will sleep for %0.2f seconds." % [sleep_time],
+                        :stream_id    => @stream_id,
+                        :dataset_id   => @dataset_id,
+                        :execution_id => @queue.execution_id,
+                        :commit_delay => @commit_delay,
+                        :sleep_time   => sleep_time,
+                        :last_commit  => @queue.last_commit,
+                        :next_commit  => @queue.last_commit + sleep_time)
+          # (Distributed lock only) Make sure we hold the lock for at least as long as the amount of time we're sleeping for.
+          if lock_info.is_a? Hash and lock_info[:validity] <= sleep_time
+            lock_timeout = sleep_time > @commit_delay ? sleep_time : @commit_delay
+            lock_info = @lock_manager.lock(commit_lock_key, lock_timeout, extend: lock_info, extend_life: true)
+          end
+          sleep(sleep_time)
+        end
       end
-    else
-      queue_processed = true
-    end
-
-    if @commit_delay < @lock_timeout
-      lock_delay = @lock_timeout
-    else
-      lock_delay = @commit_delay
-    end
-    @lock_manager.lock(commit_lock_key, lock_delay) do |locked|
-      while locked and queue_processed
-        # Don't commit unless we're ready or shutting down Logstash
-        unless commit_ready? # or plugin_closing
-          sleep_time = (@queue.last_commit + @commit_delay) - Time.now.utc
-          unless sleep_time <= 0
-            @logger.debug("The API is not ready for committing yet. Will sleep for #{sleep_time} seconds.",
-                          :stream_id    => @stream_id,
-                          :dataset_id   => @dataset_id,
-                          :execution_id => @queue.execution_id,
-                          :commit_delay => @commit_delay,
-                          :sleep_time   => sleep_time,
-                          :last_commit  => @queue.last_commit)
-
-            if locked.is_a? Hash and locked[:validity] <= sleep_time
-              lock_timeout = sleep_time > @commit_delay ? sleep_time : @commit_delay
-              locked = @lock_manager.lock(commit_lock_key, lock_timeout, extend: locked)
-            end
-            sleep(sleep_time)
-          end
-        end
-        # Validate the active Stream Execution
-        stream_execution = @domo_client.stream_client.getExecution(@stream_id, @queue.execution_id)
-        # There is no execution to associate with the queue at this point.
-        @queue.commit
-        # Abort errored out streams
-        if stream_execution.currentState == "ERROR" or stream_execution.currentState == "FAILED"
-          @domo_client.stream_client.abortExecution(@stream_id, stream_execution.getId)
-          @logger.error("Execution ID for #{stream_execution.getId} for Stream ID #{@stream_id} was aborted due to an error.",
-                        :stream_id        => @stream_id,
-                        :execution_id     => stream_execution.getId,
-                        :execution_state  => stream_execution.currentState,
-                        :execution        => stream_execution)
-          success = false
-          # Commit!
-        elsif stream_execution.currentState == "ACTIVE"
-          execution_id = stream_execution.getId
-          @domo_client.stream_client.commitExecution(@stream_id, execution_id)
-          @queue.set_last_commit
-          # Clear the queue unless we're using a redis queue.
-          if @queue.is_a? Domo::Queue::ThreadQueue
-            @queue.clear
-          end
-          @logger.debug("Committed Execution ID for #{execution_id} for Stream ID #{@stream_id}.",
-                        :stream_id        => @stream_id,
-                        :execution_id     => execution_id)
-          success = true
-        else
-          @logger.warn("Stream Execution ID #{stream_execution.getId} for Stream ID #{@stream_id} could not be committed or aborted because its state is #{stream_execution.currentState}",
-                       :stream_id        => @stream_id,
-                       :execution_id     => stream_execution.getId,
-                       :execution_state  => stream_execution.currentState,
-                       :execution        => stream_execution)
-          success = true
-        end
+      # Acquire a lock on the key used for the non-commit API calls so nobody goes and creates a new Stream Execution in the middle of this.
+      api_lock = @lock_manager.lock(lock_key, @lock_timeout)
+      unless api_lock
+        commit_status = :wait
         break
       end
+      # Validate the active Stream Execution
+      stream_execution = @domo_client.stream_client.getExecution(@stream_id, @queue.execution_id)
+      # There is no execution to associate with the queue at this point.
+      @queue.commit
+      # Abort errored out streams
+      if stream_execution.currentState == "ERROR" or stream_execution.currentState == "FAILED"
+        @domo_client.stream_client.abortExecution(@stream_id, stream_execution.getId)
+        @logger.error("Execution ID for #{stream_execution.getId} for Stream ID #{@stream_id} was aborted due to an error.",
+                      :stream_id        => @stream_id,
+                      :execution_id     => stream_execution.getId,
+                      :execution_state  => stream_execution.currentState,
+                      :execution        => stream_execution)
+        commit_status = :failed
+      # Commit!
+      elsif stream_execution.currentState == "ACTIVE"
+        execution_id = stream_execution.getId
+        @domo_client.stream_client.commitExecution(@stream_id, execution_id)
+        @queue.set_last_commit
+        # Clear the queue unless we're using a redis queue.
+        if @queue.is_a? Domo::Queue::ThreadQueue
+          @queue.clear
+        end
+        @logger.debug("Committed Execution ID for #{execution_id} for Stream ID #{@stream_id}.",
+                      :stream_id        => @stream_id,
+                      :execution_id     => execution_id)
+        commit_status = :success
+      else
+        @logger.warn("Stream Execution ID #{stream_execution.getId} for Stream ID #{@stream_id} could not be committed or aborted because its state is #{stream_execution.currentState}",
+                     :stream_id        => @stream_id,
+                     :execution_id     => stream_execution.getId,
+                     :execution_state  => stream_execution.currentState,
+                     :execution        => stream_execution)
+        commit_status = :failed
+      end
+      @lock_manager.unlock(api_lock) if api_lock
+      break
     end
+    @lock_manager.unlock(lock_info) if lock_info
 
-    success
+    commit_status
   end
 
   public

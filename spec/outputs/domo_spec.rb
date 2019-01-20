@@ -7,39 +7,60 @@ require "core_extensions/flatten"
 require_relative "../../spec/domo_spec_helper"
 
 RSpec.shared_examples "LogStash::Outputs::Domo" do
-  it "should send the event to DOMO" do
-    subject.multi_receive(events)
+  context "when receiving multiple events" do
+    it "should send the events to DOMO" do
+      subject.multi_receive(events)
 
-    expected_domo_data = events.map { |event| event_to_csv(event) }
-    expect(dataset_data_match?(domo_client, dataset_id, expected_domo_data)).to be(true)
+      expected_domo_data = events.map { |event| event_to_csv(event) }
+      expect(dataset_data_match?(domo_client, dataset_id, expected_domo_data)).to be(true)
+    end
+
+    it "should reject mistyped events" do
+      allow(subject.instance_variable_get(:@logger)).to receive(:error)
+
+      subject.multi_receive([mistyped_event])
+      expect(subject.instance_variable_get(:@logger)).to have_received(:error).with(/^.*is an invalid type for/, anything).once
+    end
+
+    it "should tolerate events with null values" do
+      subject.multi_receive([nil_event])
+      expected_domo_data = event_to_csv(nil_event)
+      expect(dataset_data_match?(domo_client, dataset_id, expected_domo_data)).to be(true)
+    end
+
+    it "should honor commit delays" do
+      allow(subject.instance_variable_get(:@logger)).to receive(:debug)
+
+      subject.instance_variable_set(:@commit_delay, 10)
+      queue = subject.instance_variable_get(:@queue)
+      queue.set_last_commit(Time.now.utc - 1)
+      subject.instance_variable_set(:@queue, queue)
+
+      expected_domo_data = events.map { |event| event_to_csv(event) }
+      expected_domo_data += expected_domo_data
+
+      subject.multi_receive(events)
+      expect(subject.instance_variable_get(:@logger)).to have_received(:debug).with(/The API is not ready for committing yet/, anything).once
+      subject.multi_receive(events)
+      expect(subject.instance_variable_get(:@logger)).to have_received(:debug).with(/The API is not ready for committing yet/, anything).twice
+
+      expect(dataset_data_match?(domo_client, dataset_id, expected_domo_data)).to be(true)
+    end
   end
 
-  it "should reject mistyped events" do
-    allow(subject.instance_variable_get(:@logger)).to receive(:error)
+  context "with the dead letter queue enabled", dlq: true do
+    let(:dlq_writer) { double('DLQ writer') }
 
-    subject.multi_receive([mistyped_event])
-    expect(subject.instance_variable_get(:@logger)).to have_received(:error).with(/^.*is an invalid type for/, anything).once
-  end
+    before(:each) do
+      subject.instance_variable_set(:@dlq_writer, dlq_writer)
+    end
 
-  it "should tolerate events with null values" do
-    subject.multi_receive([nil_event])
-    expected_domo_data = event_to_csv(nil_event)
-    expect(dataset_data_match?(domo_client, dataset_id, expected_domo_data)).to be(true)
-  end
+    it "should write invalid events to the DLQ" do
+      allow(subject.instance_variable_get(:@logger)).to receive(:error)
 
-  it "should honor commit delays" do
-    allow(subject.instance_variable_get(:@logger)).to receive(:debug)
-
-    subject.instance_variable_set(:@commit_delay, 10)
-    queue = subject.instance_variable_get(:@queue)
-    queue.set_last_commit(Time.now.utc - 1)
-    subject.instance_variable_set(:@queue, queue)
-
-    expected_domo_data = events.map { |event| event_to_csv(event) }
-    subject.multi_receive(events)
-
-    expect(subject.instance_variable_get(:@logger)).to have_received(:debug).with(/The API is not ready for committing yet/, anything).once
-    expect(dataset_data_match?(domo_client, dataset_id, expected_domo_data)).to be(true)
+      expect(dlq_writer).to receive(:write).with(anything, /^[a-zA-Z]* is an invalid type/)
+      subject.multi_receive([mistyped_event])
+    end
   end
 end
 
@@ -49,7 +70,34 @@ shared_context "dataset bootstrap" do
   let!(:stream_config) { bootstrap_dataset(domo_client) }
 end
 
-describe CoreExtensions do
+shared_context "events" do
+  let!(:events) do
+    (1..5).map do |i|
+      cur_date = Date.today.to_s
+      LogStash::Event.new("Count" => i,
+                          "Event Name" => "event_#{i}",
+                          "Event Timestamp" => LogStash::Timestamp.now,
+                          "Event Date" => cur_date,
+                          "Percent" => (i.to_f/5)*100)
+    end
+  end
+  let!(:mistyped_event) do
+    LogStash::Event.new("Count" => 1,
+                        "Event Name" => "",
+                        "Event Timestamp" => LogStash::Timestamp.now,
+                        "Event Date" => "fz",
+                        "Percent" => 2)
+  end
+  let!(:nil_event) do
+    LogStash::Event.new("Count" => nil,
+                        "Event Name" => "nil_event",
+                        "Event Timestamp" => LogStash::Timestamp.now,
+                        "Event Date" => nil,
+                        "Percent" => nil)
+  end
+end
+
+describe CoreExtensions, extensions: true do
   subject do
     LogStash::Event.new("venue_id"=>8186, "index"=>"atv", "subscription_id"=>3083,
                         "array_val"=>[0, 1],
@@ -64,7 +112,7 @@ describe CoreExtensions do
     flattened_event = subject.to_hash.flatten_with_path
     expect(flattened_event).not_to eq(subject)
     expect(flattened_event).to be_a(Hash)
-    expect(flattened_event).to satisfy("not have sub-hashes") { |v| v.each {|k, v| if v.is_a? Hash then false; break end }}
+    expect(flattened_event).not_to satisfy("not have sub-hashes") { |v| v.any? { |k, v| v.is_a? Hash } }
   end
 end
 
@@ -117,148 +165,97 @@ describe LogStash::Outputs::Domo do
     sentinels
   end
 
-  describe "#multi_receive" do
-    let(:events) do
-      (1..5).map do |i|
-        cur_date = Date.today.to_s
-        LogStash::Event.new("Count" => i,
-                            "Event Name" => "event_#{i}",
-                            "Event Timestamp" => LogStash::Timestamp.now,
-                            "Event Date" => cur_date,
-                            "Percent" => (i.to_f/5)*100)
-      end
+  describe "with distributed locking", redlock: true do
+    include_context "dataset bootstrap" do
+      let(:test_settings) { get_test_settings }
+      let(:domo_client) { get_domo_client(test_settings) }
     end
-    let(:mistyped_event) do
-      LogStash::Event.new("Count" => 1,
-                          "Event Name" => "",
+    include_context "events"
+
+    let(:config) do
+      test_settings.clone.merge(
+          {
+              "distributed_lock" => true,
+              "lock_hosts"       => lock_hosts,
+              "redis_client"     => redis_client,
+              "redis_sentinels"  => redis_sentinels,
+          }
+      )
+    end
+    let(:dataset_id) { subject.instance_variable_get(:@dataset_id) }
+    let(:stream_id) { subject.instance_variable_get(:@stream_id) }
+    let(:queued_event) do
+      LogStash::Event.new("Count" => 4,
+                          "Event Name" => "queued_event",
                           "Event Timestamp" => LogStash::Timestamp.now,
-                          "Event Date" => "fz",
-                          "Percent" => 2)
-    end
-    let (:nil_event) do
-      LogStash::Event.new("Count" => nil,
-                          "Event Name" => "nil_event",
-                          "Event Timestamp" => LogStash::Timestamp.now,
-                          "Event Date" => nil,
-                          "Percent" => nil)
+                          "Event Date" => (Date.today - 1).to_s,
+                          "Percent" => (4.to_f/5)*100)
     end
 
-    # context "with DLQ enabled" do
-    #   include_context "dataset bootstrap" do
-    #     let(:test_settings) { get_test_settings }
-    #     let(:domo_client) { get_domo_client(test_settings) }
-    #   end
-    #
-    #   let(:config) { test_settings.clone }
-    #   let(:dlq_writer) { double('DLQ writer') }
-    #
-    #   # before { subject.instance_variable_set('@dlq_writer', dlq_writer) }
-    #   subject do
-    #     config.merge!(stream_config)
-    #     plugin = described_class.new(config)
-    #     plugin.instance_variable_set(:@dlq_writer, dlq_writer)
-    #     plugin
-    #   end
-    #
-    #   it "should write invalid events to the DLQ" do
-    #     allow(subject.instance_variable_get(:@logger)).to receive(:error)
-    #
-    #     expect(dlq_writer).to receive(:write).with(anything, /Invalid data type/)
-    #     subject.multi_receive([mistyped_event])
-    #     expect(subject.instance_variable_get(:@logger)).to have_received(:error).with(/Invalid data type/, anything).once
-    #   end
-    # end
-
-    context "with distributed locking" do
-      include_context "dataset bootstrap" do
-        let(:test_settings) { get_test_settings }
-        let(:domo_client) { get_domo_client(test_settings) }
-      end
-
-      let(:config) do
-        test_settings.clone.merge(
-            {
-                "distributed_lock" => true,
-                "lock_hosts"       => lock_hosts,
-                "redis_client"     => redis_client,
-                "redis_sentinels"  => redis_sentinels,
-            }
-        )
-      end
-      let(:dataset_id) { subject.instance_variable_get(:@dataset_id) }
-      let(:stream_id) { subject.instance_variable_get(:@stream_id) }
-      let(:queued_event) do
-        LogStash::Event.new("Count" => 4,
-                            "Event Name" => "queued_event",
-                            "Event Timestamp" => LogStash::Timestamp.now,
-                            "Event Date" => (Date.today - 1).to_s,
-                            "Percent" => (4.to_f/5)*100)
-      end
-
-      subject do
-        config.merge!(stream_config)
-        described_class.new(config)
-      end
-
-      it_should_behave_like "LogStash::Outputs::Domo"
-
-      it "should pull events off the redis queue" do
-        redis_client = subject.instance_variable_get(:@redis_client)
-        part_num = redis_client.incr("#{subject.part_num_key}")
-        data = subject.encode_event_data(queued_event)
-
-        queue = Domo::Queue::Redis::JobQueue.new(redis_client, dataset_id, stream_id)
-        job = Domo::Queue::Job.new(queued_event, data, part_num)
-        queue.add(job)
-        expect(queue.size).to eq(1)
-
-        subject.multi_receive(events)
-        new_queue = subject.instance_variable_get(:@queue)
-        expect(queue.size).to eq(0)
-        expect(new_queue.size).to eq(0)
-        expect(new_queue.execution_id).to be(nil)
-
-        expected_domo_data = [event_to_csv(queued_event)]
-        expected_domo_data += events.map { |event| event_to_csv(event) }
-        expect(dataset_data_match?(domo_client, dataset_id, expected_domo_data)).to be(true)
-      end
-
-      it "should process events in the failures queue", :failure_queue => true do
-        failed_event = queued_event
-        redis_client = subject.instance_variable_get(:@redis_client)
-        part_num = 2
-        data = subject.encode_event_data(failed_event)
-
-        failed_job = Domo::Queue::Job.new(failed_event, data, part_num, 10000)
-        expect(failed_job.part_num).to eq(part_num)
-        expect(failed_job.execution_id).to eq(10000)
-        failed_queue = Domo::Queue::Redis::FailureQueue.new(redis_client, dataset_id, stream_id)
-
-        failed_queue << failed_job
-        expect(failed_queue.size).to eq(1)
-
-        subject.multi_receive(events)
-        expected_domo_data = [event_to_csv(failed_event)]
-        expected_domo_data += events.map { |event| event_to_csv(event) }
-        expect(dataset_data_match?(domo_client, dataset_id, expected_domo_data)).to be(true)
-      end
+    subject do
+      config.merge!(stream_config)
+      described_class.new(config)
     end
 
-    context "without distributed locking" do
-      include_context "dataset bootstrap" do
-        let(:test_settings) { get_test_settings }
-        let(:domo_client) { get_domo_client(test_settings) }
-      end
+    it_should_behave_like "LogStash::Outputs::Domo"
 
-      let(:config) { test_settings.clone }
-      let(:dataset_id) { subject.instance_variable_get(:@dataset_id) }
+    it "should pull events off the redis queue", redis_queue: true do
+      redis_client = subject.instance_variable_get(:@redis_client)
+      part_num = redis_client.incr("#{subject.part_num_key}")
+      data = subject.encode_event_data(queued_event)
 
-      subject do
-        config.merge!(stream_config)
-        described_class.new(config)
-      end
+      queue = Domo::Queue::Redis::JobQueue.new(redis_client, dataset_id, stream_id)
+      job = Domo::Queue::Job.new(queued_event, data, part_num)
+      queue.add(job)
+      expect(queue.size).to eq(1)
 
-      it_should_behave_like "LogStash::Outputs::Domo"
+      subject.multi_receive(events)
+      new_queue = subject.instance_variable_get(:@queue)
+      expect(queue.size).to eq(0)
+      expect(new_queue.size).to eq(0)
+      expect(new_queue.execution_id).to be(nil)
+
+      expected_domo_data = [event_to_csv(queued_event)]
+      expected_domo_data += events.map { |event| event_to_csv(event) }
+      expect(dataset_data_match?(domo_client, dataset_id, expected_domo_data)).to be(true)
     end
+
+    it "should process events in the failures queue", :failure_queue => true do
+      failed_event = queued_event
+      redis_client = subject.instance_variable_get(:@redis_client)
+      part_num = 2
+      data = subject.encode_event_data(failed_event)
+
+      failed_job = Domo::Queue::Job.new(failed_event, data, part_num, 10000)
+      expect(failed_job.part_num).to eq(part_num)
+      expect(failed_job.execution_id).to eq(10000)
+      failed_queue = Domo::Queue::Redis::FailureQueue.new(redis_client, dataset_id, stream_id)
+
+      failed_queue << failed_job
+      expect(failed_queue.size).to eq(1)
+
+      subject.multi_receive(events)
+      expected_domo_data = [event_to_csv(failed_event)]
+      expected_domo_data += events.map { |event| event_to_csv(event) }
+      expect(dataset_data_match?(domo_client, dataset_id, expected_domo_data)).to be(true)
+    end
+  end
+
+  describe "without distributed locking", thread_lock: true do
+    include_context "dataset bootstrap" do
+      let(:test_settings) { get_test_settings }
+      let(:domo_client) { get_domo_client(test_settings) }
+    end
+    include_context "events"
+
+    let(:config) { test_settings.clone }
+    let(:dataset_id) { subject.instance_variable_get(:@dataset_id) }
+
+    subject do
+      config.merge!(stream_config)
+      described_class.new(config)
+    end
+
+    it_should_behave_like "LogStash::Outputs::Domo"
   end
 end

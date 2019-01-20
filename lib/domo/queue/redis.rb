@@ -7,7 +7,7 @@ module Domo
     class RedisQueue
       # Suffixes to add to our redis keys
       KEY_SUFFIXES = {
-          :ACTIVE_EXECUTION => "_active_execution_id",
+          :ACTIVE_EXECUTION => "_active_execution",
           :QUEUE            => "_queue",
           :PART_NUM         => "_part_num",
           :FAILURE          => "_failures",
@@ -33,9 +33,11 @@ module Domo
       def last_commit
         last_commit = @client.hget("#{redis_key_prefix}#{KEY_SUFFIXES[:ACTIVE_EXECUTION]}", "last_commit")
         return if last_commit.nil?
+        # Convert last_commit into a Time object
         begin
           last_commit = Integer(last_commit)
           last_commit = Time.at(last_commit)
+        # Or clear garbage data out of redis and set it to nil
         rescue TypeError => e
           @client.hdel("#{redis_key_prefix}#{KEY_SUFFIXES[:ACTIVE_EXECUTION]}", "last_commit")
           last_commit = nil
@@ -63,7 +65,7 @@ module Domo
             last_commit_time = last_commit_time
           end
         end
-
+        # Store the commit time in redis as a UNIX timestamp
         @client.hset("#{redis_key_prefix}#{KEY_SUFFIXES[:ACTIVE_EXECUTION]}", "last_commit", last_commit_time.to_i)
       end
 
@@ -184,6 +186,9 @@ module Domo
         end
       end
 
+      # Clear the queue's execution_id and update the last commit timestamp.
+      #
+      # @param timestamp [Time, nil]
       def commit(timestamp=nil)
         @client.hdel("#{redis_key_prefix}#{KEY_SUFFIXES[:ACTIVE_EXECUTION]}", "id")
 
@@ -194,8 +199,6 @@ module Domo
 
     module Redis
       # Manages a redis-based queue for sending Logstash Events to Domo
-      # The class is meant to be interchangeable with a "queue" of an ArrayList inside a Concurrent::Hash,
-      # which is why it has a ton of redundant methods.
       class JobQueue < RedisQueue
         # @!attribute [r] execution_id
         # The active Stream Execution ID (if available)

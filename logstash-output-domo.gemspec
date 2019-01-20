@@ -1,13 +1,13 @@
 Gem::Specification.new do |s|
   s.name          = 'logstash-output-domo'
-  s.version       = '3.1.0-beta.1'
+  s.version       = '4.0.0-rc.2'
   s.licenses      = ['Apache-2.0']
   s.summary       = 'Output events to the DOMO Streams API.'
   s.homepage      = 'https://github.com/ResignationMedia/logstash-output-domo'
   s.authors       = ['Chris Brundage', 'Chive Media Group, LLC']
   s.email         = 'chris.brundage@chivemediagroup.com'
   s.platform      = 'java'
-  s.require_paths = ['lib', 'vendor/jar-dependencies']
+  s.require_paths = %w(lib vendor/jar-dependencies)
 
   # Files
   s.files = Dir['lib/**/*','spec/**/*','*.gemspec','*.md',
@@ -34,7 +34,7 @@ Gem::Specification.new do |s|
   s.add_runtime_dependency "logstash-codec-plain"
   s.add_runtime_dependency "concurrent-ruby", "~> 1.0"
   s.add_runtime_dependency "jar-dependencies"
-  s.add_runtime_dependency "redis"
+  s.add_runtime_dependency "redis", ">= 3.0.0", "< 5.0"
   s.add_runtime_dependency "redlock", "~> 1.0"
 
   s.add_development_dependency "logstash-devutils"

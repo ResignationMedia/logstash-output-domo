@@ -102,8 +102,8 @@
 <h2>Overview</h2><div class="docstring">
   <div class="discussion">
     
-<p>Mimics some of the lock methods of Redlock::Client, but using a Mutex. Used
-with a <span class='object_link'><a href="ThreadQueue.html" title="Domo::Queue::ThreadQueue (class)">ThreadQueue</a></span>.</p>
+<p>Emulates the portions of the Redlock::Client API we care about, but using
+Mutexes for locking. Used with a <span class='object_link'><a href="ThreadQueue.html" title="Domo::Queue::ThreadQueue (class)">ThreadQueue</a></span>.</p>
 
 
   </div>
@@ -129,7 +129,7 @@ with a <span class='object_link'><a href="ThreadQueue.html" title="Domo::Queue::
         <li class="public ">
   <span class="summary_signature">
     
-      <a href="#initialize-instance_method" title="#initialize (instance method)">#<strong>initialize</strong>(semaphore = nil)  &#x21d2; ThreadLockManager </a>
+      <a href="#initialize-instance_method" title="#initialize (instance method)">#<strong>initialize</strong>(locks = nil)  &#x21d2; ThreadLockManager </a>
     
 
     
@@ -155,7 +155,7 @@ with a <span class='object_link'><a href="ThreadQueue.html" title="Domo::Queue::
         <li class="public ">
   <span class="summary_signature">
     
-      <a href="#lock-instance_method" title="#lock (instance method)">#<strong>lock</strong>(*args)  &#x21d2; Boolean </a>
+      <a href="#lock-instance_method" title="#lock (instance method)">#<strong>lock</strong>(resource, *args)  &#x21d2; Mutex </a>
     
 
     
@@ -170,7 +170,7 @@ with a <span class='object_link'><a href="ThreadQueue.html" title="Domo::Queue::
 
   
     <span class="summary_desc"><div class='inline'>
-<p>Lock the Mutex and yield or return the status of the lock.</p>
+<p>Lock the Mutex named resource and yield or return the status of the lock.</p>
 </div></span>
   
 </li>
@@ -203,7 +203,7 @@ with a <span class='object_link'><a href="ThreadQueue.html" title="Domo::Queue::
         <li class="public ">
   <span class="summary_signature">
     
-      <a href="#unlock-instance_method" title="#unlock (instance method)">#<strong>unlock</strong>(*args)  &#x21d2; Object </a>
+      <a href="#unlock-instance_method" title="#unlock (instance method)">#<strong>unlock</strong>(resource, *args)  &#x21d2; Object </a>
     
 
     
@@ -233,7 +233,7 @@ with a <span class='object_link'><a href="ThreadQueue.html" title="Domo::Queue::
     <div class="method_details first">
   <h3 class="signature first" id="initialize-instance_method">
   
-    #<strong>initialize</strong>(semaphore = nil)  &#x21d2; <tt><span class='object_link'><a href="" title="Domo::Queue::ThreadLockManager (class)">ThreadLockManager</a></span></tt> 
+    #<strong>initialize</strong>(locks = nil)  &#x21d2; <tt><span class='object_link'><a href="" title="Domo::Queue::ThreadLockManager (class)">ThreadLockManager</a></span></tt> 
   
 
   
@@ -253,10 +253,10 @@ with a <span class='object_link'><a href="ThreadQueue.html" title="Domo::Queue::
   
     <li>
       
-        <span class='name'>semaphore</span>
+        <span class='name'>locks</span>
       
       
-        <span class='type'>(<tt>Mutex</tt>, <tt>nil</tt>)</span>
+        <span class='type'>(<tt>Concurrent::Hash</tt>, <tt>nil</tt>)</span>
       
       
         <em class="default">(defaults to: <tt>nil</tt>)</em>
@@ -273,17 +273,19 @@ with a <span class='object_link'><a href="ThreadQueue.html" title="Domo::Queue::
       <pre class="lines">
 
 
-9
-10
 11
-12</pre>
+12
+13
+14
+15</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/domo/queue/thread.rb', line 9</span>
+      <pre class="code"><span class="info file"># File 'lib/domo/queue/thread.rb', line 11</span>
 
-<span class='kw'>def</span> <span class='id identifier rubyid_initialize'>initialize</span><span class='lparen'>(</span><span class='id identifier rubyid_semaphore'>semaphore</span><span class='op'>=</span><span class='kw'>nil</span><span class='rparen'>)</span>
-  <span class='comment'># @type [Mutex]
-</span>  <span class='ivar'>@semaphore</span> <span class='op'>=</span> <span class='id identifier rubyid_semaphore'>semaphore</span><span class='period'>.</span><span class='id identifier rubyid_nil?'>nil?</span> <span class='op'>?</span> <span class='const'>Mutex</span><span class='period'>.</span><span class='id identifier rubyid_new'>new</span> <span class='op'>:</span> <span class='id identifier rubyid_semaphore'>semaphore</span>
+<span class='kw'>def</span> <span class='id identifier rubyid_initialize'>initialize</span><span class='lparen'>(</span><span class='id identifier rubyid_locks'>locks</span><span class='op'>=</span><span class='kw'>nil</span><span class='rparen'>)</span>
+  <span class='comment'># Hash of our various Mutex locks.
+</span>  <span class='comment'># The keys correspond to the resource parameter in Redlock::Client locks.
+</span>  <span class='ivar'>@locks</span> <span class='op'>=</span> <span class='id identifier rubyid_locks'>locks</span><span class='period'>.</span><span class='id identifier rubyid_nil?'>nil?</span> <span class='op'>?</span> <span class='const'>Concurrent</span><span class='op'>::</span><span class='const'>Hash</span><span class='period'>.</span><span class='id identifier rubyid_new'>new</span> <span class='op'>:</span> <span class='id identifier rubyid_locks'>locks</span>
 <span class='kw'>end</span></pre>
     </td>
   </tr>
@@ -300,7 +302,7 @@ with a <span class='object_link'><a href="ThreadQueue.html" title="Domo::Queue::
       <div class="method_details first">
   <h3 class="signature first" id="lock-instance_method">
   
-    #<strong>lock</strong>(*args)  &#x21d2; <tt>Boolean</tt> 
+    #<strong>lock</strong>(resource, *args)  &#x21d2; <tt>Mutex</tt> 
   
 
   
@@ -309,26 +311,46 @@ with a <span class='object_link'><a href="ThreadQueue.html" title="Domo::Queue::
 </h3><div class="docstring">
   <div class="discussion">
     
-<p>Lock the Mutex and yield or return the status of the lock</p>
+<p>Lock the Mutex named resource and yield or return the status of the lock</p>
 
 
   </div>
 </div>
 <div class="tags">
+  <p class="tag_title">Parameters:</p>
+<ul class="param">
   
+    <li>
+      
+        <span class='name'>resource</span>
+      
+      
+        <span class='type'>(<tt>String</tt>)</span>
+      
+      
+      
+        &mdash;
+        <div class='inline'>
+<p>The name of the Mutex lock.</p>
+</div>
+      
+    </li>
+  
+</ul>
+
 <p class="tag_title">Returns:</p>
 <ul class="return">
   
     <li>
       
       
-        <span class='type'>(<tt>Boolean</tt>)</span>
+        <span class='type'>(<tt>Mutex</tt>)</span>
       
       
       
         &mdash;
         <div class='inline'>
-<p>The status of the lock.</p>
+<p>The Mutex lock.</p>
 </div>
       
     </li>
@@ -341,10 +363,6 @@ with a <span class='object_link'><a href="ThreadQueue.html" title="Domo::Queue::
       <pre class="lines">
 
 
-17
-18
-19
-20
 21
 22
 23
@@ -353,19 +371,35 @@ with a <span class='object_link'><a href="ThreadQueue.html" title="Domo::Queue::
 26
 27
 28
-29</pre>
+29
+30
+31
+32
+33
+34
+35
+36
+37
+38
+39</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/domo/queue/thread.rb', line 17</span>
+      <pre class="code"><span class="info file"># File 'lib/domo/queue/thread.rb', line 21</span>
 
-<span class='kw'>def</span> <span class='id identifier rubyid_lock'>lock</span><span class='lparen'>(</span><span class='op'>*</span><span class='id identifier rubyid_args'>args</span><span class='rparen'>)</span>
-  <span class='id identifier rubyid_lock'>lock</span> <span class='op'>=</span> <span class='ivar'>@semaphore</span><span class='period'>.</span><span class='id identifier rubyid_lock'>lock</span>
+<span class='kw'>def</span> <span class='id identifier rubyid_lock'>lock</span><span class='lparen'>(</span><span class='id identifier rubyid_resource'>resource</span><span class='comma'>,</span> <span class='op'>*</span><span class='id identifier rubyid_args'>args</span><span class='rparen'>)</span>
+  <span class='comment'># Get or create the Mutex
+</span>  <span class='kw'>unless</span> <span class='ivar'>@locks</span><span class='period'>.</span><span class='id identifier rubyid_has_key?'>has_key?</span> <span class='id identifier rubyid_resource'>resource</span>
+    <span class='ivar'>@locks</span><span class='lbracket'>[</span><span class='id identifier rubyid_resource'>resource</span><span class='rbracket'>]</span> <span class='op'>=</span> <span class='const'>Mutex</span><span class='period'>.</span><span class='id identifier rubyid_new'>new</span>
+  <span class='kw'>end</span>
+  <span class='id identifier rubyid_lock'>lock</span> <span class='op'>=</span> <span class='ivar'>@locks</span><span class='lbracket'>[</span><span class='id identifier rubyid_resource'>resource</span><span class='rbracket'>]</span>
+
   <span class='kw'>if</span> <span class='id identifier rubyid_block_given?'>block_given?</span>
     <span class='kw'>begin</span>
-      <span class='kw'>yield</span> <span class='id identifier rubyid_lock'>lock</span>
+      <span class='comment'># Acquire the lock and yield the block&#39;s result
+</span>      <span class='const'>Proc</span><span class='period'>.</span><span class='id identifier rubyid_new'>new</span><span class='period'>.</span><span class='id identifier rubyid_call'>call</span><span class='lparen'>(</span><span class='id identifier rubyid_lock'>lock</span><span class='period'>.</span><span class='id identifier rubyid_lock'>lock</span><span class='rparen'>)</span>
       <span class='op'>!</span><span class='op'>!</span><span class='id identifier rubyid_lock'>lock</span>
     <span class='kw'>ensure</span>
-      <span class='ivar'>@semaphore</span><span class='period'>.</span><span class='id identifier rubyid_unlock'>unlock</span> <span class='kw'>if</span> <span class='id identifier rubyid_lock'>lock</span>
+      <span class='id identifier rubyid_lock'>lock</span><span class='period'>.</span><span class='id identifier rubyid_unlock'>unlock</span> <span class='kw'>if</span> <span class='id identifier rubyid_lock'>lock</span><span class='op'>&amp;.</span><span class='id identifier rubyid_locked?'>locked?</span>
     <span class='kw'>end</span>
   <span class='kw'>else</span>
     <span class='id identifier rubyid_lock'>lock</span>
@@ -420,22 +454,24 @@ with a <span class='object_link'><a href="ThreadQueue.html" title="Domo::Queue::
       <pre class="lines">
 
 
-34
-35
-36
-37
-38
-39
-40</pre>
+44
+45
+46
+47
+48
+49
+50
+51</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/domo/queue/thread.rb', line 34</span>
+      <pre class="code"><span class="info file"># File 'lib/domo/queue/thread.rb', line 44</span>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_lock!'>lock!</span><span class='lparen'>(</span><span class='op'>*</span><span class='id identifier rubyid_args'>args</span><span class='rparen'>)</span>
   <span class='id identifier rubyid_fail'>fail</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>No block passed</span><span class='tstring_end'>&#39;</span></span> <span class='kw'>unless</span> <span class='id identifier rubyid_block_given?'>block_given?</span>
 
   <span class='id identifier rubyid_lock'>lock</span><span class='lparen'>(</span><span class='op'>*</span><span class='id identifier rubyid_args'>args</span><span class='rparen'>)</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_lock_info'>lock_info</span><span class='op'>|</span>
-    <span class='kw'>return</span> <span class='kw'>yield</span>
+    <span class='id identifier rubyid_raise'>raise</span> <span class='const'>ThreadError</span><span class='period'>.</span><span class='id identifier rubyid_new'>new</span><span class='lparen'>(</span><span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>failed to acquire lock</span><span class='tstring_end'>&quot;</span></span><span class='rparen'>)</span> <span class='kw'>unless</span> <span class='id identifier rubyid_lock_info'>lock_info</span>
+    <span class='kw'>return</span> <span class='const'>Proc</span><span class='period'>.</span><span class='id identifier rubyid_new'>new</span><span class='period'>.</span><span class='id identifier rubyid_call'>call</span>
   <span class='kw'>end</span>
 <span class='kw'>end</span></pre>
     </td>
@@ -446,7 +482,7 @@ with a <span class='object_link'><a href="ThreadQueue.html" title="Domo::Queue::
       <div class="method_details ">
   <h3 class="signature " id="unlock-instance_method">
   
-    #<strong>unlock</strong>(*args)  &#x21d2; <tt>Object</tt> 
+    #<strong>unlock</strong>(resource, *args)  &#x21d2; <tt>Object</tt> 
   
 
   
@@ -469,15 +505,15 @@ with a <span class='object_link'><a href="ThreadQueue.html" title="Domo::Queue::
       <pre class="lines">
 
 
-43
-44
-45</pre>
+54
+55
+56</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/domo/queue/thread.rb', line 43</span>
+      <pre class="code"><span class="info file"># File 'lib/domo/queue/thread.rb', line 54</span>
 
-<span class='kw'>def</span> <span class='id identifier rubyid_unlock'>unlock</span><span class='lparen'>(</span><span class='op'>*</span><span class='id identifier rubyid_args'>args</span><span class='rparen'>)</span>
-  <span class='ivar'>@semaphore</span><span class='period'>.</span><span class='id identifier rubyid_unlock'>unlock</span> <span class='kw'>if</span> <span class='ivar'>@semaphore</span><span class='period'>.</span><span class='id identifier rubyid_locked?'>locked?</span>
+<span class='kw'>def</span> <span class='id identifier rubyid_unlock'>unlock</span><span class='lparen'>(</span><span class='id identifier rubyid_resource'>resource</span><span class='comma'>,</span> <span class='op'>*</span><span class='id identifier rubyid_args'>args</span><span class='rparen'>)</span>
+  <span class='ivar'>@locks</span><span class='lbracket'>[</span><span class='id identifier rubyid_resource'>resource</span><span class='rbracket'>]</span><span class='period'>.</span><span class='id identifier rubyid_unlock'>unlock</span> <span class='kw'>if</span> <span class='ivar'>@locks</span><span class='lbracket'>[</span><span class='id identifier rubyid_resource'>resource</span><span class='rbracket'>]</span><span class='op'>&amp;.</span><span class='id identifier rubyid_locked?'>locked?</span>
 <span class='kw'>end</span></pre>
     </td>
   </tr>
@@ -489,7 +525,7 @@ with a <span class='object_link'><a href="ThreadQueue.html" title="Domo::Queue::
 </div>
 
       <div id="footer">
-  Generated on Wed Jan  2 17:40:53 2019 by
+  Generated on Sun Jan 20 11:10:49 2019 by
   <a href="http://yardoc.org" title="Yay! A Ruby Documentation Tool" target="_parent">yard</a>
   0.9.16 (ruby-2.3.3).
 </div>
