@@ -140,8 +140,14 @@ module DomoHelper
     new_event
   end
 
+  # Convert a Logstash event to a CSV string while honoring the Domo schema
+  #
+  # @param event [LogStash::Event] The Logstash event.
+  # @return [String]
   def event_to_csv(event)
+    # Convert the event to a hash that only has fields from the Domo schema
     event = event_to_domo_hash(event)
+    # Read the column names into an Array
     column_names = test_dataset_columns.map { |c| c.name }
 
     encode_options = {
@@ -149,7 +155,7 @@ module DomoHelper
         :write_headers => false,
         :return_headers => false,
     }
-
+    # Create the CSV string
     csv_data = CSV.generate(String.new, encode_options) do |csv_obj|
       data = event.flatten_with_path
       data = data.sort_by { |k, _| column_names.index(k) }.to_h
