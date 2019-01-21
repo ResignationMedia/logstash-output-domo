@@ -3,8 +3,8 @@ default : test
 docker-test test :
 	-docker-compose run --rm test
 	docker-compose down
-.PHONY: redis-test
-redis-test :
+.PHONY: redis-test redlock-test
+redis-test redlock-test :
 	-docker-compose run --rm test bundle exec rspec --tag redis_queue --tag redlock --tag ~thread_lock --backtrace
 	docker-compose down
 .PHONY: rspec-test thread-test

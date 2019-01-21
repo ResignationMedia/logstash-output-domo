@@ -29,23 +29,52 @@ RSpec.shared_examples "LogStash::Outputs::Domo" do
       expect(dataset_data_match?(domo_client, dataset_id, expected_domo_data)).to be(true)
     end
 
-    it "should honor commit delays" do
-      allow(subject.instance_variable_get(:@logger)).to receive(:debug)
+    context "when there is a commit delay" do
+      it "should honor the delay" do
+        allow(subject.instance_variable_get(:@logger)).to receive(:debug)
 
-      subject.instance_variable_set(:@commit_delay, 10)
-      queue = subject.instance_variable_get(:@queue)
-      queue.set_last_commit(Time.now.utc - 1)
-      subject.instance_variable_set(:@queue, queue)
+        subject.instance_variable_set(:@commit_delay, 10)
+        queue = subject.instance_variable_get(:@queue)
+        queue.set_last_commit(Time.now.utc - 1)
+        subject.instance_variable_set(:@queue, queue)
 
-      expected_domo_data = events.map { |event| event_to_domo_hash(event) }
-      expected_domo_data += expected_domo_data
+        expected_domo_data = events.map { |event| event_to_domo_hash(event) }
+        expected_domo_data += expected_domo_data
 
-      subject.multi_receive(events)
-      expect(subject.instance_variable_get(:@logger)).to have_received(:debug).with(/The API is not ready for committing yet/, anything).once
-      subject.multi_receive(events)
-      expect(subject.instance_variable_get(:@logger)).to have_received(:debug).with(/The API is not ready for committing yet/, anything).twice
+        subject.multi_receive(events)
+        expect(subject.instance_variable_get(:@logger)).to have_received(:debug).with(/The API is not ready for committing yet/, anything).once
+        subject.multi_receive(events)
+        expect(subject.instance_variable_get(:@logger)).to have_received(:debug).with(/The API is not ready for committing yet/, anything).twice
 
-      expect(dataset_data_match?(domo_client, dataset_id, expected_domo_data)).to be(true)
+        expect(dataset_data_match?(domo_client, dataset_id, expected_domo_data)).to be(true)
+      end
+
+      it "should interrupt sleeping commits on close", skip_close: true do
+        allow(subject.instance_variable_get(:@logger)).to receive(:debug)
+
+        subject.instance_variable_set(:@commit_delay, 10)
+        queue = subject.instance_variable_get(:@queue)
+        queue.set_last_commit(Time.now.utc - 1)
+        subject.instance_variable_set(:@queue, queue)
+
+        expected_domo_data = events.map { |event| event_to_domo_hash(event) }
+        expected_domo_data += expected_domo_data
+
+        subject.multi_receive(events)
+        expect(subject.instance_variable_get(:@logger)).to have_received(:debug).with(/The API is not ready for committing yet/, anything).once
+
+        subject.instance_variable_set(:@commit_delay, 10)
+        queue = subject.instance_variable_get(:@queue)
+        queue.set_last_commit(Time.now.utc)
+        subject.instance_variable_set(:@queue, queue)
+
+        t = Thread.new { subject.multi_receive(events) }
+        sleep(0.1) until !t or t.status == 'sleep'
+        subject.close
+        t.join
+
+        expect(dataset_data_match?(domo_client, dataset_id, expected_domo_data)).to be(true)
+      end
     end
   end
 
@@ -122,9 +151,8 @@ describe LogStash::Outputs::Domo do
     subject.register unless example.metadata[:skip_before]
   end
 
-  after(:each) do
-    dataset_id = subject.instance_variable_get(:@dataset_id)
-    subject.close
+  after(:each) do |example|
+    subject.close unless example.metadata[:skip_close]
     domo_client.dataSetClient.delete(dataset_id)
   end
 

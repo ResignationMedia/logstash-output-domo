@@ -7,6 +7,8 @@ module Domo
     # but using Mutexes for locking.
     # Used with a {ThreadQueue}.
     class ThreadLockManager
+      attr_reader :locks
+
       # @param locks [Concurrent::Hash, nil]
       def initialize(locks=nil)
         # Hash of our various Mutex locks.
@@ -46,7 +48,7 @@ module Domo
 
         lock(*args) do |lock_info|
           raise ThreadError.new("failed to acquire lock") unless lock_info
-          return Proc.new.call
+          return Proc.new.call(lock_info)
         end
       end
 
@@ -64,6 +66,8 @@ module Domo
       attr_accessor :pipeline_id
       # @return [java.util.concurrent.atomic.AtomicInteger]
       attr_accessor :part_num
+      # @return [ThreadLockManager]
+      attr_accessor :lock_manager
 
       # @!attribute [r] last_commit
       # @return [DateTime]
@@ -175,7 +179,7 @@ module Domo
         @execution_id = execution_id
         @pipeline_id = pipeline_id
         @lock_manager = lock_manager
-        @lock_key = lock_key
+        @lock_key = "#{lock_key}_mutex"
 
         unless last_commit.nil?
           set_last_commit(last_commit)

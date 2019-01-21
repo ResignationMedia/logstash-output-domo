@@ -228,7 +228,7 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
     # This is a failsafe in case all workers on all servers stopped without committing
     if @queue.is_a? Domo::Queue::RedisQueue
       if @queue.execution_id and queue_processed?
-        commit_stream
+        @commit_thread = Thread.new { commit_stream }
       elsif @queue.length > 0
         send_to_domo
       end
@@ -459,12 +459,21 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
         if e.getStatusCode < 400 or e.getStatusCode >= 500
           # Queue the job to be retried if we're using the distributed lock or configured to retry.
           if @retry_failures or @distributed_lock
+            begin
+              execution = @domo_client.stream_client.getExecution(@stream_id, job.execution_id).to_s
+            rescue Java::ComDomoSdkRequest::RequestException => e
+              if e.getStatusCode == 404
+                execution = nil
+              else
+                raise e
+              end
+            end
             @logger.info("Got a retriable error from the DOMO Streams API.",
                          :code              => e.getStatusCode,
                          :exception         => e,
                          :stream_id         => @stream_id,
                          :execution_id      => job.execution_id,
-                         :execution         => @domo_client.stream_client.getExecution(@stream_id, job.execution_id).to_s,
+                         :execution         => execution,
                          :job               => job.to_hash(true ),
                          :event             => job.event.to_hash,
                          :data              => job.data)
@@ -499,7 +508,10 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
     queue = @queue if @queue.is_a? Domo::Queue::RedisQueue
     # If the queue is empty and has an active Execution ID, fire off a commit
     unless @queue.nil? or queue.length > 0 or @queue.execution_id.nil?
-      commit_status = commit_stream
+      return unless @commit_thread.nil? or (@commit_thread.status != 'sleep' and @commit_thread.status != 'run')
+      @commit_thread = Thread.new { commit_stream }
+
+      commit_status = @commit_thread.value
       if commit_status == :success and @queue.is_a? Domo::Queue::ThreadQueue
         queue.clear
       end
@@ -517,10 +529,10 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
     lock_ttl = @commit_delay * 1000
     lock_ttl = @lock_timeout if lock_ttl < @lock_timeout
 
-    lock_info = @lock_manager.lock(commit_lock_key, lock_ttl)
-    return :wait unless lock_info or plugin_closing
+    @commit_lock = @lock_manager.lock(commit_lock_key, lock_ttl)
+    return :wait unless @commit_lock or plugin_closing
 
-    while lock_info or (plugin_closing and !@distributed_lock)
+    while @commit_lock or (plugin_closing and !@distributed_lock)
       # Don't commit unless we're ready or shutting down Logstash
       unless commit_ready? or plugin_closing
         # The amount of time to sleep before committing.
@@ -535,15 +547,25 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
                         :last_commit  => @queue.last_commit,
                         :next_commit  => @queue.last_commit + sleep_time)
           # (Distributed lock only) Make sure we hold the lock for at least as long as the amount of time we're sleeping for.
-          if lock_info.is_a? Hash and lock_info[:validity] <= sleep_time
+          if @commit_lock.is_a? Hash and @commit_lock[:validity] <= sleep_time
             lock_timeout = sleep_time > @commit_delay ? sleep_time : @commit_delay
-            lock_info = @lock_manager.lock(commit_lock_key, lock_timeout, extend: lock_info, extend_life: true)
+            @commit_lock = @lock_manager.lock(commit_lock_key, lock_timeout, extend: @commit_lock, extend_life: true)
           end
           sleep(sleep_time)
         end
       end
       # Acquire a lock on the key used for the non-commit API calls so nobody goes and creates a new Stream Execution in the middle of this.
-      api_lock = @lock_manager.lock(lock_key, @lock_timeout)
+      if @lock_manager.is_a? Domo::Queue::ThreadLockManager and @lock_manager.locks.include? lock_key
+        api_lock = @lock_manager.locks[lock_key]
+        if api_lock&.locked?
+          api_lock = nil unless api_lock.try_lock
+          api_lock.lock
+        else
+          api_lock = @lock_manager.lock(lock_key, @lock_timeout)
+        end
+      else
+        api_lock = @lock_manager.lock(lock_key, @lock_timeout)
+      end
       unless api_lock
         commit_status = :wait
         break
@@ -585,7 +607,8 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
       @lock_manager.unlock(api_lock) if api_lock
       break
     end
-    @lock_manager.unlock(lock_info) if lock_info
+    @lock_manager.unlock(@commit_lock) if @commit_lock
+    @commit_thread = nil
 
     commit_status
   end
@@ -603,14 +626,29 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
       end
     end
     # If we're using thread based queuing, then make sure the thread's queue has been fully processed before closing.
-    if @queue.is_a? Domo::Queue::ThreadQueue and @queue.include? Thread.current
-      send_to_domo if @queue[Thread.current].length > 0
+    if @queue.is_a? Domo::Queue::ThreadQueue
+      @queue.each do |thread, jobs|
+        next if thread == Thread.current or jobs.length <= 0
+        if thread.status == 'sleep'
+          thread.wakeup
+        elsif thread.stop?
+          @queue[Thread.current] = Array.new unless @queue.has_key? Thread.current
+          @queue[Thread.current] += jobs
+          @queue.delete(thread)
+        end
+      end
+      send_to_domo if @queue.fetch(Thread.current, Array.new).length > 0
     elsif @queue.length > 0
       send_to_domo
     end
     # Commit or abort the stream execution if that hasn't happened already
     unless @queue.execution_id.nil?
-      commit_stream(true)
+      if @commit_thread&.status == "sleep"
+        @commit_thread.run
+      else
+        @commit_thread = Thread.new { commit_stream(true) }
+      end
+      commit_status = @commit_thread.value
     end
   end
 

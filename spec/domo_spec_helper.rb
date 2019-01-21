@@ -232,6 +232,9 @@ module DomoHelper
     end
 
     unless data == expected_data
+      puts "Actual data length: #{data.length}"
+      puts "Expected data length: #{expected_data.length}"
+      puts ""
       puts "Actual data: #{data}"
       puts "Expected data: #{expected_data}"
       return false
