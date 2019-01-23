@@ -1,8 +1,31 @@
 # encoding: utf-8
 require "concurrent/hash"
+require "thread"
+require "domo/queue"
 
 module Domo
   module Queue
+    class ThreadPartNumber < PartNumber
+      java_import "java.util.concurrent.atomic.AtomicReference"
+
+      def initialize(initial_value=0)
+        super()
+        @part_num = java.util.concurrent.atomic.AtomicInteger.new(initial_value)
+      end
+
+      def incr
+        @part_num.incrementAndGet
+      end
+
+      def get
+        @part_num.get
+      end
+
+      def set(value)
+        @part_num.set(value)
+      end
+    end
+
     # Emulates the portions of the Redlock::Client API we care about,
     # but using Mutexes for locking.
     # Used with a {ThreadQueue}.
@@ -58,21 +81,34 @@ module Domo
       end
     end
 
-    # A simple multi-threaded queue that's really just a glorified Concurrent::Hash
-    class ThreadQueue < Concurrent::Hash
-      java_import "java.util.concurrent.atomic.AtomicReference"
-
-      # @return [String]
-      attr_accessor :pipeline_id
-      # @return [java.util.concurrent.atomic.AtomicInteger]
+    class ThreadedQueue
+      attr_reader :queue_name
+      attr_reader :pipeline_id
+      attr_reader :dataset_id
+      attr_reader :stream_id
       attr_accessor :part_num
-      # @return [ThreadLockManager]
       attr_accessor :lock_manager
+      attr_accessor :jobs
 
       # @!attribute [r] last_commit
       # @return [DateTime]
       def last_commit
         @last_commit
+      end
+
+      def initialize(dataset_id, stream_id=nil, pipeline_id='main', last_commit_time=nil)
+        @dataset_id = dataset_id
+        @stream_id = stream_id
+        @pipeline_id = pipeline_id
+
+        @lock_manager = ThreadLockManager.new
+        @lock_key = "logstash-output-domo:#{@dataset_id}_queue_lock"
+
+        # @type [Concurrent::Array]
+        @jobs = Concurrent::Array.new
+
+        set_last_commit(last_commit_time)
+        @part_num = ThreadPartNumber.new
       end
 
       # Update the last_commit instance variable in a Thread safe manner.
@@ -137,6 +173,16 @@ module Domo
         end
       end
 
+      def reprocess_jobs!(jobs, execution_id=nil)
+        @jobs = jobs.map do |job|
+          if job.execution_id != execution_id
+            job.part_num = nil
+          end
+          job.execution_id = execution_id
+          job
+        end
+      end
+
       # @!attribute [r] execution_id
       # @return [Integer]
       def execution_id
@@ -165,27 +211,49 @@ module Domo
         end
       end
 
-      # @param dataset_id [String] The Domo Dataset ID.
-      # @param stream_id [Integer] The Domo Stream ID.
-      # @param execution_id [Integer, nil] The Domo Stream Execution ID.
-      # @param pipeline_id [String] The Logstash Pipeline ID.
-      # @param lock_manager [ThreadLockManager, nil] The Thread manager for this queue.
-      # @param last_commit [Time, nil] The timestamp of the last commit.
-      def initialize(dataset_id, stream_id, execution_id=nil, pipeline_id='main', lock_manager=nil, lock_key=nil, last_commit=nil, *hash_opts)
-        super(*hash_opts)
+      def any?
+        !empty?
+      end
 
-        @dataset_id = dataset_id
-        @stream_id = stream_id
-        @execution_id = execution_id
-        @pipeline_id = pipeline_id
-        @lock_manager = lock_manager
-        @lock_key = "#{lock_key}_mutex"
+      def empty?
+        length <= 0
+      end
 
-        unless last_commit.nil?
-          set_last_commit(last_commit)
-        end
+      def each
+        return @jobs.each unless block_given?
+        Proc.new.call(@jobs.each)
+      end
 
-        @part_num = java.util.concurrent.atomic.AtomicInteger.new(0)
+      def clear
+        @jobs.clear
+      end
+
+      def pop
+        @jobs.pop
+      end
+
+      def add(job)
+        push(job)
+      end
+
+      def push(job)
+        @jobs << job
+      end
+
+      def <<(job)
+        push(job)
+      end
+
+      def unshift(job)
+        @jobs.unshift(job)
+      end
+
+      def length
+        @jobs.length
+      end
+
+      def size
+        length
       end
     end
   end

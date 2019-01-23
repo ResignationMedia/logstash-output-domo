@@ -3,11 +3,23 @@ require "date"
 require "securerandom"
 require "json"
 require "thread"
-require "domo/queue/redis"
-require "domo/queue/thread"
 
 module Domo
   module Queue
+    class PartNumber
+      def incr
+        raise NotImplementedError.new('#incr must be implemented.')
+      end
+
+      def get
+        raise NotImplementedError.new('#get must be implemented.')
+      end
+
+      def set(value, *args)
+        raise NotImplementedError.new('#set must be implemented.')
+      end
+    end
+
     # Job that goes into a Queue and handles sending event data using the DOMO Streams API.
     class Job
       # @return [String] A unique ID for the job.

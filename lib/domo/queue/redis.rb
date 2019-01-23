@@ -1,8 +1,38 @@
 # encoding: utf-8
 require "redis"
+require "domo/queue"
 
 module Domo
   module Queue
+    class RedisPartNumber < PartNumber
+      # Constructor
+      #
+      # @param client [Redis]
+      # @param key_name [String]
+      # @param initial_value [Integer, nil]
+      def initialize(client, key_name, initial_value=0)
+        super()
+        # @type [Redis]
+        @client = client
+        # @type [String]
+        @key_name = key_name
+
+        set(initial_value)
+      end
+
+      def incr
+        @client.incr(@key_name)
+      end
+
+      def get
+        @client.get(@key_name)
+      end
+
+      def set(value)
+        _ = @client.getset(@key_name, value.to_s)
+      end
+    end
+
     # Base class for any queues that are redis-based
     class RedisQueue
       # Suffixes to add to our redis keys
@@ -28,6 +58,8 @@ module Domo
       attr_reader :stream_id
       # @return [String] The redis key for the part number.
       attr_reader :part_num_key
+
+      attr_accessor :part_num
 
       # @return [DateTime] The last time a commit was fired
       def last_commit
@@ -92,6 +124,10 @@ module Domo
         @pipeline_id = pipeline_id
         # @type [String]
         @part_num_key = "#{redis_key_prefix}#{KEY_SUFFIXES[:PART_NUM]}"
+
+        part_num = @client.get(@part_num_key)
+        part_num = 0 unless part_num
+        @part_num = RedisPartNumber.new(@client, @part_num_key, part_num)
 
         if last_commit.nil?
           @client.hdel("#{redis_key_prefix}#{KEY_SUFFIXES[:ACTIVE_EXECUTION]}", "last_commit")

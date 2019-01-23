@@ -205,8 +205,10 @@ module DomoHelper
   # @param domo_client [DomoClient]
   # @param dataset_id [String]
   # @param expected_data [Array<Hash>, Hash]
+  # @param should_fail [Boolean] Controls whether or not error output is displayed
+  #   so we don't get spammed on test that *should* fail.
   # @return [Boolean]
-  def dataset_data_match?(domo_client, dataset_id, expected_data)
+  def dataset_data_match?(domo_client, dataset_id, expected_data, should_fail=false )
     data = export_dataset(domo_client, dataset_id)
 
     if data.nil?
@@ -232,11 +234,16 @@ module DomoHelper
     end
 
     unless data == expected_data
-      puts "Actual data length: #{data.length}"
-      puts "Expected data length: #{expected_data.length}"
-      puts ""
-      puts "Actual data: #{data}"
-      puts "Expected data: #{expected_data}"
+      unless should_fail
+        puts "Actual data length: #{data.length}"
+        puts "Expected data length: #{expected_data.length}"
+        puts "-----"
+        puts "Actual Data"
+        puts data
+        puts "-----"
+        puts "Expected data"
+        puts expected_data
+      end
       return false
     end
     true

@@ -9,28 +9,55 @@ require_relative "../../spec/domo_spec_helper"
 
 RSpec.shared_examples "LogStash::Outputs::Domo" do
   context "when receiving multiple events" do
-    it "should send the events to DOMO" do
+    it "sends the events to DOMO" do
       subject.multi_receive(events)
 
       expected_domo_data = events.map { |event| event_to_domo_hash(event) }
       expect(dataset_data_match?(domo_client, dataset_id, expected_domo_data)).to be(true)
     end
 
-    it "should reject mistyped events" do
+    it "rejects mistyped events" do
       allow(subject.instance_variable_get(:@logger)).to receive(:error)
 
       subject.multi_receive([mistyped_event])
       expect(subject.instance_variable_get(:@logger)).to have_received(:error).with(/^.*is an invalid type for/, anything).once
     end
 
-    it "should tolerate events with null values" do
+    it "tolerates events with null values" do
       subject.multi_receive([nil_event])
       expected_domo_data = event_to_domo_hash(nil_event)
       expect(dataset_data_match?(domo_client, dataset_id, expected_domo_data)).to be(true)
     end
 
-    context "when there is a commit delay" do
-      it "should honor the delay" do
+    it "handles being spammed with events", spam: true, slow: true, skip_close: true do
+      event = events[0]
+      spam_events = (1..200).map do |i|
+        e = event.clone
+        e.set("Event Name", i.to_s)
+        e
+      end
+
+      expected_domo_data = spam_events.map { |event| event_to_domo_hash(event) }
+
+      spam_threads = Array.new
+      spam_threads << Thread.new { subject.multi_receive(spam_events.slice(0..74)) }
+      spam_threads << Thread.new { subject.multi_receive(spam_events.slice(75..99)) }
+      spam_threads << Thread.new { subject.multi_receive(spam_events.slice(100..-1)) }
+      spam_threads.each(&:join)
+
+      commit_thread = subject.instance_variable_get(:@commit_thread)
+      unless commit_thread.nil? or commit_thread.stop?
+        commit_thread.join
+      end
+
+      close_thread = Thread.new { subject.close }
+      close_thread.join
+
+      expect(dataset_data_match?(domo_client, dataset_id, expected_domo_data)).to be(true)
+    end
+
+    context "when there is a commit delay", commit_delay: true do
+      it "honors the delay" do
         allow(subject.instance_variable_get(:@logger)).to receive(:debug)
 
         subject.instance_variable_set(:@commit_delay, 10)
@@ -43,13 +70,20 @@ RSpec.shared_examples "LogStash::Outputs::Domo" do
 
         subject.multi_receive(events)
         expect(subject.instance_variable_get(:@logger)).to have_received(:debug).with(/The API is not ready for committing yet/, anything).once
+
+        commit_thread = subject.instance_variable_get(:@commit_thread)
+        sleep(0.1) while commit_thread&.status
+
         subject.multi_receive(events)
         expect(subject.instance_variable_get(:@logger)).to have_received(:debug).with(/The API is not ready for committing yet/, anything).twice
+
+        commit_thread = subject.instance_variable_get(:@commit_thread)
+        sleep(0.1) while commit_thread&.status
 
         expect(dataset_data_match?(domo_client, dataset_id, expected_domo_data)).to be(true)
       end
 
-      it "should interrupt sleeping commits on close", skip_close: true do
+      it "interrupts sleeping commits on close", skip_close: true do
         allow(subject.instance_variable_get(:@logger)).to receive(:debug)
 
         subject.instance_variable_set(:@commit_delay, 10)
@@ -62,6 +96,8 @@ RSpec.shared_examples "LogStash::Outputs::Domo" do
 
         subject.multi_receive(events)
         expect(subject.instance_variable_get(:@logger)).to have_received(:debug).with(/The API is not ready for committing yet/, anything).once
+        commit_thread = subject.instance_variable_get(:@commit_thread)
+        sleep(0.1) while commit_thread&.status
 
         subject.instance_variable_set(:@commit_delay, 10)
         queue = subject.instance_variable_get(:@queue)
@@ -85,7 +121,7 @@ RSpec.shared_examples "LogStash::Outputs::Domo" do
       subject.instance_variable_set(:@dlq_writer, dlq_writer)
     end
 
-    it "should write invalid events to the DLQ" do
+    it "writes invalid events to the DLQ" do
       allow(subject.instance_variable_get(:@logger)).to receive(:error)
 
       expect(dlq_writer).to receive(:write).with(anything, /^[a-zA-Z]* is an invalid type/)
@@ -138,7 +174,7 @@ describe CoreExtensions, extensions: true do
 
   before(:each) { Hash.include CoreExtensions::Flatten }
 
-  it "should properly flatten complex events", :data_structure => true do
+  it "properly flattens complex events", :data_structure => true do
     flattened_event = subject.to_hash.flatten_with_path
     expect(flattened_event).not_to eq(subject)
     expect(flattened_event).to be_a(Hash)
@@ -153,7 +189,11 @@ describe LogStash::Outputs::Domo do
 
   after(:each) do |example|
     subject.close unless example.metadata[:skip_close]
-    domo_client.dataSetClient.delete(dataset_id)
+    if example.exception
+      puts "#{dataset_id} failed for Example #{example}"
+    else
+      domo_client.dataSetClient.delete(dataset_id)
+    end
   end
 
   describe "with distributed locking", redlock: true do
@@ -228,7 +268,7 @@ describe LogStash::Outputs::Domo do
 
     it_should_behave_like "LogStash::Outputs::Domo"
 
-    it "should pull events off the redis queue", redis_queue: true do
+    it "pulls events off the redis queue", redis_queue: true do
       redis_client = subject.instance_variable_get(:@redis_client)
       part_num = redis_client.incr("#{subject.part_num_key}")
       data = subject.encode_event_data(queued_event)
@@ -249,7 +289,7 @@ describe LogStash::Outputs::Domo do
       expect(dataset_data_match?(domo_client, dataset_id, expected_domo_data)).to be(true)
     end
 
-    it "should process events in the queue on #register", redis_queue: true, skip_before: true do
+    it "processes events in the queue on #register", redis_queue: true, skip_before: true do
       sentinels = redis_sentinels.map do |s|
         host, port = s.split(":")
         {
@@ -275,7 +315,7 @@ describe LogStash::Outputs::Domo do
       expect(dataset_data_match?(domo_client, dataset_id, expected_domo_data)).to be(true)
     end
 
-    it "should process events in the failures queue", :failure_queue => true do
+    it "processes events in the failures queue", :failure_queue => true do
       failed_event = queued_event
       redis_client = subject.instance_variable_get(:@redis_client)
       part_num = 2
@@ -293,6 +333,30 @@ describe LogStash::Outputs::Domo do
       expected_domo_data = [event_to_domo_hash(failed_event)]
       expected_domo_data += events.map { |event| event_to_domo_hash(event) }
       expect(dataset_data_match?(domo_client, dataset_id, expected_domo_data)).to be(true)
+    end
+
+    it "does not wait for an empty queue to commit when there is a commit delay", skip_close: true, commit_delay: true do
+      subject.instance_variable_set(:@commit_delay, 10)
+
+      expected_domo_data = events.map { |event| event_to_domo_hash(event) }
+      expected_domo_data += expected_domo_data
+      expected_domo_data += expected_domo_data
+
+      subject.multi_receive(events)
+
+      test_threads = ThreadGroup.new
+
+      receive_thread = Thread.new { subject.multi_receive(events) }
+      test_threads.add(receive_thread)
+      sleep(0.1) until !receive_thread or receive_thread.status == 'sleep'
+
+      close_thread = Thread.new { subject.close }
+      test_threads.add(close_thread)
+
+      subject.multi_receive(events)
+      test_threads.list.each(&:join)
+
+      expect(dataset_data_match?(domo_client, dataset_id, expected_domo_data, should_fail: true)).to be(false)
     end
   end
 
