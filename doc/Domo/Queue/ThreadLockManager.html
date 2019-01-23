@@ -103,7 +103,7 @@
   <div class="discussion">
     
 <p>Emulates the portions of the Redlock::Client API we care about, but using
-Mutexes for locking. Used with a <span class='object_link'><a href="ThreadQueue.html" title="Domo::Queue::ThreadQueue (class)">ThreadQueue</a></span>.</p>
+Mutexes for locking. Used with a <span class='object_link'><a href="ThreadedQueue.html" title="Domo::Queue::ThreadedQueue (class)">ThreadedQueue</a></span>.</p>
 
 
   </div>
@@ -114,6 +114,40 @@ Mutexes for locking. Used with a <span class='object_link'><a href="ThreadQueue.
 </div>
 
 
+
+  <h2>Instance Attribute Summary <small><a href="#" class="summary_toggle">collapse</a></small></h2>
+  <ul class="summary">
+    
+      <li class="public ">
+  <span class="summary_signature">
+    
+      <a href="#locks-instance_method" title="#locks (instance method)">#<strong>locks</strong>  &#x21d2; Object </a>
+    
+
+    
+  </span>
+  
+  
+  
+    
+      <span class="note title readonly">readonly</span>
+    
+    
+  
+  
+  
+  
+  
+
+  
+    <span class="summary_desc"><div class='inline'>
+<p>Returns the value of attribute locks.</p>
+</div></span>
+  
+</li>
+
+    
+  </ul>
 
 
 
@@ -273,14 +307,14 @@ Mutexes for locking. Used with a <span class='object_link'><a href="ThreadQueue.
       <pre class="lines">
 
 
-11
-12
-13
-14
-15</pre>
+36
+37
+38
+39
+40</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/domo/queue/thread.rb', line 11</span>
+      <pre class="code"><span class="info file"># File 'lib/domo/queue/thread.rb', line 36</span>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_initialize'>initialize</span><span class='lparen'>(</span><span class='id identifier rubyid_locks'>locks</span><span class='op'>=</span><span class='kw'>nil</span><span class='rparen'>)</span>
   <span class='comment'># Hash of our various Mutex locks.
@@ -293,6 +327,54 @@ Mutexes for locking. Used with a <span class='object_link'><a href="ThreadQueue.
 </div>
   
 </div>
+
+  <div id="instance_attr_details" class="attr_details">
+    <h2>Instance Attribute Details</h2>
+    
+      
+      <span id=""></span>
+      <div class="method_details first">
+  <h3 class="signature first" id="locks-instance_method">
+  
+    #<strong>locks</strong>  &#x21d2; <tt>Object</tt>  <span class="extras">(readonly)</span>
+  
+
+  
+
+  
+</h3><div class="docstring">
+  <div class="discussion">
+    
+<p>Returns the value of attribute locks</p>
+
+
+  </div>
+</div>
+<div class="tags">
+  
+
+</div><table class="source_code">
+  <tr>
+    <td>
+      <pre class="lines">
+
+
+33
+34
+35</pre>
+    </td>
+    <td>
+      <pre class="code"><span class="info file"># File 'lib/domo/queue/thread.rb', line 33</span>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_locks'>locks</span>
+  <span class='ivar'>@locks</span>
+<span class='kw'>end</span></pre>
+    </td>
+  </tr>
+</table>
+</div>
+    
+  </div>
 
 
   <div id="instance_method_details" class="method_details_list">
@@ -363,28 +445,28 @@ Mutexes for locking. Used with a <span class='object_link'><a href="ThreadQueue.
       <pre class="lines">
 
 
-21
-22
-23
-24
-25
-26
-27
-28
-29
-30
-31
-32
-33
-34
-35
-36
-37
-38
-39</pre>
+46
+47
+48
+49
+50
+51
+52
+53
+54
+55
+56
+57
+58
+59
+60
+61
+62
+63
+64</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/domo/queue/thread.rb', line 21</span>
+      <pre class="code"><span class="info file"># File 'lib/domo/queue/thread.rb', line 46</span>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_lock'>lock</span><span class='lparen'>(</span><span class='id identifier rubyid_resource'>resource</span><span class='comma'>,</span> <span class='op'>*</span><span class='id identifier rubyid_args'>args</span><span class='rparen'>)</span>
   <span class='comment'># Get or create the Mutex
@@ -454,24 +536,24 @@ Mutexes for locking. Used with a <span class='object_link'><a href="ThreadQueue.
       <pre class="lines">
 
 
-44
-45
-46
-47
-48
-49
-50
-51</pre>
+69
+70
+71
+72
+73
+74
+75
+76</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/domo/queue/thread.rb', line 44</span>
+      <pre class="code"><span class="info file"># File 'lib/domo/queue/thread.rb', line 69</span>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_lock!'>lock!</span><span class='lparen'>(</span><span class='op'>*</span><span class='id identifier rubyid_args'>args</span><span class='rparen'>)</span>
   <span class='id identifier rubyid_fail'>fail</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>No block passed</span><span class='tstring_end'>&#39;</span></span> <span class='kw'>unless</span> <span class='id identifier rubyid_block_given?'>block_given?</span>
 
   <span class='id identifier rubyid_lock'>lock</span><span class='lparen'>(</span><span class='op'>*</span><span class='id identifier rubyid_args'>args</span><span class='rparen'>)</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_lock_info'>lock_info</span><span class='op'>|</span>
     <span class='id identifier rubyid_raise'>raise</span> <span class='const'>ThreadError</span><span class='period'>.</span><span class='id identifier rubyid_new'>new</span><span class='lparen'>(</span><span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>failed to acquire lock</span><span class='tstring_end'>&quot;</span></span><span class='rparen'>)</span> <span class='kw'>unless</span> <span class='id identifier rubyid_lock_info'>lock_info</span>
-    <span class='kw'>return</span> <span class='const'>Proc</span><span class='period'>.</span><span class='id identifier rubyid_new'>new</span><span class='period'>.</span><span class='id identifier rubyid_call'>call</span>
+    <span class='kw'>return</span> <span class='const'>Proc</span><span class='period'>.</span><span class='id identifier rubyid_new'>new</span><span class='period'>.</span><span class='id identifier rubyid_call'>call</span><span class='lparen'>(</span><span class='id identifier rubyid_lock_info'>lock_info</span><span class='rparen'>)</span>
   <span class='kw'>end</span>
 <span class='kw'>end</span></pre>
     </td>
@@ -505,12 +587,12 @@ Mutexes for locking. Used with a <span class='object_link'><a href="ThreadQueue.
       <pre class="lines">
 
 
-54
-55
-56</pre>
+79
+80
+81</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/domo/queue/thread.rb', line 54</span>
+      <pre class="code"><span class="info file"># File 'lib/domo/queue/thread.rb', line 79</span>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_unlock'>unlock</span><span class='lparen'>(</span><span class='id identifier rubyid_resource'>resource</span><span class='comma'>,</span> <span class='op'>*</span><span class='id identifier rubyid_args'>args</span><span class='rparen'>)</span>
   <span class='ivar'>@locks</span><span class='lbracket'>[</span><span class='id identifier rubyid_resource'>resource</span><span class='rbracket'>]</span><span class='period'>.</span><span class='id identifier rubyid_unlock'>unlock</span> <span class='kw'>if</span> <span class='ivar'>@locks</span><span class='lbracket'>[</span><span class='id identifier rubyid_resource'>resource</span><span class='rbracket'>]</span><span class='op'>&amp;.</span><span class='id identifier rubyid_locked?'>locked?</span>
@@ -525,7 +607,7 @@ Mutexes for locking. Used with a <span class='object_link'><a href="ThreadQueue.
 </div>
 
       <div id="footer">
-  Generated on Sun Jan 20 11:10:49 2019 by
+  Generated on Wed Jan 23 15:40:17 2019 by
   <a href="http://yardoc.org" title="Yay! A Ruby Documentation Tool" target="_parent">yard</a>
   0.9.16 (ruby-2.3.3).
 </div>

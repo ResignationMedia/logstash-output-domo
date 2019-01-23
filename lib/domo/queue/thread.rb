@@ -28,7 +28,7 @@ module Domo
 
     # Emulates the portions of the Redlock::Client API we care about,
     # but using Mutexes for locking.
-    # Used with a {ThreadQueue}.
+    # Used with a {ThreadedQueue}.
     class ThreadLockManager
       attr_reader :locks
 
