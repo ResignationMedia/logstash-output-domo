@@ -525,10 +525,6 @@ generated, or set from the JSON serialized instance in redis.</p>
       <pre class="lines">
 
 
-59
-60
-61
-62
 63
 64
 65
@@ -559,10 +555,14 @@ generated, or set from the JSON serialized instance in redis.</p>
 90
 91
 92
-93</pre>
+93
+94
+95
+96
+97</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/domo/queue.rb', line 59</span>
+      <pre class="code"><span class="info file"># File 'lib/domo/queue.rb', line 63</span>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_initialize'>initialize</span><span class='lparen'>(</span><span class='id identifier rubyid_event'>event</span><span class='comma'>,</span> <span class='id identifier rubyid_data'>data</span><span class='comma'>,</span> <span class='id identifier rubyid_part_num'>part_num</span><span class='op'>=</span><span class='kw'>nil</span><span class='comma'>,</span> <span class='id identifier rubyid_execution_id'>execution_id</span><span class='op'>=</span><span class='kw'>nil</span><span class='comma'>,</span> <span class='id identifier rubyid_id'>id</span><span class='op'>=</span><span class='kw'>nil</span><span class='comma'>,</span> <span class='id identifier rubyid_timestamp'>timestamp</span><span class='op'>=</span><span class='kw'>nil</span><span class='rparen'>)</span>
   <span class='ivar'>@event</span> <span class='op'>=</span> <span class='id identifier rubyid_event'>event</span>
@@ -655,12 +655,12 @@ generated, or set from the JSON serialized instance in redis.</p>
       <pre class="lines">
 
 
-32
-33
-34</pre>
+36
+37
+38</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/domo/queue.rb', line 32</span>
+      <pre class="code"><span class="info file"># File 'lib/domo/queue.rb', line 36</span>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_data'>data</span>
   <span class='ivar'>@data</span>
@@ -716,12 +716,12 @@ generated, or set from the JSON serialized instance in redis.</p>
       <pre class="lines">
 
 
-30
-31
-32</pre>
+34
+35
+36</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/domo/queue.rb', line 30</span>
+      <pre class="code"><span class="info file"># File 'lib/domo/queue.rb', line 34</span>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_event'>event</span>
   <span class='ivar'>@event</span>
@@ -777,12 +777,12 @@ generated, or set from the JSON serialized instance in redis.</p>
       <pre class="lines">
 
 
-34
-35
-36</pre>
+38
+39
+40</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/domo/queue.rb', line 34</span>
+      <pre class="code"><span class="info file"># File 'lib/domo/queue.rb', line 38</span>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_execution_id'>execution_id</span>
   <span class='ivar'>@execution_id</span>
@@ -838,12 +838,12 @@ generated, or set from the JSON serialized instance in redis.</p>
       <pre class="lines">
 
 
-26
-27
-28</pre>
+30
+31
+32</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/domo/queue.rb', line 26</span>
+      <pre class="code"><span class="info file"># File 'lib/domo/queue.rb', line 30</span>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_id'>id</span>
   <span class='ivar'>@id</span>
@@ -894,13 +894,13 @@ generated, or set from the JSON serialized instance in redis.</p>
       <pre class="lines">
 
 
-39
-40
-41
-42</pre>
+43
+44
+45
+46</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/domo/queue.rb', line 39</span>
+      <pre class="code"><span class="info file"># File 'lib/domo/queue.rb', line 43</span>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_part_num'>part_num</span>
   <span class='kw'>return</span> <span class='ivar'>@part_num</span><span class='period'>.</span><span class='id identifier rubyid_get'>get</span> <span class='kw'>if</span> <span class='ivar'>@part_num</span><span class='period'>.</span><span class='id identifier rubyid_is_a?'>is_a?</span> <span class='id identifier rubyid_java'>java</span><span class='period'>.</span><span class='id identifier rubyid_util'>util</span><span class='period'>.</span><span class='id identifier rubyid_concurrent'>concurrent</span><span class='period'>.</span><span class='id identifier rubyid_atomic'>atomic</span><span class='period'>.</span><span class='const'>AtomicInteger</span>
@@ -957,12 +957,12 @@ generated, or set from the JSON serialized instance in redis.</p>
       <pre class="lines">
 
 
-28
-29
-30</pre>
+32
+33
+34</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/domo/queue.rb', line 28</span>
+      <pre class="code"><span class="info file"># File 'lib/domo/queue.rb', line 32</span>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_timestamp'>timestamp</span>
   <span class='ivar'>@timestamp</span>
@@ -1038,15 +1038,15 @@ generated, or set from the JSON serialized instance in redis.</p>
       <pre class="lines">
 
 
-99
-100
-101
-102
 103
-104</pre>
+104
+105
+106
+107
+108</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/domo/queue.rb', line 99</span>
+      <pre class="code"><span class="info file"># File 'lib/domo/queue.rb', line 103</span>
 
 <span class='kw'>def</span> <span class='kw'>self</span><span class='period'>.</span><span class='id identifier rubyid_from_json!'>from_json!</span><span class='lparen'>(</span><span class='id identifier rubyid_json_str'>json_str</span><span class='rparen'>)</span>
   <span class='id identifier rubyid_json_hash'>json_hash</span> <span class='op'>=</span> <span class='const'>JSON</span><span class='period'>.</span><span class='id identifier rubyid_parse'>parse</span><span class='lparen'>(</span><span class='id identifier rubyid_json_str'>json_str</span><span class='comma'>,</span> <span class='lbrace'>{</span><span class='symbol'>:symbolize_names</span> <span class='op'>=&gt;</span> <span class='kw'>true</span><span class='rbrace'>}</span><span class='rparen'>)</span>
@@ -1126,10 +1126,6 @@ generated, or set from the JSON serialized instance in redis.</p>
       <pre class="lines">
 
 
-128
-129
-130
-131
 132
 133
 134
@@ -1140,10 +1136,14 @@ generated, or set from the JSON serialized instance in redis.</p>
 139
 140
 141
-142</pre>
+142
+143
+144
+145
+146</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/domo/queue.rb', line 128</span>
+      <pre class="code"><span class="info file"># File 'lib/domo/queue.rb', line 132</span>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_to_hash'>to_hash</span><span class='lparen'>(</span><span class='id identifier rubyid_exclude_event'>exclude_event</span><span class='op'>=</span><span class='kw'>false</span><span class='rparen'>)</span>
   <span class='id identifier rubyid_job'>job</span> <span class='op'>=</span> <span class='lbrace'>{</span>
@@ -1210,10 +1210,6 @@ storing the object in redis (shocker)</p>
       <pre class="lines">
 
 
-110
-111
-112
-113
 114
 115
 116
@@ -1221,10 +1217,14 @@ storing the object in redis (shocker)</p>
 118
 119
 120
-121</pre>
+121
+122
+123
+124
+125</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/domo/queue.rb', line 110</span>
+      <pre class="code"><span class="info file"># File 'lib/domo/queue.rb', line 114</span>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_to_json'>to_json</span>
   <span class='id identifier rubyid_json_hash'>json_hash</span> <span class='op'>=</span> <span class='lbrace'>{</span>
@@ -1248,7 +1248,7 @@ storing the object in redis (shocker)</p>
 </div>
 
       <div id="footer">
-  Generated on Thu Jan 24 01:26:52 2019 by
+  Generated on Thu Jan 24 01:36:40 2019 by
   <a href="http://yardoc.org" title="Yay! A Ruby Documentation Tool" target="_parent">yard</a>
   0.9.16 (ruby-2.3.3).
 </div>

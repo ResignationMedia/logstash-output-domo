@@ -67,7 +67,7 @@ module Domo
 
       # Get the last time a commit was fired
       #
-      # @return [DateTime]
+      # @return [Time]
       def last_commit
         last_commit = @client.hget("#{redis_key_prefix}#{KEY_SUFFIXES[:ACTIVE_EXECUTION]}", "last_commit")
         return if last_commit.nil?

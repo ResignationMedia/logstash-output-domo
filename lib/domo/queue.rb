@@ -6,15 +6,19 @@ require "thread"
 
 module Domo
   module Queue
+    # Interface for queue part numbers
     class PartNumber
+      # @return [Integer]
       def incr
         raise NotImplementedError.new('#incr must be implemented.')
       end
 
+      # @return [Integer]
       def get
         raise NotImplementedError.new('#get must be implemented.')
       end
 
+      # @param value [Integer]
       def set(value, *args)
         raise NotImplementedError.new('#set must be implemented.')
       end
