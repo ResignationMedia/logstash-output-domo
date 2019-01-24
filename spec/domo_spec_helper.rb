@@ -206,7 +206,7 @@ module DomoHelper
   # @param dataset_id [String]
   # @param expected_data [Array<Hash>, Hash]
   # @param should_fail [Boolean] Controls whether or not error output is displayed
-  #   so we don't get spammed on test that *should* fail.
+  #   so we don't get spammed on tests that *should* fail.
   # @return [Boolean]
   def dataset_data_match?(domo_client, dataset_id, expected_data, should_fail=false )
     data = export_dataset(domo_client, dataset_id)

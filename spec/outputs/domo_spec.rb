@@ -46,7 +46,7 @@ RSpec.shared_examples "LogStash::Outputs::Domo" do
       spam_threads.each(&:join)
 
       commit_thread = subject.instance_variable_get(:@commit_thread)
-      unless commit_thread.nil? or commit_thread.stop?
+      unless commit_thread.nil? or !commit_thread.status
         commit_thread.join
       end
 

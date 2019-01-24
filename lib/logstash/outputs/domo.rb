@@ -223,7 +223,10 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
     # This is a failsafe in case all workers on all servers stopped without committing
     if @queue.execution_id and queue_processed?
       @commit_thread = Thread.new { commit_stream }
-      commit_status = @commit_thread.value unless @commit_thread.status == 'sleep'
+      if @commit_thread&.status == 'sleep'
+        @commit_thread.run
+        @commit_thread.join
+      end
     elsif @queue.length > 0
       send_to_domo
     end
@@ -241,7 +244,7 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
     # Redis based queue.
     else
       # Attempt to load the queue from redis in case there are still active jobs.
-      queue = Domo::Queue::Redis::JobQueue.get_active_queue(@redis_client, @dataset_id, @stream_id, pipeline_id)
+      queue = Domo::Queue::Redis::JobQueue.active_queue(@redis_client, @dataset_id, @stream_id, pipeline_id)
       # If we can't find one, let's make one
       if queue.nil?
         begin
@@ -300,6 +303,7 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
 
     loop do
       @queue = get_queue
+      sleep(0.1) until @queue.commit_status != :running
       if @queue.is_a? Domo::Queue::RedisQueue
         failures = Domo::Queue::Redis::FailureQueue.from_job_queue!(@queue)
       end
@@ -317,7 +321,7 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
             @queue = get_queue
             execution_id = nil
 
-            unless @queue.nil? or @queue.execution_id.nil?
+            unless @queue.execution_id.nil?
               stream_execution = @domo_client.stream_client.getExecution(@stream_id, @queue.execution_id)
 
               if not stream_execution.nil? and stream_execution.currentState == "ACTIVE"
@@ -347,6 +351,7 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
       end
 
       begin
+        sleep(0.1) until @queue.commit_status != :running
         # Get or create a Stream Execution
         @lock_manager.lock(lock_key, @lock_timeout) do |locked|
           @queue = get_queue
@@ -356,7 +361,7 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
             unless @queue.execution_id.nil?
               stream_execution = @domo_client.stream_client.getExecution(@stream_id, @queue.execution_id)
               if stream_execution.currentState != "ACTIVE"
-                @logger.debug("Stream Exuection ID #{stream_execution.getId} for Stream ID #{@stream_id} is no longer active. Its current status is #{stream_execution.currentState}. A new Stream Execution will be created.",
+                @logger.error("Stream Exuection ID #{stream_execution.getId} for Stream ID #{@stream_id} is no longer active. Its current status is #{stream_execution.currentState}. A new Stream Execution will be created.",
                               :stream_id         => @stream_id,
                               :execution_id      => stream_execution.getId,
                               :queue_pipeline_id => pipeline_id,
@@ -394,6 +399,11 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
 
         # Add a little jitter so Domo's API doesn't shit itself
         sleep(Random.new.rand(0.5))
+        # Prevent a race condition when a long running commit is underway
+        if @queue.commit_status == :running or @queue.commit_status == :failed
+          failures << job
+          next
+        end
         # Upload the job's data
         @domo_client.stream_client.uploadDataPart(@stream_id, job.execution_id, job.part_num, job.data)
         # Debug log output
@@ -457,8 +467,13 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
     @queue = get_queue
     # If the queue is empty and has an active Execution ID, fire off a commit
     unless @queue.nil? or @queue.length > 0 or @queue.execution_id.nil?
-      return unless @commit_thread.nil? or !@commit_thread.status
-      @commit_thread = Thread.new { commit_stream }
+      if @commit_thread&.status == 'sleep' and commit_ready?
+        @commit_thread.run
+      elsif @commit_thread and @commit_thread.status
+        return
+      else
+        @commit_thread = Thread.new { commit_stream }
+      end
 
       commit_status = @commit_thread.value
       if commit_status == :success and @queue.is_a? Domo::Queue::ThreadedQueue
@@ -500,6 +515,7 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
             lock_timeout = sleep_time > @commit_delay ? sleep_time : @commit_delay
             @commit_lock = @lock_manager.lock(commit_lock_key, lock_timeout, extend: @commit_lock, extend_life: true)
           end
+          @queue.commit_status = :open
           sleep(sleep_time)
         end
       end
@@ -508,26 +524,24 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
       if @lock_manager.is_a? Domo::Queue::ThreadLockManager and @lock_manager.locks.include? lock_key
         api_lock = @lock_manager.locks[lock_key]
         if api_lock&.locked?
-          api_lock = nil unless api_lock.try_lock
-          api_lock.lock
+          if api_lock.try_lock
+            api_lock.lock
+          else
+            api_lock = nil
+          end
         else
           api_lock = @lock_manager.lock(lock_key, @lock_timeout)
         end
       else
         api_lock = @lock_manager.lock(lock_key, @lock_timeout)
       end
-      unless api_lock
-        commit_status = :wait
-        break
-      end
+      return :wait unless api_lock
 
       if @commit_lock.is_a? Hash and @commit_lock[:validity] <= api_lock[:validity]
         @commit_lock = @lock_manager.lock(commit_lock_key, lock_ttl, extend: @commit_lock, extend_life: true)
       end
       # Validate the active Stream Execution
       stream_execution = @domo_client.stream_client.getExecution(@stream_id, @queue.execution_id)
-      # There is no execution to associate with the queue at this point.
-      @queue.commit
       # Abort errored out streams
       if stream_execution.currentState == "ERROR" or stream_execution.currentState == "FAILED"
         @domo_client.stream_client.abortExecution(@stream_id, stream_execution.getId)
@@ -536,28 +550,32 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
                       :execution_id     => stream_execution.getId,
                       :execution_state  => stream_execution.currentState,
                       :execution        => stream_execution)
-        commit_status = :failed
+        @queue.commit_status = :failed
       # Commit!
       elsif stream_execution.currentState == "ACTIVE"
         execution_id = stream_execution.getId
+        @queue.commit_status = :running
+
         @domo_client.stream_client.commitExecution(@stream_id, execution_id)
-        @queue.set_last_commit
+        @queue.commit
         # Clear the queue unless we're using a redis queue.
         if @queue.is_a? Domo::Queue::ThreadedQueue
           @queue.clear
         end
-        @logger.debug("Committed Execution ID for #{execution_id} for Stream ID #{@stream_id}.",
+        @logger.info("Committed Execution ID for #{execution_id} for Stream ID #{@stream_id}.",
                       :stream_id        => @stream_id,
                       :execution_id     => execution_id)
-        commit_status = :success
+        @queue.commit_status = :success
       else
         @logger.warn("Stream Execution ID #{stream_execution.getId} for Stream ID #{@stream_id} could not be committed or aborted because its state is #{stream_execution.currentState}",
                      :stream_id        => @stream_id,
                      :execution_id     => stream_execution.getId,
                      :execution_state  => stream_execution.currentState,
                      :execution        => stream_execution)
-        commit_status = :failed
+        @queue.commit_status = :failed
       end
+      # There is no execution to associate with the queue at this point.
+      @queue.execution_id = nil unless @queue.commit_status == :success
       @lock_manager.unlock(api_lock) if api_lock
       break
     end
@@ -641,13 +659,12 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
   end
 
   private
+  # Let's the caller know if it's ok to fire a commit
+  #
+  # @return [Boolean]
   def commit_ready?
     return true if @commit_delay <= 0 or @queue.last_commit.nil?
-    last_commit = @queue.last_commit
-    if last_commit + @commit_delay <= Time.now.utc
-      return true
-    end
-
+    return true if @queue.last_commit + @commit_delay <= Time.now.utc
     false
   end
 

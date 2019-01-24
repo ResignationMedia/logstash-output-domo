@@ -161,7 +161,7 @@
   
   
   <h3 class="inherited">Attributes inherited from <span class='object_link'><a href="../RedisQueue.html" title="Domo::Queue::RedisQueue (class)">Domo::Queue::RedisQueue</a></span></h3>
-  <p class="inherited"><span class='object_link'><a href="../RedisQueue.html#client-instance_method" title="Domo::Queue::RedisQueue#client (method)">#client</a></span>, <span class='object_link'><a href="../RedisQueue.html#dataset_id-instance_method" title="Domo::Queue::RedisQueue#dataset_id (method)">#dataset_id</a></span>, <span class='object_link'><a href="../RedisQueue.html#part_num-instance_method" title="Domo::Queue::RedisQueue#part_num (method)">#part_num</a></span>, <span class='object_link'><a href="../RedisQueue.html#part_num_key-instance_method" title="Domo::Queue::RedisQueue#part_num_key (method)">#part_num_key</a></span>, <span class='object_link'><a href="../RedisQueue.html#pipeline_id-instance_method" title="Domo::Queue::RedisQueue#pipeline_id (method)">#pipeline_id</a></span>, <span class='object_link'><a href="../RedisQueue.html#queue_name-instance_method" title="Domo::Queue::RedisQueue#queue_name (method)">#queue_name</a></span>, <span class='object_link'><a href="../RedisQueue.html#redis_key_prefix-instance_method" title="Domo::Queue::RedisQueue#redis_key_prefix (method)">#redis_key_prefix</a></span>, <span class='object_link'><a href="../RedisQueue.html#stream_id-instance_method" title="Domo::Queue::RedisQueue#stream_id (method)">#stream_id</a></span></p>
+  <p class="inherited"><span class='object_link'><a href="../RedisQueue.html#client-instance_method" title="Domo::Queue::RedisQueue#client (method)">#client</a></span>, <span class='object_link'><a href="../RedisQueue.html#commit_status-instance_method" title="Domo::Queue::RedisQueue#commit_status (method)">#commit_status</a></span>, <span class='object_link'><a href="../RedisQueue.html#dataset_id-instance_method" title="Domo::Queue::RedisQueue#dataset_id (method)">#dataset_id</a></span>, <span class='object_link'><a href="../RedisQueue.html#part_num-instance_method" title="Domo::Queue::RedisQueue#part_num (method)">#part_num</a></span>, <span class='object_link'><a href="../RedisQueue.html#part_num_key-instance_method" title="Domo::Queue::RedisQueue#part_num_key (method)">#part_num_key</a></span>, <span class='object_link'><a href="../RedisQueue.html#pipeline_id-instance_method" title="Domo::Queue::RedisQueue#pipeline_id (method)">#pipeline_id</a></span>, <span class='object_link'><a href="../RedisQueue.html#queue_name-instance_method" title="Domo::Queue::RedisQueue#queue_name (method)">#queue_name</a></span>, <span class='object_link'><a href="../RedisQueue.html#redis_key_prefix-instance_method" title="Domo::Queue::RedisQueue#redis_key_prefix (method)">#redis_key_prefix</a></span>, <span class='object_link'><a href="../RedisQueue.html#stream_id-instance_method" title="Domo::Queue::RedisQueue#stream_id (method)">#stream_id</a></span></p>
 
 
   
@@ -230,7 +230,7 @@
         <li class="public ">
   <span class="summary_signature">
     
-      <a href="#initialize-instance_method" title="#initialize (instance method)">#<strong>initialize</strong>(redis_client, dataset_id, stream_id = nil, pipeline_id = &#39;main&#39;, last_commit = nil)  &#x21d2; FailureQueue </a>
+      <a href="#initialize-instance_method" title="#initialize (instance method)">#<strong>initialize</strong>(redis_client, dataset_id, stream_id = nil, pipeline_id = &#39;main&#39;, last_commit_time = nil)  &#x21d2; FailureQueue </a>
     
 
     
@@ -300,7 +300,7 @@ reset (if necessary).</p>
     <div class="method_details first">
   <h3 class="signature first" id="initialize-instance_method">
   
-    #<strong>initialize</strong>(redis_client, dataset_id, stream_id = nil, pipeline_id = &#39;main&#39;, last_commit = nil)  &#x21d2; <tt><span class='object_link'><a href="" title="Domo::Queue::Redis::FailureQueue (class)">FailureQueue</a></span></tt> 
+    #<strong>initialize</strong>(redis_client, dataset_id, stream_id = nil, pipeline_id = &#39;main&#39;, last_commit_time = nil)  &#x21d2; <tt><span class='object_link'><a href="" title="Domo::Queue::Redis::FailureQueue (class)">FailureQueue</a></span></tt> 
   
 
   
@@ -368,7 +368,7 @@ reset (if necessary).</p>
   
     <li>
       
-        <span class='name'>last_commit</span>
+        <span class='name'>last_commit_time</span>
       
       
         <span class='type'>(<tt>DateTime</tt>, <tt>String</tt>, <tt>nil</tt>)</span>
@@ -388,18 +388,18 @@ reset (if necessary).</p>
       <pre class="lines">
 
 
-325
-326
-327
-328
-329
-330</pre>
+341
+342
+343
+344
+345
+346</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/domo/queue/redis.rb', line 325</span>
+      <pre class="code"><span class="info file"># File 'lib/domo/queue/redis.rb', line 341</span>
 
-<span class='kw'>def</span> <span class='id identifier rubyid_initialize'>initialize</span><span class='lparen'>(</span><span class='id identifier rubyid_redis_client'>redis_client</span><span class='comma'>,</span> <span class='id identifier rubyid_dataset_id'>dataset_id</span><span class='comma'>,</span> <span class='id identifier rubyid_stream_id'>stream_id</span><span class='op'>=</span><span class='kw'>nil</span><span class='comma'>,</span> <span class='id identifier rubyid_pipeline_id'>pipeline_id</span><span class='op'>=</span><span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>main</span><span class='tstring_end'>&#39;</span></span><span class='comma'>,</span> <span class='id identifier rubyid_last_commit'>last_commit</span><span class='op'>=</span><span class='kw'>nil</span><span class='rparen'>)</span>
-  <span class='kw'>super</span><span class='lparen'>(</span><span class='id identifier rubyid_redis_client'>redis_client</span><span class='comma'>,</span> <span class='id identifier rubyid_dataset_id'>dataset_id</span><span class='comma'>,</span> <span class='id identifier rubyid_stream_id'>stream_id</span><span class='comma'>,</span> <span class='id identifier rubyid_pipeline_id'>pipeline_id</span><span class='comma'>,</span> <span class='id identifier rubyid_last_commit'>last_commit</span><span class='rparen'>)</span>
+<span class='kw'>def</span> <span class='id identifier rubyid_initialize'>initialize</span><span class='lparen'>(</span><span class='id identifier rubyid_redis_client'>redis_client</span><span class='comma'>,</span> <span class='id identifier rubyid_dataset_id'>dataset_id</span><span class='comma'>,</span> <span class='id identifier rubyid_stream_id'>stream_id</span><span class='op'>=</span><span class='kw'>nil</span><span class='comma'>,</span> <span class='id identifier rubyid_pipeline_id'>pipeline_id</span><span class='op'>=</span><span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>main</span><span class='tstring_end'>&#39;</span></span><span class='comma'>,</span> <span class='id identifier rubyid_last_commit_time'>last_commit_time</span><span class='op'>=</span><span class='kw'>nil</span><span class='rparen'>)</span>
+  <span class='kw'>super</span><span class='lparen'>(</span><span class='id identifier rubyid_redis_client'>redis_client</span><span class='comma'>,</span> <span class='id identifier rubyid_dataset_id'>dataset_id</span><span class='comma'>,</span> <span class='id identifier rubyid_stream_id'>stream_id</span><span class='comma'>,</span> <span class='id identifier rubyid_pipeline_id'>pipeline_id</span><span class='comma'>,</span> <span class='id identifier rubyid_last_commit_time'>last_commit_time</span><span class='rparen'>)</span>
 
   <span class='comment'># @type [String]
 </span>  <span class='ivar'>@queue_name</span> <span class='op'>=</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_redis_key_prefix'>redis_key_prefix</span><span class='embexpr_end'>}</span><span class='embexpr_beg'>#{</span><span class='const'><span class='object_link'><a href="../RedisQueue.html#KEY_SUFFIXES-constant" title="Domo::Queue::RedisQueue::KEY_SUFFIXES (constant)">KEY_SUFFIXES</a></span></span><span class='lbracket'>[</span><span class='symbol'>:FAILURE</span><span class='rbracket'>]</span><span class='embexpr_end'>}</span><span class='tstring_end'>&quot;</span></span>
@@ -455,17 +455,17 @@ reset (if necessary).</p>
       <pre class="lines">
 
 
-335
-336
-337
-338
-339</pre>
+351
+352
+353
+354
+355</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/domo/queue/redis.rb', line 335</span>
+      <pre class="code"><span class="info file"># File 'lib/domo/queue/redis.rb', line 351</span>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_job_queue'>job_queue</span>
-  <span class='id identifier rubyid_queue'>queue</span> <span class='op'>=</span> <span class='const'><span class='object_link'><a href="JobQueue.html" title="Domo::Queue::Redis::JobQueue (class)">JobQueue</a></span></span><span class='period'>.</span><span class='id identifier rubyid_get_active_queue'><span class='object_link'><a href="JobQueue.html#get_active_queue-class_method" title="Domo::Queue::Redis::JobQueue.get_active_queue (method)">get_active_queue</a></span></span><span class='lparen'>(</span><span class='ivar'>@client</span><span class='comma'>,</span> <span class='ivar'>@dataset_id</span><span class='comma'>,</span> <span class='ivar'>@stream_id</span><span class='comma'>,</span> <span class='ivar'>@pipeline_id</span><span class='rparen'>)</span>
+  <span class='id identifier rubyid_queue'>queue</span> <span class='op'>=</span> <span class='const'><span class='object_link'><a href="JobQueue.html" title="Domo::Queue::Redis::JobQueue (class)">JobQueue</a></span></span><span class='period'>.</span><span class='id identifier rubyid_active_queue'><span class='object_link'><a href="JobQueue.html#active_queue-class_method" title="Domo::Queue::Redis::JobQueue.active_queue (method)">active_queue</a></span></span><span class='lparen'>(</span><span class='ivar'>@client</span><span class='comma'>,</span> <span class='ivar'>@dataset_id</span><span class='comma'>,</span> <span class='ivar'>@stream_id</span><span class='comma'>,</span> <span class='ivar'>@pipeline_id</span><span class='rparen'>)</span>
   <span class='kw'>return</span> <span class='id identifier rubyid_queue'>queue</span> <span class='kw'>unless</span> <span class='id identifier rubyid_queue'>queue</span><span class='period'>.</span><span class='id identifier rubyid_nil?'>nil?</span>
   <span class='const'><span class='object_link'><a href="JobQueue.html" title="Domo::Queue::Redis::JobQueue (class)">JobQueue</a></span></span><span class='period'>.</span><span class='id identifier rubyid_new'><span class='object_link'><a href="JobQueue.html#initialize-instance_method" title="Domo::Queue::Redis::JobQueue#initialize (method)">new</a></span></span><span class='lparen'>(</span><span class='ivar'>@client</span><span class='comma'>,</span> <span class='ivar'>@dataset_id</span><span class='comma'>,</span> <span class='ivar'>@stream_id</span><span class='comma'>,</span> <span class='kw'>nil</span><span class='comma'>,</span> <span class='ivar'>@pipeline_id</span><span class='comma'>,</span> <span class='id identifier rubyid_last_commit'>last_commit</span><span class='rparen'>)</span>
 <span class='kw'>end</span></pre>
@@ -533,12 +533,12 @@ reset (if necessary).</p>
       <pre class="lines">
 
 
-316
-317
-318</pre>
+332
+333
+334</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/domo/queue/redis.rb', line 316</span>
+      <pre class="code"><span class="info file"># File 'lib/domo/queue/redis.rb', line 332</span>
 
 <span class='kw'>def</span> <span class='kw'>self</span><span class='period'>.</span><span class='id identifier rubyid_from_job_queue!'>from_job_queue!</span><span class='lparen'>(</span><span class='id identifier rubyid_job_queue'>job_queue</span><span class='rparen'>)</span>
   <span class='kw'>self</span><span class='period'>.</span><span class='id identifier rubyid_new'>new</span><span class='lparen'>(</span><span class='id identifier rubyid_job_queue'>job_queue</span><span class='period'>.</span><span class='id identifier rubyid_client'>client</span><span class='comma'>,</span> <span class='id identifier rubyid_job_queue'>job_queue</span><span class='period'>.</span><span class='id identifier rubyid_dataset_id'>dataset_id</span><span class='comma'>,</span> <span class='id identifier rubyid_job_queue'>job_queue</span><span class='period'>.</span><span class='id identifier rubyid_stream_id'>stream_id</span><span class='comma'>,</span> <span class='id identifier rubyid_job_queue'>job_queue</span><span class='period'>.</span><span class='id identifier rubyid_pipeline_id'>pipeline_id</span><span class='comma'>,</span> <span class='id identifier rubyid_job_queue'>job_queue</span><span class='period'>.</span><span class='id identifier rubyid_last_commit'>last_commit</span><span class='rparen'>)</span>
@@ -593,12 +593,12 @@ reset (if necessary).</p>
       <pre class="lines">
 
 
-344
-345
-346</pre>
+360
+361
+362</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/domo/queue/redis.rb', line 344</span>
+      <pre class="code"><span class="info file"># File 'lib/domo/queue/redis.rb', line 360</span>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_clear'>clear</span>
   <span class='ivar'>@client</span><span class='period'>.</span><span class='id identifier rubyid_del'>del</span><span class='lparen'>(</span><span class='ivar'>@queue_name</span><span class='rparen'>)</span>
@@ -672,22 +672,22 @@ reset (if necessary).</p>
       <pre class="lines">
 
 
-353
-354
-355
-356
-357
-358
-359
-360
-361
-362
-363
-364
-365</pre>
+369
+370
+371
+372
+373
+374
+375
+376
+377
+378
+379
+380
+381</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/domo/queue/redis.rb', line 353</span>
+      <pre class="code"><span class="info file"># File 'lib/domo/queue/redis.rb', line 369</span>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_reprocess_jobs!'>reprocess_jobs!</span><span class='lparen'>(</span><span class='id identifier rubyid_stream_execution_id'>stream_execution_id</span><span class='op'>=</span><span class='kw'>nil</span><span class='rparen'>)</span>
   <span class='id identifier rubyid_queue'>queue</span> <span class='op'>=</span> <span class='id identifier rubyid_job_queue'>job_queue</span>
@@ -712,7 +712,7 @@ reset (if necessary).</p>
 </div>
 
       <div id="footer">
-  Generated on Wed Jan 23 15:40:17 2019 by
+  Generated on Thu Jan 24 01:26:54 2019 by
   <a href="http://yardoc.org" title="Yay! A Ruby Documentation Tool" target="_parent">yard</a>
   0.9.16 (ruby-2.3.3).
 </div>

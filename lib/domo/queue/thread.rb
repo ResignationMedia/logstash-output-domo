@@ -5,22 +5,28 @@ require "domo/queue"
 
 module Domo
   module Queue
+    # PartNumber object to go with the {ThreadedQueue}
+    # Uses a java.util.concurrent.atomic.AtomicInteger
     class ThreadPartNumber < PartNumber
       java_import "java.util.concurrent.atomic.AtomicReference"
 
+      # @param initial_value [Integer]
       def initialize(initial_value=0)
         super()
         @part_num = java.util.concurrent.atomic.AtomicInteger.new(initial_value)
       end
 
+      # @return [Integer]
       def incr
         @part_num.incrementAndGet
       end
 
+      # @return [Integer]
       def get
         @part_num.get
       end
 
+      # @param value [Integer]
       def set(value)
         @part_num.set(value)
       end
@@ -75,27 +81,54 @@ module Domo
         end
       end
 
+      # Returns if the lock doesn't exist.
+      # Otherwise the result of the #try_lock method on the Mutex is returned.
+      #
+      # @param resource [String] The lock's name.
+      # @return [Boolean]
+      def try_lock(resource)
+        lock = @locks.fetch(resource, nil)
+        return true unless lock
+        lock.try_lock
+      end
+
       # Unlock the Mutex
+      #
+      # @param resource [String] The lock's name
       def unlock(resource, *args)
         @locks[resource].unlock if @locks[resource]&.locked?
       end
     end
 
+    # A Multi-threaded queue
     class ThreadedQueue
+      # @return [String]
       attr_reader :queue_name
+      # @return [String]
       attr_reader :pipeline_id
+      # @return [String]
       attr_reader :dataset_id
+      # @return [Integer]
       attr_reader :stream_id
+      # @return [ThreadPartNumber]
       attr_accessor :part_num
+      # @return [ThreadLockManager]
       attr_accessor :lock_manager
+      # @return [Concurrent::Array]
       attr_accessor :jobs
+      # @return [Symbol]
+      attr_accessor :commit_status
 
       # @!attribute [r] last_commit
-      # @return [DateTime]
+      # @return [Time]
       def last_commit
         @last_commit
       end
 
+      # @param dataset_id [String]
+      # @param stream_id [Integer]
+      # @param pipeline_id [String]
+      # @param last_commit_time [Time, DateTime, Integer, nil] Either nothing or something parsable into a Time object.
       def initialize(dataset_id, stream_id=nil, pipeline_id='main', last_commit_time=nil)
         @dataset_id = dataset_id
         @stream_id = stream_id
@@ -109,6 +142,7 @@ module Domo
 
         set_last_commit(last_commit_time)
         @part_num = ThreadPartNumber.new
+        @commit_status = :open
       end
 
       # Update the last_commit instance variable in a Thread safe manner.
