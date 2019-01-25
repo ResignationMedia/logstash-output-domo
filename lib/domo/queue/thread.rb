@@ -258,6 +258,11 @@ module Domo
         Proc.new.call(@jobs.each)
       end
 
+      def each_with_index
+        fail 'a block is required' unless block_given?
+        Proc.new.call(@jobs.each_with_index)
+      end
+
       def clear
         @jobs.clear
       end
@@ -276,6 +281,10 @@ module Domo
 
       def <<(job)
         push(job)
+      end
+
+      def [](index)
+        @jobs[index]
       end
 
       def unshift(job)

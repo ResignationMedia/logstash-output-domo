@@ -218,6 +218,11 @@ module Domo
         @client.llen(@queue_name)
       end
 
+      def [](index)
+        return if index + 1 > length
+        @client.lindex(@queue_name, index)
+      end
+
       # Alias of #length
       #
       # @return [Integer] The size of the queue.
@@ -236,6 +241,16 @@ module Domo
           job = pop
           break if job.nil?
           yield job
+        end
+      end
+
+      def each_with_index
+        fail 'a block is required' unless block_given?
+        index = 0
+        until index + 1 >= length
+          val = @client.lindex(@queue_name, index)
+          Proc.new.call([val, index])
+          index += 1
         end
       end
 
@@ -354,10 +369,25 @@ module Domo
           JobQueue.new(@client, @dataset_id, @stream_id, nil, @pipeline_id, last_commit)
         end
 
+        # @!attribute [r] processing_status
+        # The status of processing this queue.
+        # @return [Symbol]
+        def processing_status
+          processing_status = @client.get("#{@queue_name}_processing_status")
+          return processing_status.to_sym if processing_status
+          :processing
+        end
+
+        # @!attribute [w] processing_status
+        def processing_status=(status)
+          @client.set("#{@queue_name}_processing_status", status.to_s)
+        end
+
         # Clear the queue. You should probably lock something if you do this.
         #
         # @return [nil]
         def clear
+          @client.del("#{@queue_name}_processing_status")
           @client.del(@queue_name)
         end
 
@@ -367,6 +397,7 @@ module Domo
         # @param stream_execution_id [Integer, nil] The Stream Execution ID to associated with the new queue.
         # @return [JobQueue]
         def reprocess_jobs!(stream_execution_id=nil)
+          @client.set("#{@queue_name}_processing_status", "reprocessing")
           queue = job_queue
           each do |job|
             if stream_execution_id.nil? or job.execution_id != stream_execution_id

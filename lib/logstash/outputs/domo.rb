@@ -297,6 +297,7 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
     # Setup our failure queue.
     if @queue.is_a? Domo::Queue::RedisQueue
       failures = Domo::Queue::Redis::FailureQueue.from_job_queue!(@queue)
+      sleep(0.1) until failures.processing_status == :processing
     else
       failures = Concurrent::Array.new
     end
@@ -304,9 +305,6 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
     loop do
       @queue = get_queue
       sleep(0.1) until @queue.commit_status != :running
-      if @queue.is_a? Domo::Queue::RedisQueue
-        failures = Domo::Queue::Redis::FailureQueue.from_job_queue!(@queue)
-      end
 
       break if @queue.length <= 0 and failures.length <= 0
 
@@ -332,14 +330,14 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
             if @queue.is_a? Domo::Queue::RedisQueue
               @queue = failures.reprocess_jobs!(execution_id)
               failures = Domo::Queue::Redis::FailureQueue.from_job_queue!(@queue)
+              sleep(0.1) until failures.processing_status == :processing
             else
               @queue.reprocess_jobs!(failures, execution_id)
               failures.clear
             end
           end
-          break if @queue.length <= 0 and failures.length <= 0
 
-          @logger.warn("Retrying DOMO Streams API requests. Will sleep for #{@retry_delay} seconds")
+          break if @queue.length <= 0 and failures.length <= 0
           sleep(@retry_delay)
         # Not retrying failures? I don't know why you aren't, but ok.
         else
@@ -373,9 +371,16 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
             end
             # We didn't find an execution so let's make one.
             if stream_execution.nil?
+              until @queue.commit_status != :wait and @queue.commit_status != :running
+                sleep(0.5)
+                if locked.is_a? Hash and locked[:validity] < 1000
+                  locked = @lock_manager.lock(lock_key, @lock_timeout, extend: locked, extend_life: true)
+                end
+              end
               stream_execution = @domo_client.stream_client.createExecution(@stream_id)
               @queue.execution_id = stream_execution.getId
               @queue.part_num.set(0)
+              @queue.commit_status = :open
             end
           end
         end
@@ -400,7 +405,7 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
         # Add a little jitter so Domo's API doesn't shit itself
         sleep(Random.new.rand(0.5))
         # Prevent a race condition when a long running commit is underway
-        if @queue.commit_status == :running or @queue.commit_status == :failed
+        if @queue.commit_status != :wait and @queue.commit_status != :open
           failures << job
           next
         end
@@ -420,26 +425,17 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
         if e.getStatusCode < 400 or e.getStatusCode >= 500
           # Queue the job to be retried if we're using the distributed lock or configured to retry.
           if @retry_failures or @distributed_lock
-            begin
-              execution = @domo_client.stream_client.getExecution(@stream_id, job.execution_id).to_s
-            rescue Java::ComDomoSdkRequest::RequestException => e
-              if e.getStatusCode == 404
-                execution = nil
-              else
-                raise e
-              end
-            end
             @logger.info("Got a retriable error from the DOMO Streams API.",
                          :code              => e.getStatusCode,
                          :exception         => e,
                          :stream_id         => @stream_id,
                          :execution_id      => job.execution_id,
-                         :execution         => execution,
-                         :job               => job.to_hash(true ),
+                         :job               => job.to_hash(true),
                          :event             => job.event.to_hash,
                          :data              => job.data)
-
             failures << job
+            @logger.warn("Will sleep for #{@retry_delay} seconds before retrying requests.")
+            sleep(@retry_delay)
           else
             @logger.error("Encountered a fatal error interacting with the DOMO Streams API.",
                           :code => e.getStatusCode,
@@ -512,14 +508,15 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
                         :next_commit  => @queue.last_commit + sleep_time)
           # (Distributed lock only) Make sure we hold the lock for at least as long as the amount of time we're sleeping for.
           if @commit_lock.is_a? Hash and @commit_lock[:validity] <= sleep_time
-            lock_timeout = sleep_time > @commit_delay ? sleep_time : @commit_delay
+            lock_timeout = sleep_time > @commit_delay * 1000 ? sleep_time + 1000 : @commit_delay * 1000
             @commit_lock = @lock_manager.lock(commit_lock_key, lock_timeout, extend: @commit_lock, extend_life: true)
           end
           @queue.commit_status = :open
           sleep(sleep_time)
         end
       end
-      sleep(0.1) until @queue.empty? unless @distributed_lock
+      @commit_lock = @lock_manager.lock(commit_lock_key, lock_ttl, extend: @commit_lock, extend_life: true)
+      sleep(0.1) until @queue.empty? #unless @distributed_lock
       # Acquire a lock on the key used for the non-commit API calls so nobody goes and creates a new Stream Execution in the middle of this.
       if @lock_manager.is_a? Domo::Queue::ThreadLockManager and @lock_manager.locks.include? lock_key
         api_lock = @lock_manager.locks[lock_key]
@@ -554,17 +551,40 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
       # Commit!
       elsif stream_execution.currentState == "ACTIVE"
         execution_id = stream_execution.getId
+        # Start the commit
         @queue.commit_status = :running
+        stream_execution = @domo_client.stream_client.commitExecution(@stream_id, execution_id)
 
-        @domo_client.stream_client.commitExecution(@stream_id, execution_id)
-        @queue.commit
-        # Clear the queue unless we're using a redis queue.
-        if @queue.is_a? Domo::Queue::ThreadedQueue
-          @queue.clear
+        # Wait until the commit is actually done processing
+        while stream_execution&.currentState == "ACTIVE"
+          sleep(0.5)
+          # Keep the locks active
+          if @commit_lock.is_a? Hash and (@commit_lock[:validity] <= 1000 or api_lock[:validity] <= 1000)
+            @commit_lock = @lock_manager.lock(commit_lock_key, lock_ttl, extend: @commit_lock, extend_life: true)
+            api_lock = @lock_manager.lock(lock_key, @lock_timeout, extend: api_lock, extend_life: true)
+          end
+          # Update the StreamExecution from the API.
+          begin
+            stream_execution = @domo_client.stream_client.getExecution(@stream_id, execution_id)
+          rescue Java::ComDomoSdkRequest::RequestException => e
+            # Almost every exception means we're done.
+            if e.getStatusCode < 400 or e.getStatusCode >= 500
+              break
+            elsif e.getStatusCode == 404
+              break
+            else
+              raise e
+            end
+          end
         end
+        # Pause for API lag to condition race prevent :p
+        sleep(0.5)
+        # Mark the queue as committed.
+        @queue.commit
         @logger.info("Committed Execution ID for #{execution_id} for Stream ID #{@stream_id}.",
                       :stream_id        => @stream_id,
-                      :execution_id     => execution_id)
+                      :execution_id     => execution_id,
+                      :execution        => stream_execution)
         @queue.commit_status = :success
       else
         @logger.warn("Stream Execution ID #{stream_execution.getId} for Stream ID #{@stream_id} could not be committed or aborted because its state is #{stream_execution.currentState}",

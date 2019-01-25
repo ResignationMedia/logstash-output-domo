@@ -30,11 +30,12 @@ RSpec.shared_examples "LogStash::Outputs::Domo" do
     end
 
     it "handles being spammed with events", spam: true, slow: true, skip_close: true do
-      event = events[0]
       spam_events = (1..200).map do |i|
-        e = event.clone
-        e.set("Event Name", i.to_s)
-        e
+        LogStash::Event.new("Event Name"      => i.to_s,
+                            "Count"           => i,
+                            "Event Timestamp" => LogStash::Timestamp.now,
+                            "Event Date"      => Date.today.to_s,
+                            "Percent"         => (i.to_f/200)*100)
       end
 
       expected_domo_data = spam_events.map { |event| event_to_domo_hash(event) }
