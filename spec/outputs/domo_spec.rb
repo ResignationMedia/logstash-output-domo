@@ -57,7 +57,7 @@ RSpec.shared_examples "LogStash::Outputs::Domo" do
       expect(dataset_data_match?(domo_client, dataset_id, expected_domo_data)).to be(true)
     end
 
-    context "when there is a commit delay", commit_delay: true do
+    context "when there is a commit delay", commit_delay: true, slow: true do
       it "honors the delay" do
         allow(subject.instance_variable_get(:@logger)).to receive(:debug)
 
@@ -70,12 +70,14 @@ RSpec.shared_examples "LogStash::Outputs::Domo" do
         expected_domo_data += expected_domo_data
 
         subject.multi_receive(events)
+        wait_for_commit(subject)
         expect(subject.instance_variable_get(:@logger)).to have_received(:debug).with(/The API is not ready for committing yet/, anything).once
 
         commit_thread = subject.instance_variable_get(:@commit_thread)
         sleep(0.1) while commit_thread&.status
 
         subject.multi_receive(events)
+        wait_for_commit(subject)
         expect(subject.instance_variable_get(:@logger)).to have_received(:debug).with(/The API is not ready for committing yet/, anything).twice
 
         commit_thread = subject.instance_variable_get(:@commit_thread)
@@ -85,6 +87,9 @@ RSpec.shared_examples "LogStash::Outputs::Domo" do
       end
 
       it "interrupts sleeping commits on close", skip_close: true do
+        expected_domo_data = events.map { |event| event_to_domo_hash(event) }
+        expected_domo_data += expected_domo_data
+
         allow(subject.instance_variable_get(:@logger)).to receive(:debug)
 
         subject.instance_variable_set(:@commit_delay, 10)
@@ -92,10 +97,12 @@ RSpec.shared_examples "LogStash::Outputs::Domo" do
         queue.set_last_commit(Time.now.utc - 1)
         subject.instance_variable_set(:@queue, queue)
 
-        expected_domo_data = events.map { |event| event_to_domo_hash(event) }
-        expected_domo_data += expected_domo_data
-
         subject.multi_receive(events)
+        commit_thread = subject.instance_variable_get(:@commit_thread)
+        until commit_thread.nil? or commit_thread.status == 'sleep' or !commit_thread.status
+          sleep(0.1)
+          commit_thread = subject.instance_variable_get(:@commit_thread)
+        end
         expect(subject.instance_variable_get(:@logger)).to have_received(:debug).with(/The API is not ready for committing yet/, anything).once
         commit_thread = subject.instance_variable_get(:@commit_thread)
         sleep(0.1) while commit_thread&.status
@@ -189,7 +196,10 @@ describe LogStash::Outputs::Domo do
   end
 
   after(:each) do |example|
-    subject.close unless example.metadata[:skip_close]
+    unless example.metadata[:skip_close]
+      subject.close
+      wait_for_commit(subject)
+    end
     if example.exception
       puts "#{dataset_id} failed for Example #{example}"
     else
@@ -280,6 +290,7 @@ describe LogStash::Outputs::Domo do
       expect(queue.size).to eq(1)
 
       subject.multi_receive(events)
+      wait_for_commit(subject)
       new_queue = subject.instance_variable_get(:@queue)
       expect(queue.size).to eq(0)
       expect(new_queue.size).to eq(0)
@@ -287,6 +298,35 @@ describe LogStash::Outputs::Domo do
 
       expected_domo_data = [event_to_domo_hash(queued_event)]
       expected_domo_data += events.map { |event| event_to_domo_hash(event) }
+      expect(dataset_data_match?(domo_client, dataset_id, expected_domo_data)).to be(true)
+    end
+
+    it "fixes commit status on #register after abnormal terminations", redis_queue: true, skip_before: true do
+      sentinels = redis_sentinels.map do |s|
+        host, port = s.split(":")
+        {
+            :host => host,
+            :port => port,
+        }
+      end
+      client = Redis.new(url: ENV["REDIS_URL"], sentinels: sentinels)
+      part_num_key = "#{Domo::Queue::RedisQueue::KEY_PREFIX_FORMAT}" % {:dataset_id => dataset_id}
+      part_num_key = "#{part_num_key}#{Domo::Queue::RedisQueue::KEY_SUFFIXES[:PART_NUM]}"
+      part_num = client.incr(part_num_key)
+
+      data = event_to_csv(queued_event)
+      queue = Domo::Queue::Redis::JobQueue.new(client, dataset_id, stream_id)
+      job = Domo::Queue::Job.new(queued_event, data, part_num)
+      queue.add(job)
+      expect(queue.size).to eq(1)
+
+      queue.commit_status = :running
+      queue.execution_id = 1
+      queue.set_last_commit(Time.now - 200)
+
+      subject.register
+      wait_for_commit(subject)
+      expected_domo_data = [event_to_domo_hash(queued_event)]
       expect(dataset_data_match?(domo_client, dataset_id, expected_domo_data)).to be(true)
     end
 
@@ -336,7 +376,7 @@ describe LogStash::Outputs::Domo do
       expect(dataset_data_match?(domo_client, dataset_id, expected_domo_data)).to be(true)
     end
 
-    it "does not wait for an empty queue to commit when there is a commit delay", skip_close: true, commit_delay: true do
+    it "does not wait for an empty queue to commit when there is a commit delay", skip_close: true, commit_delay: true, slow: true do
       subject.instance_variable_set(:@commit_delay, 10)
 
       expected_domo_data = events.map { |event| event_to_domo_hash(event) }

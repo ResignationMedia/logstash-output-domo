@@ -35,6 +35,14 @@ module DomoHelper
     settings
   end
 
+  # Wait until the subject's commit thread is done executing (if it exists).
+  #
+  # @param subject [LogStash::Outputs::Domo]
+  def wait_for_commit(subject)
+    commit_thread = subject.instance_variable_get(:@commit_thread)
+    commit_thread.join if commit_thread&.status
+  end
+
   # Initializes a DomoClient object from our test settings
   #
   # @param test_settings [Hash] The settings read from rspec_settings.yaml
