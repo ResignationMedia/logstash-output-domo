@@ -546,13 +546,17 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
                       :stream_id        => @stream_id,
                       :execution_id     => stream_execution.getId,
                       :execution_state  => stream_execution.currentState,
-                      :execution        => stream_execution)
+                      :execution        => stream_execution.to_s)
         @queue.commit_status = :failed
       # Commit!
       elsif stream_execution.currentState == "ACTIVE"
         execution_id = stream_execution.getId
         # Start the commit
         @queue.commit_status = :running
+        @logger.debug("Beginning commit of Stream Execution #{execution_id} for Stream ID #{@stream_id}.",
+                      :stream_id    => @stream_id,
+                      :execution_id => execution_id,
+                      :execution    => stream_execution.to_s)
         stream_execution = @domo_client.stream_client.commitExecution(@stream_id, execution_id)
 
         # Wait until the commit is actually done processing
@@ -584,14 +588,14 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
         @logger.info("Committed Execution ID for #{execution_id} for Stream ID #{@stream_id}.",
                       :stream_id        => @stream_id,
                       :execution_id     => execution_id,
-                      :execution        => stream_execution)
+                      :execution        => stream_execution.to_s)
         @queue.commit_status = :success
       else
         @logger.warn("Stream Execution ID #{stream_execution.getId} for Stream ID #{@stream_id} could not be committed or aborted because its state is #{stream_execution.currentState}",
                      :stream_id        => @stream_id,
                      :execution_id     => stream_execution.getId,
                      :execution_state  => stream_execution.currentState,
-                     :execution        => stream_execution)
+                     :execution        => stream_execution.to_s)
         @queue.commit_status = :failed
       end
       # There is no execution to associate with the queue at this point.
