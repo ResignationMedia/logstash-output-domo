@@ -94,12 +94,12 @@ module DomoHelper
   #
   # @param domo_client [DomoClient]
   # @return [Hash]
-  def bootstrap_dataset(domo_client)
+  def bootstrap_dataset(domo_client, upload_timestamp=nil)
     dsr = CreateDataSetRequest.new
     dsr.setName "logstash-output-domo rspec test"
     dsr.setDescription "Created by the rspec tests for the logstash-output-domo plugin"
 
-    dsr.setSchema(Schema.new(test_dataset_columns))
+    dsr.setSchema(Schema.new(test_dataset_columns(upload_timestamp)))
 
     stream_request = StreamRequest.new
     stream_request.setDataSet(dsr)
@@ -115,13 +115,16 @@ module DomoHelper
     }
   end
 
-  def test_dataset_columns
+  def test_dataset_columns(upload_timestamp=nil)
     columns = ArrayList.new
     columns.add(Column.new(Java::ComDomoSdkDatasetsModel::ColumnType::LONG, "Count"))
     columns.add(Column.new(Java::ComDomoSdkDatasetsModel::ColumnType::STRING, "Event Name"))
     columns.add(Column.new(Java::ComDomoSdkDatasetsModel::ColumnType::DATETIME, "Event Timestamp"))
     columns.add(Column.new(Java::ComDomoSdkDatasetsModel::ColumnType::DATE, "Event Date"))
     columns.add(Column.new(Java::ComDomoSdkDatasetsModel::ColumnType::DOUBLE, "Percent"))
+    if upload_timestamp
+      columns.add(Column.new(Java::ComDomoSdkDatasetsModel::ColumnType::DATETIME, upload_timestamp))
+    end
     columns
   end
 
@@ -208,6 +211,37 @@ module DomoHelper
     data
   end
 
+  # Check that the fields in the Dataset match the fields in our expected data
+  #
+  # @param domo_client [DomoClient]
+  # @param dataset_id [String]
+  # @param expected_data [Array<Hash>, Hash]
+  # @return [Boolean]
+  def dataset_field_match?(domo_client, dataset_id, expected_data)
+    data = export_dataset(domo_client, dataset_id)
+    return false unless data
+
+    if expected_data.is_a? Array
+      expected_data_row = expected_data[0]
+    else
+      expected_data_row = expected_data
+    end
+    if data.is_a? Array
+      data_row = data[0]
+    else
+      data_row = data
+    end
+
+    unmatched_fields = Array.new
+    expected_data_row.each do |name, v|
+      unless data_row.include? name
+        unmatched_fields << name
+      end
+    end
+
+    unmatched_fields.length <= 0
+  end
+
   # Compare expected data to what's actually in the provided Domo Dataset.
   #
   # @param domo_client [DomoClient]
@@ -216,7 +250,7 @@ module DomoHelper
   # @param should_fail [Boolean] Controls whether or not error output is displayed
   #   so we don't get spammed on tests that *should* fail.
   # @return [Boolean]
-  def dataset_data_match?(domo_client, dataset_id, expected_data, should_fail=false )
+  def dataset_data_match?(domo_client, dataset_id, expected_data, should_fail=false)
     data = export_dataset(domo_client, dataset_id)
 
     if data.nil?

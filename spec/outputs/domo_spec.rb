@@ -8,6 +8,40 @@ require "core_extensions/flatten"
 require_relative "../../spec/domo_spec_helper"
 
 RSpec.shared_examples "LogStash::Outputs::Domo" do
+  context "when setting an upload timestamp", upload_timestamp: true do
+    include_context "dataset bootstrap" do
+      let(:test_settings) { get_test_settings }
+      let(:domo_client) { get_domo_client(test_settings) }
+      let(:stream_config) { bootstrap_dataset(domo_client, "_BATCH_DATE_") }
+    end
+
+    let(:config) do
+      test_settings.clone.merge(
+          {
+              "upload_timestamp_field" => "_BATCH_DATE_",
+          }
+      )
+    end
+
+    it "rejects upload timestamp columns not in the Dataset's schema", skip_before: true, skip_close: true do
+      config["upload_timestamp_field"] = "nonexistent_field"
+      expect { subject.register }.to raise_exception(LogStash::ConfigurationError)
+    end
+
+    it "automatically sets the upload timestamp" do
+      subject.multi_receive(events)
+      wait_for_commit(subject)
+
+      expected_domo_data = events.map do |event|
+        e = event_to_domo_hash(event)
+        e["_BATCH_DATE_"] = Time.now.utc.to_datetime
+        e
+      end
+
+      expect(dataset_field_match?(domo_client, dataset_id, expected_domo_data)).to be(true)
+    end
+  end
+
   context "when receiving multiple events" do
     it "sends the events to DOMO" do
       subject.multi_receive(events)
@@ -202,7 +236,8 @@ describe LogStash::Outputs::Domo do
     end
     if example.exception
       puts "#{dataset_id} failed for Example #{example}"
-    else
+    end
+    unless ENV.fetch("KEEP_FAILED_DATASETS", false)
       domo_client.dataSetClient.delete(dataset_id)
     end
   end

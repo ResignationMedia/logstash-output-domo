@@ -53,10 +53,16 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
   # Use TLS for API requests
   config :api_ssl, :validate => :boolean, :default => true
 
-  # The amount of time (seconds) to wait between committing the Stream to Domo.
+  # The amount of time (seconds) to wait between Stream commits.
+  # Data will continue to be uploaded until the delay has passed and the queue has empty.
   # Domo Support recommends setting this to at least 15 minutes.
   # Set to 0 (default) to disable.
   config :commit_delay, :validate => :number, :default => 0
+
+  # An optional field for adding an upload timestamp to the data.
+  # This field must be defined as a DATETIME in the Dataset's Schema.
+  # The field is disabled by default.
+  config :upload_timestamp_field, :validate => :string
 
   # Retry failed requests. Enabled by default. It would be a pretty terrible idea to disable this. 
   config :retry_failures, :validate => :boolean, :default => true
@@ -185,6 +191,13 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
     @dataset_columns = @domo_client.dataset_schema_columns(stream)
     # Get the dead letter queue writer if it's enabled.
     @dlq_writer = dlq_enabled? ? execution_context.dlq_writer : nil
+    # If we're setting an automatic upload timestamp, make sure the field is actually in the dataset.
+    if @upload_timestamp_field
+      col_check = @dataset_columns.select { |col| col[:name] == @upload_timestamp_field }
+      unless col_check.length > 0
+        raise LogStash::ConfigurationError.new("The Upload Timestamp Field named #{@upload_timestamp_field} is not present in the Dataset's schema.")
+      end
+    end
 
     # Distributed lock requires a redis queuing mechanism, among other things.
     if @distributed_lock
@@ -692,8 +705,11 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
       @dataset_columns.each do |col|
         # Just extracting this so referencing it as a key in other hashes isn't so damn awkward to read
         col_name = col[:name]
+        # Set the Upload timestamp if we're into that sort of thing.
+        if @upload_timestamp_field and col_name == @upload_timestamp_field
+          data[col_name] = Time.now.utc.to_datetime
         # Set the column value to null if it's missing from the event data
-        unless data.has_key? col_name
+        elsif !data.has_key? col_name
           data[col_name] = nil
         end
 
@@ -754,7 +770,7 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
         return false
       end
     when Java::ComDomoSdkDatasetsModel::ColumnType::DATETIME
-      if val.is_a? LogStash::Timestamp
+      if val.is_a? LogStash::Timestamp or val.is_a? DateTime or val.is_a? Date or val.is_a? Time
         return true
       end
       begin
