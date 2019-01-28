@@ -233,14 +233,13 @@ module Domo
       # Iterate over all the jobs in the queue by popping them off the list in redis.
       # *In other words this will call the #pop method!* You've been warned...
       #
-      # @param block [Proc]
       # @return [Job]
-      def each(&block)
-        return to_enum(:each) unless block_given?
+      def each
+        fail 'a block is required' unless block_given?
         until @client.llen(@queue_name) <= 0
           job = pop
           break if job.nil?
-          yield job
+          Proc.new.call(job)
         end
       end
 
@@ -249,7 +248,8 @@ module Domo
         index = 0
         until index + 1 >= length
           val = @client.lindex(@queue_name, index)
-          Proc.new.call([val, index])
+          job = Job.from_json!(val)
+          Proc.new.call([job, index])
           index += 1
         end
       end

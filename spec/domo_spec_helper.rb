@@ -184,6 +184,7 @@ module DomoHelper
     # Sometimes there's lag on the Domo API so we'll retry a couple of times instead of failing tests for no reason.
     attempts = 0
     data = nil
+    data_stream = nil
     loop do
       begin
         # @type [IO]
@@ -193,9 +194,10 @@ module DomoHelper
 
         return CSV.parse(data, {:headers => true}).map(&:to_h)
       rescue Java::ComDomoSdkRequest::RequestException => e
-        if e.getStatusCode < 400 or e.getStatusCode == 404 or e.getStatusCode == 406 or e.getStatusCode >= 500
+        status_code = e.getStatusCode
+        if status_code < 400 or status_code == 404 or status_code == 406 or status_code >= 500
           if attempts > 3
-            puts "Ran out of retries on API errors for DatasetID #{dataset_id}. Status code is #{e.getStatusCode}"
+            puts "Ran out of retries on API errors for DatasetID #{dataset_id}. Status code is #{status_code}"
             raise e
           end
           sleep(2.0*attempts)
@@ -204,7 +206,7 @@ module DomoHelper
         end
       ensure
         attempts += 1
-        data_stream.close if defined? data_stream and data_stream
+        data_stream.close unless data_stream.nil? or data_stream.closed?
       end
     end
 

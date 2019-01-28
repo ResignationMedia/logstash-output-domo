@@ -146,10 +146,12 @@ RSpec.shared_examples "LogStash::Outputs::Domo" do
         queue.set_last_commit(Time.now.utc)
         subject.instance_variable_set(:@queue, queue)
 
-        t = Thread.new { subject.multi_receive(events) }
-        sleep(0.1) until !t or t.status == 'sleep'
+        subject.multi_receive(events)
+        commit_thread = nil
+        commit_thread = subject.instance_variable_get(:@commit_thread) until commit_thread
+        sleep(0.1) until commit_thread.status == 'sleep'
         subject.close
-        t.join
+        commit_thread.join
 
         expect(dataset_data_match?(domo_client, dataset_id, expected_domo_data)).to be(true)
       end
