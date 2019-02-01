@@ -473,6 +473,12 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
                       :data              => job.data)
       rescue Java::ComDomoSdkRequest::RequestException => e
         status_code = Domo::Client.request_error_status_code(e)
+        if status_code == -1
+          @logger.debug("We got a status code of -1 somehow. Let's look at the exception.",
+                        :exception => e,
+                        :status_code => status_code,
+                        :message => e.to_s)
+        end
         # DOMO sends back a 400 if a data part is uploaded to an Execution that's done committing. Hence the <= 400
         if status_code <= 400 or status_code >= 500 or status_code == 404
           # Queue the job to be retried if we're using the distributed lock or configured to retry.
@@ -580,10 +586,16 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
         stream_execution = @domo_client.stream_client.getExecution(@stream_id, @queue.execution_id)
       rescue Java::ComDomoSdkRequest::RequestException => e
         status_code = Domo::Client.request_error_status_code(e)
+        if status_code == -1
+          @logger.debug("We got a status code of -1 somehow. Let's look at the exception.",
+                        :exception => e,
+                        :status_code => status_code,
+                        :message => e.to_s)
+        end
         # The Execution no longer exists.
         @lock_manager.unlock(api_lock) if api_lock
         @lock_manager.unlock(@commit_lock) if @commit_lock
-        return :open if status_code == 404
+        return :open if status_code == 404 or status_code == -1
         raise e
       end
       # Abort errored out streams
@@ -620,6 +632,12 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
           rescue Java::ComDomoSdkRequest::RequestException => e
             # Almost every exception means we're done.
             status_code = Domo::Client.request_error_status_code(e)
+            if status_code == -1
+              @logger.debug("We got a status code of -1 somehow. Let's look at the exception.",
+                            :exception => e,
+                            :status_code => status_code,
+                            :message => e.to_s)
+            end
             if status_code == 404 or status_code < 400 or status_code >= 500
               break
             else

@@ -139,19 +139,23 @@ module Domo
     def self.request_error_status_code(e)
       # Future proofing in case DOMO gets their act together with the SDK's exception handling
       return e.getStatusCode if e&.getStatusCode != -1
-      # GROSS. Fix this DOMO.
-      # Yes, that's right they have a typo somewhere.
-      parsed_error = e.to_s.sub('reponseBody', 'responseBody')
-      # Start parsing the relevant bits of the string into a JSON-parseable string
-      parsed_error = parsed_error[/responseBody:.*/]
-      # Wrap responseBody in quotes
-      parsed_error = parsed_error.sub('responseBody:', '"responseBody":')
-      # Wrap it in curly brackets to make it a JSON object
-      parsed_error = "{#{parsed_error}}"
-      # Hey look it's a data structure!
-      parsed_error = JSON.parse(parsed_error)
-      # Return the status code and probably go cry in the corner too
-      parsed_error['responseBody']['status']
+      begin
+        # GROSS. Fix this DOMO.
+        # Yes, that's right they have a typo somewhere.
+        parsed_error = e.to_s.sub('reponseBody', 'responseBody')
+        # Start parsing the relevant bits of the string into a JSON-parseable string
+        parsed_error = parsed_error[/responseBody:.*/]
+        # Wrap responseBody in quotes
+        parsed_error = parsed_error.sub('responseBody:', '"responseBody":')
+        # Wrap it in curly brackets to make it a JSON object
+        parsed_error = "{#{parsed_error}}"
+        # Hey look it's a data structure!
+        parsed_error = JSON.parse(parsed_error)
+        # Return the status code and probably go cry in the corner too
+        parsed_error['responseBody']['status']
+      rescue NoMethodError => e
+        e.getStatusCode
+      end
     end
   end
 
