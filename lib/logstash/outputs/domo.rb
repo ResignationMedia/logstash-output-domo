@@ -473,7 +473,7 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
                       :data              => job.data)
       rescue Java::ComDomoSdkRequest::RequestException => e
         status_code = Domo::Client.request_error_status_code(e)
-        if status_code == -1
+        if status_code.nil? or status_code == -1
           @logger.debug("We got a status code of -1 somehow. Let's look at the exception.",
                         :exception => e,
                         :status_code => status_code,
@@ -586,7 +586,7 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
         stream_execution = @domo_client.stream_client.getExecution(@stream_id, @queue.execution_id)
       rescue Java::ComDomoSdkRequest::RequestException => e
         status_code = Domo::Client.request_error_status_code(e)
-        if status_code == -1
+        if status_code.nil? or status_code == -1
           @logger.debug("We got a status code of -1 somehow. Let's look at the exception.",
                         :exception => e,
                         :status_code => status_code,
@@ -632,7 +632,7 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
           rescue Java::ComDomoSdkRequest::RequestException => e
             # Almost every exception means we're done.
             status_code = Domo::Client.request_error_status_code(e)
-            if status_code == -1
+            if status_code.nil? or status_code == -1
               @logger.debug("We got a status code of -1 somehow. Let's look at the exception.",
                             :exception => e,
                             :status_code => status_code,

@@ -153,8 +153,9 @@ module Domo
         parsed_error = JSON.parse(parsed_error)
         # Return the status code and probably go cry in the corner too
         parsed_error['responseBody']['status']
-      rescue NoMethodError => e
-        e.getStatusCode
+      rescue NoMethodError => ex
+        return e.getStatusCode unless e.nil?
+        e
       end
     end
   end
