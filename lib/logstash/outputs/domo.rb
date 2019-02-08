@@ -64,6 +64,11 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
   # The field is disabled by default.
   config :upload_timestamp_field, :validate => :string
 
+  # An optional field for adding a partition column to the data.
+  # This allows the Stream Dataset to be used with Domo's Data Assembler
+  # Currently, it just sets the column to the current *date*
+  config :partition_field, :validate => :string
+
   # Retry failed requests. Enabled by default. It would be a pretty terrible idea to disable this. 
   config :retry_failures, :validate => :boolean, :default => true
 
@@ -196,6 +201,12 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
       col_check = @dataset_columns.select { |col| col[:name] == @upload_timestamp_field }
       unless col_check.length > 0
         raise LogStash::ConfigurationError.new("The Upload Timestamp Field named #{@upload_timestamp_field} is not present in the Dataset's schema.")
+      end
+    end
+    if @partition_field
+      col_check = @dataset_columns.select { |col| col[:name] == @partition_field }
+      unless col_check.length > 0
+        raise LogStash::ConfigurationError.new("The Partition Field named #{@partition_field} is not present in the Dataset's schema.")
       end
     end
 
@@ -726,6 +737,8 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
         # Set the Upload timestamp if we're into that sort of thing.
         if @upload_timestamp_field and col_name == @upload_timestamp_field
           data[col_name] = Time.now.utc.to_datetime
+        elsif @partition_field and col_name == @partition_field
+          data[col_name] = Time.now.utc.to_date
         # Set the column value to null if it's missing from the event data
         elsif !data.has_key? col_name
           data[col_name] = nil
@@ -781,6 +794,7 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
   def ruby_domo_type_match?(val, domo_column_type)
     case domo_column_type
     when Java::ComDomoSdkDatasetsModel::ColumnType::DATE
+      return true if val.is_a? Date
       begin
         _ = Date.parse(val)
         return true

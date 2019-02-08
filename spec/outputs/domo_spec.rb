@@ -42,6 +42,40 @@ RSpec.shared_examples "LogStash::Outputs::Domo" do
     end
   end
 
+  context "when using a partition date field", partition: true do
+    include_context "dataset bootstrap" do
+      let(:test_settings) { get_test_settings }
+      let(:domo_client) { get_domo_client(test_settings) }
+      let(:stream_config) { bootstrap_dataset(domo_client, nil, "_PARTITION_ID_") }
+    end
+
+    let(:config) do
+      test_settings.clone.merge(
+          {
+              "partition_field" => "_PARTITION_ID_",
+          }
+      )
+    end
+
+    it "rejects partition fields not in the Dataset's schema", skip_before: true, skip_close: true do
+      config["partition_field"] = "nonexistent_field"
+      expect { subject.register }.to raise_exception(LogStash::ConfigurationError)
+    end
+
+    it "automatically sets the partition field to the current date" do
+      subject.multi_receive(events)
+      wait_for_commit(subject)
+
+      expected_domo_data = events.map do |event|
+        e = event_to_domo_hash(event)
+        e["_PARTITION_ID_"] = Time.now.utc.to_date
+        e
+      end
+
+      expect(dataset_field_match?(domo_client, dataset_id, expected_domo_data)).to be(true)
+    end
+  end
+
   context "when receiving multiple events" do
     it "sends the events to DOMO" do
       subject.multi_receive(events)

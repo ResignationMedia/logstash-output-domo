@@ -94,12 +94,12 @@ module DomoHelper
   #
   # @param domo_client [DomoClient]
   # @return [Hash]
-  def bootstrap_dataset(domo_client, upload_timestamp=nil)
+  def bootstrap_dataset(domo_client, upload_timestamp=nil, partition_field=nil)
     dsr = CreateDataSetRequest.new
     dsr.setName "logstash-output-domo rspec test"
     dsr.setDescription "Created by the rspec tests for the logstash-output-domo plugin"
 
-    dsr.setSchema(Schema.new(test_dataset_columns(upload_timestamp)))
+    dsr.setSchema(Schema.new(test_dataset_columns(upload_timestamp, partition_field)))
 
     stream_request = StreamRequest.new
     stream_request.setDataSet(dsr)
@@ -115,7 +115,7 @@ module DomoHelper
     }
   end
 
-  def test_dataset_columns(upload_timestamp=nil)
+  def test_dataset_columns(upload_timestamp=nil, partition_field=nil)
     columns = ArrayList.new
     columns.add(Column.new(Java::ComDomoSdkDatasetsModel::ColumnType::LONG, "Count"))
     columns.add(Column.new(Java::ComDomoSdkDatasetsModel::ColumnType::STRING, "Event Name"))
@@ -124,6 +124,9 @@ module DomoHelper
     columns.add(Column.new(Java::ComDomoSdkDatasetsModel::ColumnType::DOUBLE, "Percent"))
     if upload_timestamp
       columns.add(Column.new(Java::ComDomoSdkDatasetsModel::ColumnType::DATETIME, upload_timestamp))
+    end
+    if partition_field
+      columns.add(Column.new(Java::ComDomoSdkDatasetsModel::ColumnType::DATE, partition_field))
     end
     columns
   end
