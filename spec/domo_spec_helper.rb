@@ -38,9 +38,15 @@ module DomoHelper
   # Wait until the subject's commit thread is done executing (if it exists).
   #
   # @param subject [LogStash::Outputs::Domo]
-  def wait_for_commit(subject)
-    commit_thread = subject.instance_variable_get(:@commit_thread)
-    commit_thread.join if commit_thread&.status
+  def wait_for_commit(subject, expect_thread=false)
+    commit_status = subject.instance_variable_get(:@queue).commit_status
+    unless expect_thread
+      return if commit_status == :open and subject.queue_processed?
+    end
+    until commit_status == :success or commit_status == :failed
+      commit_status = subject.instance_variable_get(:@queue).commit_status
+      sleep(0.1)
+    end
   end
 
   # Initializes a DomoClient object from our test settings
@@ -109,10 +115,25 @@ module DomoHelper
     stream_id = stream.getId
     dataset_id = stream.getDataset.getId
 
+    attempt = 0
+    max_attempts = 5
+    dataset_valid = false
+    until dataset_valid
+      raise Exception.new("There was a problem with creating Dataset ID #{dataset_id}") if attempt >= max_attempts
+      dataset_valid = check_dataset(domo_client, dataset_id)
+      attempt += 1
+    end
+
     {
         "dataset_id" => dataset_id,
         "stream_id"  => stream_id,
     }
+  end
+
+  def check_dataset(domo_client, dataset_id)
+    dataset = domo_client.dataSetClient.get(dataset_id)
+    puts dataset
+    !!dataset
   end
 
   def test_dataset_columns(upload_timestamp=nil, partition_field=nil)
@@ -197,10 +218,11 @@ module DomoHelper
 
         return CSV.parse(data, {:headers => true}).map(&:to_h)
       rescue Java::ComDomoSdkRequest::RequestException => e
+        raw_code = Domo::Client.request_error_status_code(e)
         status_code = e.getStatusCode
         if status_code < 400 or status_code == 404 or status_code == 406 or status_code >= 500
           if attempts > 3
-            puts "Ran out of retries on API errors for DatasetID #{dataset_id}. Status code is #{status_code}"
+            puts "Ran out of retries on API errors for DatasetID #{dataset_id}. Status code is #{status_code}. Reason is #{raw_code}"
             raise e
           end
           sleep(2.0*attempts)
@@ -281,15 +303,26 @@ module DomoHelper
     end
 
     unless data == expected_data
+      missing_data = Array.new
+      expected_data.each do |d|
+        unless data.include? d
+          missing_data << d
+        end
+      end
       unless should_fail
+        # puts "Actual data length: #{data.length}"
+        # puts "Expected data length: #{expected_data.length}"
+        puts "-----"
+        # puts "Actual Data"
+        # puts data
         puts "Actual data length: #{data.length}"
         puts "Expected data length: #{expected_data.length}"
         puts "-----"
-        puts "Actual Data"
-        puts data
+        puts "Missing Data"
+        puts missing_data
         puts "-----"
-        puts "Expected data"
-        puts expected_data
+        # puts "Expected data"
+        # puts expected_data
       end
       return false
     end

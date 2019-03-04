@@ -36,6 +36,7 @@ Gem::Specification.new do |s|
   s.add_runtime_dependency "jar-dependencies"
   s.add_runtime_dependency "redis", ">= 3.0.0", "< 5.0"
   s.add_runtime_dependency "redlock", "~> 1.0"
+  s.add_runtime_dependency "nokogiri", "~> 1.10", ">= 1.10.1"
 
   s.add_development_dependency "logstash-devutils"
 end

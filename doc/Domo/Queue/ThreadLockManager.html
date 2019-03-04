@@ -189,7 +189,7 @@ Mutexes for locking. Used with a <span class='object_link'><a href="ThreadedQueu
         <li class="public ">
   <span class="summary_signature">
     
-      <a href="#lock-instance_method" title="#lock (instance method)">#<strong>lock</strong>(resource, *args)  &#x21d2; Mutex </a>
+      <a href="#lock-instance_method" title="#lock (instance method)">#<strong>lock</strong>(resource, *args, extend_life: false, **kwargs)  &#x21d2; Mutex </a>
     
 
     
@@ -237,6 +237,28 @@ Mutexes for locking. Used with a <span class='object_link'><a href="ThreadedQueu
         <li class="public ">
   <span class="summary_signature">
     
+      <a href="#lock_info-instance_method" title="#lock_info (instance method)">#<strong>lock_info</strong>(lock, resource, extend_life: false)  &#x21d2; Object </a>
+    
+
+    
+  </span>
+  
+  
+  
+  
+  
+  
+  
+
+  
+    <span class="summary_desc"><div class='inline'></div></span>
+  
+</li>
+
+      
+        <li class="public ">
+  <span class="summary_signature">
+    
       <a href="#try_lock-instance_method" title="#try_lock (instance method)">#<strong>try_lock</strong>(resource)  &#x21d2; Boolean </a>
     
 
@@ -261,7 +283,7 @@ Mutexes for locking. Used with a <span class='object_link'><a href="ThreadedQueu
         <li class="public ">
   <span class="summary_signature">
     
-      <a href="#unlock-instance_method" title="#unlock (instance method)">#<strong>unlock</strong>(resource, *args)  &#x21d2; Object </a>
+      <a href="#unlock-instance_method" title="#unlock (instance method)">#<strong>unlock</strong>(lock_info, *args)  &#x21d2; Object </a>
     
 
     
@@ -408,7 +430,7 @@ Mutexes for locking. Used with a <span class='object_link'><a href="ThreadedQueu
       <div class="method_details first">
   <h3 class="signature first" id="lock-instance_method">
   
-    #<strong>lock</strong>(resource, *args)  &#x21d2; <tt>Mutex</tt> 
+    #<strong>lock</strong>(resource, *args, extend_life: false, **kwargs)  &#x21d2; <tt>Mutex</tt> 
   
 
   
@@ -492,23 +514,23 @@ Mutexes for locking. Used with a <span class='object_link'><a href="ThreadedQueu
     <td>
       <pre class="code"><span class="info file"># File 'lib/domo/queue/thread.rb', line 52</span>
 
-<span class='kw'>def</span> <span class='id identifier rubyid_lock'>lock</span><span class='lparen'>(</span><span class='id identifier rubyid_resource'>resource</span><span class='comma'>,</span> <span class='op'>*</span><span class='id identifier rubyid_args'>args</span><span class='rparen'>)</span>
+<span class='kw'>def</span> <span class='id identifier rubyid_lock'>lock</span><span class='lparen'>(</span><span class='id identifier rubyid_resource'>resource</span><span class='comma'>,</span> <span class='op'>*</span><span class='id identifier rubyid_args'>args</span><span class='comma'>,</span> <span class='label'>extend_life:</span> <span class='kw'>false</span><span class='comma'>,</span> <span class='op'>**</span><span class='id identifier rubyid_kwargs'>kwargs</span><span class='rparen'>)</span>
   <span class='comment'># Get or create the Mutex
 </span>  <span class='kw'>unless</span> <span class='ivar'>@locks</span><span class='period'>.</span><span class='id identifier rubyid_has_key?'>has_key?</span> <span class='id identifier rubyid_resource'>resource</span>
     <span class='ivar'>@locks</span><span class='lbracket'>[</span><span class='id identifier rubyid_resource'>resource</span><span class='rbracket'>]</span> <span class='op'>=</span> <span class='const'>Mutex</span><span class='period'>.</span><span class='id identifier rubyid_new'>new</span>
   <span class='kw'>end</span>
   <span class='id identifier rubyid_lock'>lock</span> <span class='op'>=</span> <span class='ivar'>@locks</span><span class='lbracket'>[</span><span class='id identifier rubyid_resource'>resource</span><span class='rbracket'>]</span>
+  <span class='id identifier rubyid_lock_info'>lock_info</span> <span class='op'>=</span> <span class='id identifier rubyid_lock_info'>lock_info</span><span class='lparen'>(</span><span class='id identifier rubyid_lock'>lock</span><span class='comma'>,</span> <span class='id identifier rubyid_resource'>resource</span><span class='comma'>,</span> <span class='label'>extend_life:</span> <span class='id identifier rubyid_extend_life'>extend_life</span><span class='rparen'>)</span>
 
   <span class='kw'>if</span> <span class='id identifier rubyid_block_given?'>block_given?</span>
     <span class='kw'>begin</span>
-      <span class='comment'># Acquire the lock and yield the block&#39;s result
-</span>      <span class='const'>Proc</span><span class='period'>.</span><span class='id identifier rubyid_new'>new</span><span class='period'>.</span><span class='id identifier rubyid_call'>call</span><span class='lparen'>(</span><span class='id identifier rubyid_lock'>lock</span><span class='period'>.</span><span class='id identifier rubyid_lock'>lock</span><span class='rparen'>)</span>
+      <span class='const'>Proc</span><span class='period'>.</span><span class='id identifier rubyid_new'>new</span><span class='period'>.</span><span class='id identifier rubyid_call'>call</span><span class='lparen'>(</span><span class='id identifier rubyid_lock_info'>lock_info</span><span class='rparen'>)</span>
       <span class='op'>!</span><span class='op'>!</span><span class='id identifier rubyid_lock'>lock</span>
     <span class='kw'>ensure</span>
-      <span class='id identifier rubyid_lock'>lock</span><span class='period'>.</span><span class='id identifier rubyid_unlock'>unlock</span> <span class='kw'>if</span> <span class='id identifier rubyid_lock'>lock</span><span class='op'>&amp;.</span><span class='id identifier rubyid_locked?'>locked?</span>
+      <span class='id identifier rubyid_lock'>lock</span><span class='period'>.</span><span class='id identifier rubyid_unlock'>unlock</span> <span class='kw'>if</span> <span class='id identifier rubyid_lock'>lock</span><span class='op'>&amp;.</span><span class='id identifier rubyid_locked?'>locked?</span> <span class='kw'>and</span> <span class='id identifier rubyid_lock'>lock</span><span class='period'>.</span><span class='id identifier rubyid_try_lock'>try_lock</span>
     <span class='kw'>end</span>
   <span class='kw'>else</span>
-    <span class='id identifier rubyid_lock'>lock</span>
+    <span class='id identifier rubyid_lock_info'>lock_info</span>
   <span class='kw'>end</span>
 <span class='kw'>end</span></pre>
     </td>
@@ -560,6 +582,49 @@ Mutexes for locking. Used with a <span class='object_link'><a href="ThreadedQueu
       <pre class="lines">
 
 
+87
+88
+89
+90
+91
+92
+93
+94</pre>
+    </td>
+    <td>
+      <pre class="code"><span class="info file"># File 'lib/domo/queue/thread.rb', line 87</span>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_lock!'>lock!</span><span class='lparen'>(</span><span class='op'>*</span><span class='id identifier rubyid_args'>args</span><span class='rparen'>)</span>
+  <span class='id identifier rubyid_fail'>fail</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>No block passed</span><span class='tstring_end'>&#39;</span></span> <span class='kw'>unless</span> <span class='id identifier rubyid_block_given?'>block_given?</span>
+
+  <span class='id identifier rubyid_lock'>lock</span><span class='lparen'>(</span><span class='op'>*</span><span class='id identifier rubyid_args'>args</span><span class='rparen'>)</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_lock_info'>lock_info</span><span class='op'>|</span>
+    <span class='id identifier rubyid_raise'>raise</span> <span class='const'>ThreadError</span><span class='period'>.</span><span class='id identifier rubyid_new'>new</span><span class='lparen'>(</span><span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>failed to acquire lock</span><span class='tstring_end'>&quot;</span></span><span class='rparen'>)</span> <span class='kw'>unless</span> <span class='id identifier rubyid_lock_info'>lock_info</span>
+    <span class='kw'>return</span> <span class='const'>Proc</span><span class='period'>.</span><span class='id identifier rubyid_new'>new</span><span class='period'>.</span><span class='id identifier rubyid_call'>call</span><span class='lparen'>(</span><span class='id identifier rubyid_lock_info'>lock_info</span><span class='rparen'>)</span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span></pre>
+    </td>
+  </tr>
+</table>
+</div>
+    
+      <div class="method_details ">
+  <h3 class="signature " id="lock_info-instance_method">
+  
+    #<strong>lock_info</strong>(lock, resource, extend_life: false)  &#x21d2; <tt>Object</tt> 
+  
+
+  
+
+  
+</h3><table class="source_code">
+  <tr>
+    <td>
+      <pre class="lines">
+
+
+72
+73
+74
 75
 76
 77
@@ -570,15 +635,18 @@ Mutexes for locking. Used with a <span class='object_link'><a href="ThreadedQueu
 82</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/domo/queue/thread.rb', line 75</span>
+      <pre class="code"><span class="info file"># File 'lib/domo/queue/thread.rb', line 72</span>
 
-<span class='kw'>def</span> <span class='id identifier rubyid_lock!'>lock!</span><span class='lparen'>(</span><span class='op'>*</span><span class='id identifier rubyid_args'>args</span><span class='rparen'>)</span>
-  <span class='id identifier rubyid_fail'>fail</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>No block passed</span><span class='tstring_end'>&#39;</span></span> <span class='kw'>unless</span> <span class='id identifier rubyid_block_given?'>block_given?</span>
-
-  <span class='id identifier rubyid_lock'>lock</span><span class='lparen'>(</span><span class='op'>*</span><span class='id identifier rubyid_args'>args</span><span class='rparen'>)</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_lock_info'>lock_info</span><span class='op'>|</span>
-    <span class='id identifier rubyid_raise'>raise</span> <span class='const'>ThreadError</span><span class='period'>.</span><span class='id identifier rubyid_new'>new</span><span class='lparen'>(</span><span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>failed to acquire lock</span><span class='tstring_end'>&quot;</span></span><span class='rparen'>)</span> <span class='kw'>unless</span> <span class='id identifier rubyid_lock_info'>lock_info</span>
-    <span class='kw'>return</span> <span class='const'>Proc</span><span class='period'>.</span><span class='id identifier rubyid_new'>new</span><span class='period'>.</span><span class='id identifier rubyid_call'>call</span><span class='lparen'>(</span><span class='id identifier rubyid_lock_info'>lock_info</span><span class='rparen'>)</span>
+<span class='kw'>def</span> <span class='id identifier rubyid_lock_info'>lock_info</span><span class='lparen'>(</span><span class='id identifier rubyid_lock'>lock</span><span class='comma'>,</span> <span class='id identifier rubyid_resource'>resource</span><span class='comma'>,</span> <span class='label'>extend_life:</span> <span class='kw'>false</span><span class='rparen'>)</span>
+  <span class='kw'>if</span> <span class='id identifier rubyid_lock'>lock</span><span class='op'>&amp;.</span><span class='id identifier rubyid_locked?'>locked?</span> <span class='kw'>and</span> <span class='kw'>not</span> <span class='id identifier rubyid_extend_life'>extend_life</span>
+    <span class='kw'>return</span> <span class='kw'>false</span> <span class='kw'>unless</span> <span class='id identifier rubyid_lock'>lock</span><span class='period'>.</span><span class='id identifier rubyid_try_lock'>try_lock</span>
   <span class='kw'>end</span>
+  <span class='id identifier rubyid_lock'>lock</span><span class='period'>.</span><span class='id identifier rubyid_lock'>lock</span> <span class='kw'>unless</span> <span class='id identifier rubyid_extend_life'>extend_life</span>
+  <span class='lbrace'>{</span>
+      <span class='label'>validity:</span> <span class='const'>Float</span><span class='op'>::</span><span class='const'>INFINITY</span><span class='comma'>,</span>
+      <span class='label'>resource:</span> <span class='id identifier rubyid_resource'>resource</span><span class='comma'>,</span>
+      <span class='label'>value:</span> <span class='kw'>nil</span>
+  <span class='rbrace'>}</span>
 <span class='kw'>end</span></pre>
     </td>
   </tr>
@@ -645,14 +713,14 @@ Mutexes for locking. Used with a <span class='object_link'><a href="ThreadedQueu
       <pre class="lines">
 
 
-89
-90
-91
-92
-93</pre>
+101
+102
+103
+104
+105</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/domo/queue/thread.rb', line 89</span>
+      <pre class="code"><span class="info file"># File 'lib/domo/queue/thread.rb', line 101</span>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_try_lock'>try_lock</span><span class='lparen'>(</span><span class='id identifier rubyid_resource'>resource</span><span class='rparen'>)</span>
   <span class='id identifier rubyid_lock'>lock</span> <span class='op'>=</span> <span class='ivar'>@locks</span><span class='period'>.</span><span class='id identifier rubyid_fetch'>fetch</span><span class='lparen'>(</span><span class='id identifier rubyid_resource'>resource</span><span class='comma'>,</span> <span class='kw'>nil</span><span class='rparen'>)</span>
@@ -667,7 +735,7 @@ Mutexes for locking. Used with a <span class='object_link'><a href="ThreadedQueu
       <div class="method_details ">
   <h3 class="signature " id="unlock-instance_method">
   
-    #<strong>unlock</strong>(resource, *args)  &#x21d2; <tt>Object</tt> 
+    #<strong>unlock</strong>(lock_info, *args)  &#x21d2; <tt>Object</tt> 
   
 
   
@@ -687,16 +755,16 @@ Mutexes for locking. Used with a <span class='object_link'><a href="ThreadedQueu
   
     <li>
       
-        <span class='name'>resource</span>
+        <span class='name'>lock_info</span>
       
       
-        <span class='type'>(<tt>String</tt>)</span>
+        <span class='type'>(<tt>Hash</tt>)</span>
       
       
       
         &mdash;
         <div class='inline'>
-<p>The lock&#39;s name</p>
+<p>The lock_info Hash associated with the lock. (see <span class='object_link'><a href="#lock_info-instance_method" title="Domo::Queue::ThreadLockManager#lock_info (method)">#lock_info</a></span>)</p>
 </div>
       
     </li>
@@ -710,15 +778,23 @@ Mutexes for locking. Used with a <span class='object_link'><a href="ThreadedQueu
       <pre class="lines">
 
 
-98
-99
-100</pre>
+110
+111
+112
+113
+114
+115
+116</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/domo/queue/thread.rb', line 98</span>
+      <pre class="code"><span class="info file"># File 'lib/domo/queue/thread.rb', line 110</span>
 
-<span class='kw'>def</span> <span class='id identifier rubyid_unlock'>unlock</span><span class='lparen'>(</span><span class='id identifier rubyid_resource'>resource</span><span class='comma'>,</span> <span class='op'>*</span><span class='id identifier rubyid_args'>args</span><span class='rparen'>)</span>
-  <span class='ivar'>@locks</span><span class='lbracket'>[</span><span class='id identifier rubyid_resource'>resource</span><span class='rbracket'>]</span><span class='period'>.</span><span class='id identifier rubyid_unlock'>unlock</span> <span class='kw'>if</span> <span class='ivar'>@locks</span><span class='lbracket'>[</span><span class='id identifier rubyid_resource'>resource</span><span class='rbracket'>]</span><span class='op'>&amp;.</span><span class='id identifier rubyid_locked?'>locked?</span>
+<span class='kw'>def</span> <span class='id identifier rubyid_unlock'>unlock</span><span class='lparen'>(</span><span class='id identifier rubyid_lock_info'>lock_info</span><span class='comma'>,</span> <span class='op'>*</span><span class='id identifier rubyid_args'>args</span><span class='rparen'>)</span>
+  <span class='kw'>return</span> <span class='kw'>unless</span> <span class='id identifier rubyid_lock_info'>lock_info</span>
+  <span class='id identifier rubyid_lock'>lock</span> <span class='op'>=</span> <span class='ivar'>@locks</span><span class='period'>.</span><span class='id identifier rubyid_fetch'>fetch</span><span class='lparen'>(</span><span class='id identifier rubyid_lock_info'>lock_info</span><span class='lbracket'>[</span><span class='symbol'>:resource</span><span class='rbracket'>]</span><span class='rparen'>)</span>
+  <span class='kw'>if</span> <span class='id identifier rubyid_lock'>lock</span><span class='op'>&amp;.</span><span class='id identifier rubyid_try_lock'>try_lock</span>
+    <span class='id identifier rubyid_lock'>lock</span><span class='period'>.</span><span class='id identifier rubyid_unlock'>unlock</span>
+  <span class='kw'>end</span>
 <span class='kw'>end</span></pre>
     </td>
   </tr>
@@ -730,7 +806,7 @@ Mutexes for locking. Used with a <span class='object_link'><a href="ThreadedQueu
 </div>
 
       <div id="footer">
-  Generated on Fri Jan 25 15:44:07 2019 by
+  Generated on Sat Mar  2 10:59:13 2019 by
   <a href="http://yardoc.org" title="Yay! A Ruby Documentation Tool" target="_parent">yard</a>
   0.9.16 (ruby-2.3.3).
 </div>

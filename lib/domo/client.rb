@@ -1,4 +1,5 @@
 require 'json'
+require 'nokogiri'
 
 module Domo
   # Interacts with the DOMO APIs.
@@ -7,6 +8,8 @@ module Domo
     attr_reader :client
     # @return [Java::ComDomoSdkStreams::StreamClient]
     attr_reader :stream_client
+    # @return [Java::ComDomoSdkStreams::DataSetClient]
+    attr_reader :dataset_client
 
     # @param client_id [String] The OAuth ClientID.
     # @param client_secret [String] The OAuth Client Secret.
@@ -29,6 +32,7 @@ module Domo
       # Instantiate our clients
       @client = Java::ComDomoSdk::DomoClient.create(client_config)
       @stream_client = @client.streamClient
+      @dataset_client = @client.dataSetClient
     end
 
     # Enumerator that lazily paginates through various DOMO SDK methods that make use of it.
@@ -96,6 +100,14 @@ module Domo
       create_execution.call(stream.getId)
     end
 
+    # Get a Dataset
+    #
+    # @param dataset_id [String]
+    # @return [Java::ComDomoSdkDatasetsModel::DataSet]
+    def dataset(dataset_id)
+      @dataset_client.get(dataset_id)
+    end
+
     # Get a Stream
     #
     # @param stream_id [Integer, nil] The optional ID of the Stream
@@ -153,6 +165,18 @@ module Domo
         parsed_error = JSON.parse(parsed_error)
         # Return the status code and probably go cry in the corner too
         parsed_error['responseBody']['status']
+      # Sometimes API error messages come back as HTML documents
+      rescue JSON::ParserError => ex
+        html_doc = Nokogiri::HTML(e.to_s)
+        title = html_doc.xpath('//title')[0].content
+        if title =~ /^Error [0-9]{3}.*$/
+          status_code = title.split(' ')[1]
+          status_code = status_code.to_i
+          status_code = 404 if status_code == 406
+        else
+          status_code = e.nil? ? e : e.getStatusCode
+        end
+        status_code
       rescue NoMethodError => ex
         return e.getStatusCode unless e.nil?
         e

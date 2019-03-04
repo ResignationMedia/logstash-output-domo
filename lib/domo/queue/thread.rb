@@ -49,24 +49,36 @@ module Domo
       #
       # @param resource [String] The name of the Mutex lock.
       # @return [Mutex] The Mutex lock.
-      def lock(resource, *args)
+      def lock(resource, *args, extend_life: false, **kwargs)
         # Get or create the Mutex
-        unless @locks.has_key? resource
+        unless @locks.fetch(resource, nil)&.locked?
           @locks[resource] = Mutex.new
         end
         lock = @locks[resource]
+        lock_info = lock_info(lock, resource, extend_life: extend_life)
 
         if block_given?
           begin
-            # Acquire the lock and yield the block's result
-            Proc.new.call(lock.lock)
+            Proc.new.call(lock_info)
             !!lock
           ensure
-            lock.unlock if lock&.locked?
+            unlock(lock_info)
           end
         else
-          lock
+          lock_info
         end
+      end
+
+      def lock_info(lock, resource, extend_life: false)
+        if lock&.locked? and not extend_life
+          return false unless lock.try_lock
+        end
+        lock.lock unless extend_life
+        {
+            validity: Float::INFINITY,
+            resource: resource,
+            value: nil
+        }
       end
 
       # Lock the Mutex, run the provided block, and return its results.
@@ -81,8 +93,9 @@ module Domo
         end
       end
 
-      # Returns if the lock doesn't exist.
-      # Otherwise the result of the #try_lock method on the Mutex is returned.
+      # Attempt to grab the Mutex lock associated with the provided resource.
+      # If the lock doesn't exist, this returns true.
+      #   Otherwise the result of the {Mutex#try_lock} method on the associated Mutex is returned.
       #
       # @param resource [String] The lock's name.
       # @return [Boolean]
@@ -92,11 +105,19 @@ module Domo
         lock.try_lock
       end
 
-      # Unlock the Mutex
+      # Unlock the Mutex associated with the specified lock_info.
       #
-      # @param resource [String] The lock's name
-      def unlock(resource, *args)
-        @locks[resource].unlock if @locks[resource]&.locked?
+      # @param lock_info [Hash] The lock_info Hash associated with the lock. (see {#lock_info})
+      def unlock(lock_info, *args)
+        return unless lock_info
+        lock = @locks.fetch(lock_info[:resource])
+        if lock&.locked?
+          begin
+            lock.unlock
+          rescue ThreadError
+            # Redlock doesn't freak out if it can't unlock so we shouldn't either
+          end
+        end
       end
     end
 
@@ -129,19 +150,24 @@ module Domo
       # @param stream_id [Integer]
       # @param pipeline_id [String]
       # @param last_commit_time [Time, DateTime, Integer, nil] Either nothing or something parsable into a Time object.
-      def initialize(dataset_id, stream_id=nil, pipeline_id='main', last_commit_time=nil)
+      # @param part_num [ThreadPartNumber, nil]
+      def initialize(dataset_id, stream_id=nil, pipeline_id='main', last_commit_time=nil, part_num=nil)
         @dataset_id = dataset_id
         @stream_id = stream_id
         @pipeline_id = pipeline_id
 
         @lock_manager = ThreadLockManager.new
-        @lock_key = "logstash-output-domo:#{@dataset_id}_queue_lock"
+        @lock_key = "#{@queue_name}_lock"
 
         # @type [Concurrent::Array]
         @jobs = Concurrent::Array.new
 
         set_last_commit(last_commit_time)
-        @part_num = ThreadPartNumber.new
+        if part_num.nil?
+          @part_num = ThreadPartNumber.new
+        else
+          @part_num = part_num
+        end
         @commit_status = :open
       end
 
@@ -164,85 +190,16 @@ module Domo
             last_commit = last_commit
           end
         end
-        # Update the Queue's last commit in a (mostly) thread-safe manner.
-        if @lock_manager
-          begin
-            @last_commit = @lock_manager.lock!(@lock_key) do |locked|
-              last_commit
-            end
-          rescue ThreadError => e
-            if e.message == 'Mutex relocking by same thread'
-              @last_commit = last_commit
-            else
-              raise e
-            end
-          end
-        else
-          @last_commit = last_commit
-        end
+        @last_commit = last_commit
       end
 
       # Clear the queue's execution_id and update the last commit timestamp
       #
-      # @param timestamp [Object] Anything that {set_last_commit} accepts as an input parameter.
+      # @param timestamp [Object] Anything that {#set_last_commit} accepts as an input parameter.
       def commit(timestamp=nil)
+        @execution_id = nil
         set_last_commit(timestamp)
-
-        if @lock_manager
-          begin
-            @execution_id = @lock_manager.lock!(@lock_key) do |locked|
-              if locked
-                @execution_id = nil
-              end
-            end
-          rescue ThreadError => e
-            if e.message == 'Mutex relocking by same thread'
-              @execution_id = nil
-            else
-              raise e
-            end
-          end
-        else
-          @execution_id = nil
-        end
-      end
-
-      def reprocess_jobs!(jobs, execution_id=nil)
-        @jobs = jobs.map do |job|
-          if job.execution_id != execution_id
-            job.part_num = nil
-          end
-          job.execution_id = execution_id
-          job
-        end
-      end
-
-      # @!attribute [r] execution_id
-      # @return [Integer]
-      def execution_id
-        @execution_id
-      end
-
-      # @!attribute [w]
-      def execution_id=(execution_id)
-        # Update the Queue's execution_id in a (mostly) thread-safe manner.
-        if @lock_manager
-          begin
-            @execution_id = @lock_manager.lock!(@lock_key) do |locked|
-              if locked
-                @execution_id = execution_id
-              end
-            end
-          rescue ThreadError => e
-            if e.message == 'Mutex relocking by same thread'
-              @execution_id = execution_id
-            else
-              raise e
-            end
-          end
-        else
-          @execution_id = execution_id
-        end
+        clear
       end
 
       def any?
@@ -254,13 +211,17 @@ module Domo
       end
 
       def each
-        return @jobs.each unless block_given?
-        Proc.new.call(@jobs.each)
+        return enum_for(@jobs.each) unless block_given?
+        @jobs.each do |job|
+          Proc.new.call(job)
+        end
       end
 
       def each_with_index
         fail 'a block is required' unless block_given?
-        Proc.new.call(@jobs.each_with_index)
+        @jobs.each_with_index do |job, index|
+          Proc.new.call([job, index])
+        end
       end
 
       def clear
@@ -297,6 +258,98 @@ module Domo
 
       def size
         length
+      end
+    end
+
+    module Threaded
+      # Threaded JobQueue
+      class JobQueue < ThreadedQueue
+        # @return [FailureQueue]
+        attr_accessor :failures
+
+        # @param dataset_id [String] The Domo Dataset ID.
+        # @param stream_id [Integer] The Domo Stream ID.
+        # @param execution_id [Integer, nil] The domo Stream Execution ID.
+        # @param pipeline_id [String] The Logstash Pipeline ID.
+        # @param last_commit_time [Time, DateTime, Integer, nil] Either nothing or something parsable into a Time object.
+        def initialize(dataset_id, stream_id=nil, execution_id=nil, pipeline_id='main', last_commit_time=nil)
+          @queue_name = "logstash-output-domo:#{@dataset_id}_queue"
+          @execution_id = execution_id
+
+          super(dataset_id, stream_id, pipeline_id, last_commit_time)
+
+          @failures = FailureQueue.new(self)
+        end
+
+        # @!attribute [r] execution_id
+        # @return [Integer]
+        def execution_id
+          @execution_id.to_i == 0 ? nil : @execution_id.to_i
+        end
+
+        # @!attribute [w]
+        def execution_id=(execution_id)
+          @execution_id = execution_id
+        end
+
+        # Clear all jobs in the queue and reset @execution_id
+        def clear
+          @jobs.clear
+          @execution_id = nil
+        end
+      end
+
+      # A Thread based FailureQueue
+      class FailureQueue < ThreadedQueue
+        # @return [JobQueue]
+        attr_reader :job_queue
+        # @return [Symbol]
+        attr_accessor :processing_status
+
+        # Redundant method to maintain compatibility with the RedisQueue interface.
+        #
+        # @param job_queue [JobQueue] The JobQueue associated with the failures.
+        # @return [FailureQueue]
+        def self.from_job_queue!(job_queue)
+          self.new(job_queue)
+        end
+
+        # @param job_queue [JobQueue] The JobQueue associated with the failures.
+        def initialize(job_queue)
+          @queue_name = "logstash-output-domo:#{@dataset_id}_failures"
+          @job_queue = job_queue
+
+          super(@job_queue.dataset_id, @job_queue.stream_id, @job_queue.pipeline_id, @job_queue.last_commit, @job_queue.part_num)
+
+          @processing_status = length <= 0 ? :open : :processing
+        end
+
+        def <<(job)
+          @processing_status = :processing
+          push(job)
+        end
+
+        def clear
+          @processing_status = :open
+          @jobs.clear
+        end
+
+        # Reprocess failed jobs in this queue and put them back in the main queue.
+        #
+        # @param stream_execution_id [Integer, nil] The Execution ID the job's should switch to.
+        # @return [JobQueue] The new JobQueue.
+        def reprocess_jobs!(stream_execution_id=nil)
+          @processing_status = :reprocessing
+          each do |job|
+            if job.execution_id != stream_execution_id
+              job.part_num = nil
+            end
+            job.execution_id = stream_execution_id
+            @job_queue << job
+          end
+          clear
+          @job_queue
+        end
       end
     end
   end

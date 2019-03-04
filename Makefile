@@ -14,11 +14,11 @@ else
 ARGS =
 endif
 
-test :
+test : clean
 	-docker-compose run --rm test bundle exec rspec --backtrace --format documentation$(ARGS)$(TAGS)
 	docker-compose down
 
-redlock-test :
+redlock-test : clean
 ifeq ($(TAGS),)
 	-docker-compose run --rm test bundle exec rspec --backtrace --format documentation$(ARGS) --tag redis_queue --tag redlock --tag ~thread_lock
 else

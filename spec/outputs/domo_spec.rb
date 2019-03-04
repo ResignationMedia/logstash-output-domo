@@ -16,7 +16,7 @@ RSpec.shared_examples "LogStash::Outputs::Domo" do
     end
 
     let(:config) do
-      test_settings.clone.merge(
+      global_config.clone.merge(
           {
               "upload_timestamp_field" => "_BATCH_DATE_",
           }
@@ -30,7 +30,9 @@ RSpec.shared_examples "LogStash::Outputs::Domo" do
 
     it "automatically sets the upload timestamp" do
       subject.multi_receive(events)
+      sleep(0.1) until subject.queue_processed?
       wait_for_commit(subject)
+      puts "hello"
 
       expected_domo_data = events.map do |event|
         e = event_to_domo_hash(event)
@@ -38,6 +40,11 @@ RSpec.shared_examples "LogStash::Outputs::Domo" do
         e
       end
 
+      commit_thread = subject.instance_variable_get(:@commit_thread)
+      if commit_thread&.status
+        commit_thread.run if commit_thread.status == 'sleep'
+        commit_thread.join
+      end
       expect(dataset_field_match?(domo_client, dataset_id, expected_domo_data)).to be(true)
     end
   end
@@ -50,7 +57,7 @@ RSpec.shared_examples "LogStash::Outputs::Domo" do
     end
 
     let(:config) do
-      test_settings.clone.merge(
+      global_config.clone.merge(
           {
               "partition_field" => "_PARTITION_ID_",
           }
@@ -77,6 +84,9 @@ RSpec.shared_examples "LogStash::Outputs::Domo" do
   end
 
   context "when receiving multiple events" do
+    let(:config) do
+      global_config
+    end
     it "sends the events to DOMO" do
       subject.multi_receive(events)
 
@@ -103,7 +113,7 @@ RSpec.shared_examples "LogStash::Outputs::Domo" do
                             "Count"           => i,
                             "Event Timestamp" => LogStash::Timestamp.now,
                             "Event Date"      => Date.today.to_s,
-                            "Percent"         => (i.to_f/200)*100)
+                            "Percent"         => ((i.to_f/200)*100).round(2))
       end
 
       expected_domo_data = spam_events.map { |event| event_to_domo_hash(event) }
@@ -119,17 +129,25 @@ RSpec.shared_examples "LogStash::Outputs::Domo" do
         commit_thread.join
       end
 
-      close_thread = Thread.new { subject.close }
-      close_thread.join
+      subject.close
+      close_thread = subject.instance_variable_get(:@commit_thread)
+      close_thread.join if close_thread&.status
 
       expect(dataset_data_match?(domo_client, dataset_id, expected_domo_data)).to be(true)
     end
 
     context "when there is a commit delay", commit_delay: true, slow: true do
+      let(:config) do
+        global_config.clone.merge(
+            {
+                "commit_delay" => 10
+            }
+        )
+      end
       it "honors the delay" do
         allow(subject.instance_variable_get(:@logger)).to receive(:debug)
 
-        subject.instance_variable_set(:@commit_delay, 10)
+        # subject.instance_variable_set(:@commit_delay, 10)
         queue = subject.instance_variable_get(:@queue)
         queue.set_last_commit(Time.now.utc - 1)
         subject.instance_variable_set(:@queue, queue)
@@ -138,18 +156,21 @@ RSpec.shared_examples "LogStash::Outputs::Domo" do
         expected_domo_data += expected_domo_data
 
         subject.multi_receive(events)
-        wait_for_commit(subject)
+        puts "Closed?"
+        wait_for_commit(subject, true)
+        puts "Commit thread done and close?"
         expect(subject.instance_variable_get(:@logger)).to have_received(:debug).with(/The API is not ready for committing yet/, anything).once
 
         commit_thread = subject.instance_variable_get(:@commit_thread)
         sleep(0.1) while commit_thread&.status
 
         subject.multi_receive(events)
-        wait_for_commit(subject)
+        wait_for_commit(subject, true)
+        puts "Commit thread done and close?"
         expect(subject.instance_variable_get(:@logger)).to have_received(:debug).with(/The API is not ready for committing yet/, anything).twice
 
-        commit_thread = subject.instance_variable_get(:@commit_thread)
-        sleep(0.1) while commit_thread&.status
+        # commit_thread = subject.instance_variable_get(:@commit_thread)
+        # sleep(0.1) while commit_thread&.status
 
         expect(dataset_data_match?(domo_client, dataset_id, expected_domo_data)).to be(true)
       end
@@ -160,22 +181,23 @@ RSpec.shared_examples "LogStash::Outputs::Domo" do
 
         allow(subject.instance_variable_get(:@logger)).to receive(:debug)
 
-        subject.instance_variable_set(:@commit_delay, 10)
+        # subject.instance_variable_set(:@commit_delay, 10)
         queue = subject.instance_variable_get(:@queue)
         queue.set_last_commit(Time.now.utc - 1)
         subject.instance_variable_set(:@queue, queue)
 
         subject.multi_receive(events)
-        commit_thread = subject.instance_variable_get(:@commit_thread)
-        until commit_thread.nil? or commit_thread.status == 'sleep' or !commit_thread.status
-          sleep(0.1)
-          commit_thread = subject.instance_variable_get(:@commit_thread)
-        end
+        wait_for_commit(subject, true)
+        # commit_thread = subject.instance_variable_get(:@commit_thread)
+        # until commit_thread.nil? or commit_thread.status == 'sleep' or !commit_thread.status
+        #   sleep(0.1)
+        #   commit_thread = subject.instance_variable_get(:@commit_thread)
+        # end
         expect(subject.instance_variable_get(:@logger)).to have_received(:debug).with(/The API is not ready for committing yet/, anything).once
-        commit_thread = subject.instance_variable_get(:@commit_thread)
-        sleep(0.1) while commit_thread&.status
+        # commit_thread = subject.instance_variable_get(:@commit_thread)
+        # sleep(0.1) while commit_thread&.status
 
-        subject.instance_variable_set(:@commit_delay, 10)
+        # subject.instance_variable_set(:@commit_delay, 10)
         queue = subject.instance_variable_get(:@queue)
         queue.set_last_commit(Time.now.utc)
         subject.instance_variable_set(:@queue, queue)
@@ -211,7 +233,7 @@ end
 shared_context "dataset bootstrap" do
   let!(:test_settings) { get_test_settings }
   let!(:domo_client) { get_domo_client(test_settings) }
-  let!(:stream_config) { bootstrap_dataset(domo_client) }
+  let(:stream_config) { bootstrap_dataset(domo_client) }
 end
 
 shared_context "events" do
@@ -222,7 +244,7 @@ shared_context "events" do
                           "Event Name" => "event_#{i}",
                           "Event Timestamp" => LogStash::Timestamp.now,
                           "Event Date" => cur_date,
-                          "Percent" => (i.to_f/5)*100)
+                          "Percent" => ((i.to_f/5)*100).round(2))
     end
   end
   let!(:mistyped_event) do
@@ -262,6 +284,7 @@ end
 
 describe LogStash::Outputs::Domo do
   before(:each) do |example|
+    puts "About to run #{example.full_description}"
     subject.register unless example.metadata[:skip_before]
   end
 
@@ -323,7 +346,7 @@ describe LogStash::Outputs::Domo do
       sentinels
     end
 
-    let(:config) do
+    let(:global_config) do
       test_settings.clone.merge(
           {
               "distributed_lock" => true,
@@ -340,12 +363,17 @@ describe LogStash::Outputs::Domo do
                           "Event Name" => "queued_event",
                           "Event Timestamp" => LogStash::Timestamp.now,
                           "Event Date" => (Date.today - 1).to_s,
-                          "Percent" => (4.to_f/5)*100)
+                          "Percent" => ((4.to_f/5)*100).round(2))
     end
 
     subject do
-      config.merge!(stream_config)
-      described_class.new(config)
+      begin
+        config.merge!(stream_config)
+        described_class.new(config)
+      rescue ArgumentError
+        global_config.merge!(stream_config)
+        described_class.new(global_config)
+      end
     end
 
     it_should_behave_like "LogStash::Outputs::Domo"
@@ -479,12 +507,17 @@ describe LogStash::Outputs::Domo do
     end
     include_context "events"
 
-    let(:config) { test_settings.clone }
+    let(:global_config) { test_settings.clone }
     let(:dataset_id) { subject.instance_variable_get(:@dataset_id) }
 
     subject do
-      config.merge!(stream_config)
-      described_class.new(config)
+      begin
+        config.merge!(stream_config)
+        described_class.new(config)
+      rescue ArgumentError
+        global_config.merge!(stream_config)
+        described_class.new(global_config)
+      end
     end
 
     it_should_behave_like "LogStash::Outputs::Domo"

@@ -11,14 +11,17 @@ module Domo
       # @param client [Redis]
       # @param key_name [String]
       # @param initial_value [Integer, nil]
-      def initialize(client, key_name, initial_value=0)
+      def initialize(client, key_name, initial_value=nil)
         super()
         # @type [Redis]
         @client = client
         # @type [String]
         @key_name = key_name
 
-        set(initial_value)
+        if get.nil? or !initial_value.nil?
+          initial_value = initial_value.nil? ? 0 : initial_value
+          set(initial_value)
+        end
       end
 
       # @return [Integer]
@@ -146,9 +149,9 @@ module Domo
         # @type [String]
         @part_num_key = "#{redis_key_prefix}#{KEY_SUFFIXES[:PART_NUM]}"
 
-        part_num = @client.get(@part_num_key)
-        part_num = 0 unless part_num
-        @part_num = RedisPartNumber.new(@client, @part_num_key, part_num)
+        # part_num = @client.get(@part_num_key)
+        # part_num = 0 unless part_num
+        @part_num = RedisPartNumber.new(@client, @part_num_key)
 
         set_last_commit(last_commit_time)
       end
@@ -338,6 +341,10 @@ module Domo
           @client.del(@queue_name)
           @client.del("#{redis_key_prefix}#{KEY_SUFFIXES[:ACTIVE_EXECUTION]}")
         end
+
+        def failures
+          FailureQueue.new(@client, @dataset_id, @stream_id, @pipeline_id, last_commit)
+        end
       end
 
       # A redis-based queue for failed jobs.
@@ -358,6 +365,14 @@ module Domo
 
           # @type [String]
           @queue_name = "#{redis_key_prefix}#{KEY_SUFFIXES[:FAILURE]}"
+          if length <= 0
+            @client.set("#{@queue_name}_processing_status", :open.to_s)
+          end
+        end
+
+        def <<(job)
+          @client.set("#{@queue_name}_processing_status", :processing.to_s)
+          push(job)
         end
 
         # @!attribute [r] job_queue
@@ -373,9 +388,10 @@ module Domo
         # The status of processing this queue.
         # @return [Symbol]
         def processing_status
+          return :open if length <= 0
           processing_status = @client.get("#{@queue_name}_processing_status")
           return processing_status.to_sym if processing_status
-          :processing
+          :open
         end
 
         # @!attribute [w] processing_status
@@ -400,9 +416,9 @@ module Domo
           @client.set("#{@queue_name}_processing_status", "reprocessing")
           queue = job_queue
           each do |job|
-            if stream_execution_id.nil? or job.execution_id != stream_execution_id
-              job.part_num = nil
-            end
+            # if stream_execution_id.nil? or job.execution_id != stream_execution_id
+            job.part_num = nil
+            # end
             job.execution_id = stream_execution_id
             queue.add(job)
           end
