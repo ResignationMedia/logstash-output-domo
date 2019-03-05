@@ -101,7 +101,18 @@
   
 </div>
 
+<h2>Overview</h2><div class="docstring">
+  <div class="discussion">
+    
+<p>Threaded JobQueue</p>
 
+
+  </div>
+</div>
+<div class="tags">
+  
+
+</div>
 
 
 
@@ -136,7 +147,7 @@
       <li class="public ">
   <span class="summary_signature">
     
-      <a href="#failures-instance_method" title="#failures (instance method)">#<strong>failures</strong>  &#x21d2; Object </a>
+      <a href="#failures-instance_method" title="#failures (instance method)">#<strong>failures</strong>  &#x21d2; FailureQueue </a>
     
 
     
@@ -153,9 +164,7 @@
   
 
   
-    <span class="summary_desc"><div class='inline'>
-<p>Returns the value of attribute failures.</p>
-</div></span>
+    <span class="summary_desc"><div class='inline'></div></span>
   
 </li>
 
@@ -195,7 +204,9 @@
   
 
   
-    <span class="summary_desc"><div class='inline'></div></span>
+    <span class="summary_desc"><div class='inline'>
+<p>Clear all jobs in the queue and reset @execution_id.</p>
+</div></span>
   
 </li>
 
@@ -261,7 +272,99 @@
   </div>
 </div>
 <div class="tags">
+  <p class="tag_title">Parameters:</p>
+<ul class="param">
   
+    <li>
+      
+        <span class='name'>dataset_id</span>
+      
+      
+        <span class='type'>(<tt>String</tt>)</span>
+      
+      
+      
+        &mdash;
+        <div class='inline'>
+<p>The Domo Dataset ID.</p>
+</div>
+      
+    </li>
+  
+    <li>
+      
+        <span class='name'>stream_id</span>
+      
+      
+        <span class='type'>(<tt>Integer</tt>)</span>
+      
+      
+        <em class="default">(defaults to: <tt>nil</tt>)</em>
+      
+      
+        &mdash;
+        <div class='inline'>
+<p>The Domo Stream ID.</p>
+</div>
+      
+    </li>
+  
+    <li>
+      
+        <span class='name'>execution_id</span>
+      
+      
+        <span class='type'>(<tt>Integer</tt>, <tt>nil</tt>)</span>
+      
+      
+        <em class="default">(defaults to: <tt>nil</tt>)</em>
+      
+      
+        &mdash;
+        <div class='inline'>
+<p>The domo Stream Execution ID.</p>
+</div>
+      
+    </li>
+  
+    <li>
+      
+        <span class='name'>pipeline_id</span>
+      
+      
+        <span class='type'>(<tt>String</tt>)</span>
+      
+      
+        <em class="default">(defaults to: <tt>&#39;main&#39;</tt>)</em>
+      
+      
+        &mdash;
+        <div class='inline'>
+<p>The Logstash Pipeline ID.</p>
+</div>
+      
+    </li>
+  
+    <li>
+      
+        <span class='name'>last_commit_time</span>
+      
+      
+        <span class='type'>(<tt>Time</tt>, <tt>DateTime</tt>, <tt>Integer</tt>, <tt>nil</tt>)</span>
+      
+      
+        <em class="default">(defaults to: <tt>nil</tt>)</em>
+      
+      
+        &mdash;
+        <div class='inline'>
+<p>Either nothing or something parsable into a Time object.</p>
+</div>
+      
+    </li>
+  
+</ul>
+
 
 </div><table class="source_code">
   <tr>
@@ -269,17 +372,17 @@
       <pre class="lines">
 
 
-263
-264
-265
-266
-267
-268
-269
-270</pre>
+282
+283
+284
+285
+286
+287
+288
+289</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/domo/queue/thread.rb', line 263</span>
+      <pre class="code"><span class="info file"># File 'lib/domo/queue/thread.rb', line 282</span>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_initialize'>initialize</span><span class='lparen'>(</span><span class='id identifier rubyid_dataset_id'>dataset_id</span><span class='comma'>,</span> <span class='id identifier rubyid_stream_id'>stream_id</span><span class='op'>=</span><span class='kw'>nil</span><span class='comma'>,</span> <span class='id identifier rubyid_execution_id'>execution_id</span><span class='op'>=</span><span class='kw'>nil</span><span class='comma'>,</span> <span class='id identifier rubyid_pipeline_id'>pipeline_id</span><span class='op'>=</span><span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>main</span><span class='tstring_end'>&#39;</span></span><span class='comma'>,</span> <span class='id identifier rubyid_last_commit_time'>last_commit_time</span><span class='op'>=</span><span class='kw'>nil</span><span class='rparen'>)</span>
   <span class='ivar'>@queue_name</span> <span class='op'>=</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>logstash-output-domo:</span><span class='embexpr_beg'>#{</span><span class='ivar'>@dataset_id</span><span class='embexpr_end'>}</span><span class='tstring_content'>_queue</span><span class='tstring_end'>&quot;</span></span>
@@ -338,12 +441,12 @@
       <pre class="lines">
 
 
-274
-275
-276</pre>
+293
+294
+295</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/domo/queue/thread.rb', line 274</span>
+      <pre class="code"><span class="info file"># File 'lib/domo/queue/thread.rb', line 293</span>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_execution_id'>execution_id</span>
   <span class='ivar'>@execution_id</span><span class='period'>.</span><span class='id identifier rubyid_to_i'>to_i</span> <span class='op'>==</span> <span class='int'>0</span> <span class='op'>?</span> <span class='kw'>nil</span> <span class='op'>:</span> <span class='ivar'>@execution_id</span><span class='period'>.</span><span class='id identifier rubyid_to_i'>to_i</span>
@@ -358,7 +461,7 @@
       <div class="method_details ">
   <h3 class="signature " id="failures-instance_method">
   
-    #<strong>failures</strong>  &#x21d2; <tt>Object</tt> 
+    #<strong>failures</strong>  &#x21d2; <tt><span class='object_link'><a href="FailureQueue.html" title="Domo::Queue::Threaded::FailureQueue (class)">FailureQueue</a></span></tt> 
   
 
   
@@ -367,13 +470,24 @@
 </h3><div class="docstring">
   <div class="discussion">
     
-<p>Returns the value of attribute failures</p>
-
 
   </div>
 </div>
 <div class="tags">
   
+<p class="tag_title">Returns:</p>
+<ul class="return">
+  
+    <li>
+      
+      
+        <span class='type'>(<tt><span class='object_link'><a href="FailureQueue.html" title="Domo::Queue::Threaded::FailureQueue (class)">FailureQueue</a></span></tt>)</span>
+      
+      
+      
+    </li>
+  
+</ul>
 
 </div><table class="source_code">
   <tr>
@@ -381,12 +495,12 @@
       <pre class="lines">
 
 
-261
-262
-263</pre>
+275
+276
+277</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/domo/queue/thread.rb', line 261</span>
+      <pre class="code"><span class="info file"># File 'lib/domo/queue/thread.rb', line 275</span>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_failures'>failures</span>
   <span class='ivar'>@failures</span>
@@ -412,19 +526,30 @@
   
 
   
-</h3><table class="source_code">
+</h3><div class="docstring">
+  <div class="discussion">
+    
+<p>Clear all jobs in the queue and reset @execution_id</p>
+
+
+  </div>
+</div>
+<div class="tags">
+  
+
+</div><table class="source_code">
   <tr>
     <td>
       <pre class="lines">
 
 
-283
-284
-285
-286</pre>
+303
+304
+305
+306</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/domo/queue/thread.rb', line 283</span>
+      <pre class="code"><span class="info file"># File 'lib/domo/queue/thread.rb', line 303</span>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_clear'>clear</span>
   <span class='ivar'>@jobs</span><span class='period'>.</span><span class='id identifier rubyid_clear'>clear</span>
@@ -440,7 +565,7 @@
 </div>
 
       <div id="footer">
-  Generated on Sat Mar  2 10:59:13 2019 by
+  Generated on Mon Mar  4 19:17:39 2019 by
   <a href="http://yardoc.org" title="Yay! A Ruby Documentation Tool" target="_parent">yard</a>
   0.9.16 (ruby-2.3.3).
 </div>

@@ -165,7 +165,7 @@ module Domo
         parsed_error = JSON.parse(parsed_error)
         # Return the status code and probably go cry in the corner too
         parsed_error['responseBody']['status']
-      # Sometimes API error messages come back as HTML documents
+      # Sometimes API error messages come back as HTML documents with the status code in the <title> tag O_o
       rescue JSON::ParserError => ex
         html_doc = Nokogiri::HTML(e.to_s)
         title = html_doc.xpath('//title')[0].content

@@ -308,6 +308,7 @@ module Domo
         # @param redis_client [Redis] A redis client.
         # @param dataset_id [String] The Domo Dataset ID.
         # @param pipeline_id [String] The Logstash Pipeline ID.
+        # @return [Integer, nil]
         def self.active_execution_id(redis_client, dataset_id, pipeline_id='main')
           redis_key_prefix = KEY_PREFIX_FORMAT % {:dataset_id => dataset_id}
           execution_id = redis_client.hget("#{redis_key_prefix}#{KEY_SUFFIXES[:ACTIVE_EXECUTION]}", "id")
@@ -322,26 +323,23 @@ module Domo
         # @param last_commit_time [DateTime, String, nil]
         def initialize(redis_client, dataset_id, stream_id=nil, execution_id=nil, pipeline_id='main', last_commit_time=nil)
           super(redis_client, dataset_id, stream_id, pipeline_id, last_commit_time)
-
           # Set the active Execution ID if it's not nil.
           unless execution_id.nil?
             if execution_id != self.class.active_execution_id(@client, @dataset_id, @pipeline_id)
               @client.hset("#{redis_key_prefix}#{KEY_SUFFIXES[:ACTIVE_EXECUTION]}", "id", execution_id)
             end
           end
-
           # @type [String]
           @queue_name = "#{redis_key_prefix}#{KEY_SUFFIXES[:QUEUE]}"
         end
 
         # Clear the queue. You should probably lock something if you do this.
-        #
-        # @return [nil]
         def clear
           @client.del(@queue_name)
           @client.del("#{redis_key_prefix}#{KEY_SUFFIXES[:ACTIVE_EXECUTION]}")
         end
 
+        # The {FailureQueue} associated with this queue.
         def failures
           FailureQueue.new(@client, @dataset_id, @stream_id, @pipeline_id, last_commit)
         end
@@ -362,7 +360,6 @@ module Domo
         # @param last_commit_time [DateTime, String, nil]
         def initialize(redis_client, dataset_id, stream_id=nil, pipeline_id='main', last_commit_time=nil)
           super(redis_client, dataset_id, stream_id, pipeline_id, last_commit_time)
-
           # @type [String]
           @queue_name = "#{redis_key_prefix}#{KEY_SUFFIXES[:FAILURE]}"
           if length <= 0

@@ -179,7 +179,7 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
   end
 
   public
-  # Establishes whether or not the queue is empty.
+  # Establishes whether or not the queue is empty and that there are no failed jobs.
   # @return [Boolean]
   def queue_processed?
     @queue.length <= 0 and (@queue.failures.nil? or @queue.failures.length <= 0)
@@ -213,13 +213,13 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
         raise LogStash::ConfigurationError.new("The Upload Timestamp Field named #{@upload_timestamp_field} is not present in the Dataset's schema.")
       end
     end
+    # If we're setting a Partition ID, make sure the field is actually in the Dataset.
     if @partition_field
       col_check = @dataset_columns.select { |col| col[:name] == @partition_field }
       unless col_check.length > 0
         raise LogStash::ConfigurationError.new("The Partition Field named #{@partition_field} is not present in the Dataset's schema.")
       end
     end
-
     # Distributed lock requires a redis queuing mechanism, among other things.
     if @distributed_lock
       if @redis_client.nil?
@@ -254,7 +254,7 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
 
     @queue = get_queue
     @commit_thread = nil
-    # Reset the commit status in case of abnormal terminations
+    # Reset the commit status and possibly the Queue's execution_id after possible abnormal terminations
     @lock_manager.lock(commit_lock_key, @lock_timeout) do |locked|
       if locked and @queue.commit_status == :running
         begin
@@ -274,7 +274,7 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
         end
       end
     end
-
+    # Upload any jobs that are already in the queue.
     unless queue_processed?
       send_to_domo until queue_processed?
       # Attempt a commit if there's an empty but active queue or start processing the queue if it already has jobs
@@ -293,11 +293,10 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
 
   # Sets up the appropriate queue based on our desired queue type (redis vs multi-threaded)
   #
-  # @return [Domo::Queue::ThreadedQueue, Domo::Queue::Redis::JobQueue] The appropriate queue.
+  # @return [Domo::Queue::Threaded::JobQueue, Domo::Queue::Redis::JobQueue] The appropriate queue.
   def get_queue
     # Simple multi-threaded queue.
     return @queue if @queue.is_a? Domo::Queue::ThreadedQueue
-
     if @redis_client.nil?
       queue = Domo::Queue::Threaded::JobQueue.new(@dataset_id, @stream_id, nil, pipeline_id)
     # Redis based queue.
@@ -323,6 +322,7 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
   def multi_receive(events)
     # Get the current queue
     @queue = get_queue
+    # LogStash::SHUTDOWN events will set this to true
     plugin_closing = false
 
     events.each do |event|
@@ -330,7 +330,6 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
         plugin_closing = true
         break
       end
-
       # Encode the Event data and add a job to the queue
       begin
         data = encode_event_data(event)
@@ -339,9 +338,7 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
         @queue << job
       # Reject the invalid event and send it to the DLQ if it's enabled.
       rescue ColumnTypeError => e
-        unless @dlq_writer.nil?
-          @dlq_writer.write(event, e.log_entry)
-        end
+        @dlq_writer.write(event, e.log_entry) unless @dlq_writer.nil?
         @logger.error(e.log_entry,
                       :value       => e.val,
                       :column_name => e.col_name,
@@ -353,16 +350,20 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
     # Process the queue
     send_to_domo unless queue_processed?
     # Commit
+    # Wake up sleeping commit thread if we're ready to commit
     if @commit_thread&.status == 'sleep'
       if commit_ready? or (!@distributed_lock and plugin_closing)
         @commit_thread.run
         commit_status = @commit_thread.value
       end
+    # Start a new commit thread
     elsif @commit_thread.nil? or !@commit_thread.status
       @commit_thread = Thread.new { commit_stream(plugin_closing) }
+      # Block if we're ready to commit or the plugin needs to shutdown
       if commit_ready? or (!@distributed_lock and plugin_closing)
         commit_status = @commit_thread.value
       end
+    # Block if we're ready to commit or the plugin needs to shutdown
     elsif @commit_thread&.status != 'sleep' and (commit_ready? or (!@distributed_lock and plugin_closing))
       commit_status = @commit_thread.value
     end
@@ -371,24 +372,28 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
   public
   # Send Event data using the DOMO Streams API.
   def send_to_domo
+    # Block until failed jobs are done reprocessing back into the queue
     sleep(0.1) until @queue.failures.length <= 0 or @queue.failures.processing_status != :reprocessing
-
+    # Process the queue
     loop do
+      # Update on each pass in case another thread managed to change things in a thread unsafe way
       @queue = get_queue
+      # Block the loop while commits are in progress
       sleep(0.1) until @queue.commit_status != :running
 
       break if queue_processed?
-
+      # Get the job from the queue
       job = @queue.pop
+      # If we're out of jobs, process any failures
       if job.nil?
         break if @queue.failures.length <= 0
-        # Wait and retry failures if we're into that sort of thing.
+        # Retry failures if we're into that sort of thing.
         if @retry_failures or @distributed_lock
           # Clear out or update the Job's Execution ID if its associated Stream Execution is no longer valid.
           @lock_manager.lock(lock_key, @lock_timeout) do |locked|
             break unless locked
-
             @queue = get_queue
+            # Validate the queue's StreamExecution
             unless @queue.execution_id.nil?
               stream_execution = @domo_client.stream_client.getExecution(@stream_id, @queue.execution_id)
               if not stream_execution.nil? and stream_execution.currentState == "ACTIVE"
@@ -397,13 +402,15 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
                 @queue.execution_id = nil
               end
             end
+            # Block if a commit started during the validation
             sleep(0.1) until @queue.commit_status != :running
+            # Reprocess the failed jobs
             @queue = @queue.failures.reprocess_jobs!(@queue.execution_id)
+            # Block if another thread is reprocessing the jobs
             sleep(0.1) until @queue.failures.processing_status != :reprocessing
           end
 
           break if queue_processed?
-          sleep(@retry_delay)
         # Not retrying failures? I don't know why you aren't, but ok.
         else
           commit_stream
@@ -412,8 +419,9 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
         # Restart the loop to process the failures.
         next
       end
-
+      # Process the queued job and upload its data to Domo.
       begin
+        # Block during commits
         sleep(0.1) until @queue.commit_status != :running
         # Get or create a Stream Execution
         @lock_manager.lock(lock_key, @lock_timeout) do |locked|
@@ -434,7 +442,7 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
                 stream_execution = nil
               end
             end
-            # We didn't find an execution so let's make one.
+            # We didn't find a valid execution so let's make a new one.
             if stream_execution.nil?
               until @queue.commit_status != :wait and @queue.commit_status != :running
                 sleep(0.5)
@@ -449,7 +457,6 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
             end
           end
         end
-
         # If the queue is missing an Execution ID (e.g. another worker committed the execution before we got here),
         # then it's time to defer this job to the next round of processing.
         if @queue.execution_id.nil?
@@ -458,7 +465,6 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
           @queue.unshift(job)
           next
         end
-
         # Ensure that the job has the right Execution ID and update its part number if we have to change the ID.
         if job.execution_id != @queue.execution_id
           job.execution_id = @queue.execution_id
@@ -467,7 +473,6 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
         if job.part_num.nil?
           job.part_num = @queue.part_num.incr
         end
-
         # Add a little jitter so Domo's API doesn't shit itself
         sleep(Random.new.rand(0.15))
         # Prevent a race condition when a long running commit is underway
@@ -475,7 +480,7 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
           @queue.failures << job
           next
         end
-        # Upload the job's data
+        # Upload the job's data to Domo.
         @domo_client.stream_client.uploadDataPart(@stream_id, job.execution_id, job.part_num, job.data)
         # Debug log output
         execution_id = @queue.nil? ? job.execution_id : @queue.execution_id
@@ -518,7 +523,7 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
                           :event      => job.event.to_hash,
                           :data       => job.data)
           end
-          # Something really ain't right so let's give up and optionally write the event to the DLQ.
+        # Something really ain't right so let's give up and optionally write the event to the DLQ.
         else
           log_message = "Encountered a fatal error interacting with the DOMO Streams API."
           @logger.error(log_message,
@@ -543,11 +548,12 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
     # Convert commit_delay to ms
     lock_ttl = @commit_delay * 1000
     lock_ttl = @lock_timeout if lock_ttl < @lock_timeout
-
+    # Acquire a lock to prevent other workers from executing this function.
     @commit_lock = @lock_manager.lock(commit_lock_key, lock_ttl)
+    # We'll be locking API later on
     api_lock = false
     return :wait unless @commit_lock or plugin_closing
-
+    # Keep hanging on to the commit lock until we can commit.
     while @commit_lock or (plugin_closing and !@distributed_lock)
       # Don't commit unless we're ready or shutting down Logstash
       unless commit_ready? or plugin_closing
@@ -571,6 +577,7 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
           sleep(sleep_time)
         end
       end
+      # Probably a good idea to extend the lock at this point
       @commit_lock = @lock_manager.lock(commit_lock_key, lock_ttl, extend: @commit_lock, extend_life: true)
       # TODO: Hurry up and commit when there's a distributed lock.
       # Somebody else *should* grab the lock, but testing went poorly.
@@ -578,7 +585,7 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
       # Acquire a lock on the key used for the non-commit API calls so nobody goes and creates a new Stream Execution in the middle of this.
       api_lock = @lock_manager.lock(lock_key, @lock_timeout)
       break unless api_lock
-
+      # Make sure the API lock and commit lock will last for at least the same amount of time.
       if @commit_lock[:validity] <= api_lock[:validity]
         @commit_lock = @lock_manager.lock(commit_lock_key, lock_ttl, extend: @commit_lock, extend_life: true)
       end
@@ -587,7 +594,9 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
         @queue.commit_status = :open
         break
       end
+      # Block everybody from uploading now
       @queue.commit_status = :running
+      # Do one last validation on the Stream Execution and abort if there are irregularities.
       begin
         stream_execution = @domo_client.stream_client.getExecution(@stream_id, @queue.execution_id)
       rescue Java::ComDomoSdkRequest::RequestException => e
@@ -628,7 +637,6 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
                       :execution_id => execution_id,
                       :execution    => stream_execution.to_s)
         stream_execution = @domo_client.stream_client.commitExecution(@stream_id, execution_id)
-
         # Wait until the commit is actually done processing
         while stream_execution&.currentState == "ACTIVE"
           sleep(0.5)
@@ -658,13 +666,13 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
         end
         # Pause for API lag to condition race prevent :p
         sleep(0.5)
-        # Mark the queue as committed.
+        # Mark the queue as successfully committed.
         @queue.commit
+        @queue.commit_status = :success
         @logger.info("Committed Execution ID for #{execution_id} for Stream ID #{@stream_id}.",
                       :stream_id        => @stream_id,
                       :execution_id     => execution_id,
                       :execution        => stream_execution.to_s)
-        @queue.commit_status = :success
       else
         @logger.warn("Stream Execution ID #{stream_execution.getId} for Stream ID #{@stream_id} could not be committed or aborted because its state is #{stream_execution.currentState}",
                      :stream_id        => @stream_id,
@@ -677,13 +685,13 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
       @queue.execution_id = nil unless @queue.commit_status == :success
       break
     end
-
+    # Unlock all the locks
     @lock_manager.unlock(api_lock) if api_lock
     if @commit_lock
       @commit_thread = nil
       @lock_manager.unlock(@commit_lock)
     end
-
+    # Return the status of the commit.
     @queue.commit_status
   end
 

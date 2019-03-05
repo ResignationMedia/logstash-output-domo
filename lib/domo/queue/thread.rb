@@ -32,10 +32,10 @@ module Domo
       end
     end
 
-    # Emulates the portions of the Redlock::Client API we care about,
-    # but using Mutexes for locking.
-    # Used with a {ThreadedQueue}.
+    # Provides full public API compatibility with Redlock::Client
+    # using Mutexes for locking instead of redis instances.
     class ThreadLockManager
+      # @return [Concurrent::Hash<Mutex>]
       attr_reader :locks
 
       # @param locks [Concurrent::Hash, nil]
@@ -47,7 +47,8 @@ module Domo
 
       # Lock the Mutex named resource and yield or return the status of the lock
       #
-      # @param resource [String] The name of the Mutex lock.
+      # @param resource [String] The key name in @locks for the Mutex
+      # @param extend_life [Boolean] Extend the life of the lock if this thread is holding it.
       # @return [Mutex] The Mutex lock.
       def lock(resource, *args, extend_life: false, **kwargs)
         # Get or create the Mutex
@@ -69,6 +70,12 @@ module Domo
         end
       end
 
+      # Get a Hash with the same keys as Redlock's lock_info Hash
+      #
+      # @param lock [Mutex] The associated Mutex lock.
+      # @param resource [String] The key in the @locks Hash housing the lock.
+      # @param extend_life [Boolean] Don't try to lock the Mutex if the caller is "extending" the lock.
+      #   We need this for Redlock compatibility.
       def lock_info(lock, resource, extend_life: false)
         if lock&.locked? and not extend_life
           return false unless lock.try_lock
@@ -171,7 +178,7 @@ module Domo
         @commit_status = :open
       end
 
-      # Update the last_commit instance variable in a Thread safe manner.
+      # Update the last_commit instance variable as a Time object with variable input data types.
       #
       # @param last_commit [Object] A Time object, nil, or something we can hopefully parse into a Time object.
       def set_last_commit(last_commit=nil)
