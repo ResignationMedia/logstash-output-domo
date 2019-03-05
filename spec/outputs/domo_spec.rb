@@ -32,7 +32,6 @@ RSpec.shared_examples "LogStash::Outputs::Domo" do
       subject.multi_receive(events)
       sleep(0.1) until subject.queue_processed?
       wait_for_commit(subject)
-      puts "hello"
 
       expected_domo_data = events.map do |event|
         e = event_to_domo_hash(event)
@@ -156,9 +155,7 @@ RSpec.shared_examples "LogStash::Outputs::Domo" do
         expected_domo_data += expected_domo_data
 
         subject.multi_receive(events)
-        puts "Closed?"
         wait_for_commit(subject, true)
-        puts "Commit thread done and close?"
         expect(subject.instance_variable_get(:@logger)).to have_received(:debug).with(/The API is not ready for committing yet/, anything).once
 
         commit_thread = subject.instance_variable_get(:@commit_thread)
@@ -166,7 +163,6 @@ RSpec.shared_examples "LogStash::Outputs::Domo" do
 
         subject.multi_receive(events)
         wait_for_commit(subject, true)
-        puts "Commit thread done and close?"
         expect(subject.instance_variable_get(:@logger)).to have_received(:debug).with(/The API is not ready for committing yet/, anything).twice
 
         # commit_thread = subject.instance_variable_get(:@commit_thread)
@@ -284,7 +280,6 @@ end
 
 describe LogStash::Outputs::Domo do
   before(:each) do |example|
-    puts "About to run #{example.full_description}"
     subject.register unless example.metadata[:skip_before]
   end
 

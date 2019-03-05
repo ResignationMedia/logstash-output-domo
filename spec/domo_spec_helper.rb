@@ -132,7 +132,6 @@ module DomoHelper
 
   def check_dataset(domo_client, dataset_id)
     dataset = domo_client.dataSetClient.get(dataset_id)
-    puts dataset
     !!dataset
   end
 
@@ -310,19 +309,13 @@ module DomoHelper
         end
       end
       unless should_fail
-        # puts "Actual data length: #{data.length}"
-        # puts "Expected data length: #{expected_data.length}"
         puts "-----"
-        # puts "Actual Data"
-        # puts data
         puts "Actual data length: #{data.length}"
         puts "Expected data length: #{expected_data.length}"
         puts "-----"
         puts "Missing Data"
         puts missing_data
         puts "-----"
-        # puts "Expected data"
-        # puts expected_data
       end
       return false
     end
