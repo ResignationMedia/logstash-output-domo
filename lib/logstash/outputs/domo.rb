@@ -634,9 +634,19 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
         # Start the commit
         @logger.debug("Beginning commit of Stream Execution #{execution_id} for Stream ID #{@stream_id}.",
                       :stream_id    => @stream_id,
+                      :pipeline_id  => pipeline_id,
                       :execution_id => execution_id,
                       :execution    => stream_execution.to_s)
-        stream_execution = @domo_client.stream_client.commitExecution(@stream_id, execution_id)
+        stream_execution = Concurrent::Future.execute { @domo_client.stream_client.commitExecution(@stream_id, execution_id) }
+        until stream_execution.complete?
+          sleep(0.5)
+          # Keep the locks active
+          if @commit_lock[:validity] <= 1000 or api_lock[:validity] <= 1000
+            @commit_lock = @lock_manager.lock(commit_lock_key, lock_ttl, extend: @commit_lock, extend_life: true)
+            api_lock = @lock_manager.lock(lock_key, @lock_timeout, extend: api_lock, extend_life: true)
+          end
+        end
+        stream_execution = stream_execution.value
         # Wait until the commit is actually done processing
         while stream_execution&.currentState == "ACTIVE"
           sleep(0.5)
@@ -671,11 +681,13 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
         @queue.commit_status = :success
         @logger.info("Committed Execution ID for #{execution_id} for Stream ID #{@stream_id}.",
                       :stream_id        => @stream_id,
+                      :pipeline_id      => pipeline_id,
                       :execution_id     => execution_id,
                       :execution        => stream_execution.to_s)
       else
         @logger.warn("Stream Execution ID #{stream_execution.getId} for Stream ID #{@stream_id} could not be committed or aborted because its state is #{stream_execution.currentState}",
                      :stream_id        => @stream_id,
+                     :pipeline_id      => pipeline_id,
                      :execution_id     => stream_execution.getId,
                      :execution_state  => stream_execution.currentState,
                      :execution        => stream_execution.to_s)

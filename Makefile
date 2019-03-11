@@ -14,15 +14,21 @@ else
 ARGS =
 endif
 
+ifdef KEEP_FAILED_DATASETS
+RUN_ARGS = -e KEEP_FAILED_DATASETS=1
+else
+RUN_ARGS =
+endif
+
 test : clean
-	-docker-compose run --rm test bundle exec rspec --backtrace --format documentation$(ARGS)$(TAGS)
+	-docker-compose run $(RUN_ARGS) --rm test bundle exec rspec --backtrace --format documentation$(ARGS)$(TAGS)
 	docker-compose down
 
 redlock-test : clean
 ifeq ($(TAGS),)
-	-docker-compose run --rm test bundle exec rspec --backtrace --format documentation$(ARGS) --tag redis_queue --tag redlock --tag ~thread_lock
+	-docker-compose run $(RUN_ARGS) --rm test bundle exec rspec --backtrace --format documentation$(ARGS) --tag redis_queue --tag redlock --tag ~thread_lock
 else
-	-docker-compose run --rm test bundle exec rspec --backtrace --format documentation$(ARGS)$(TAGS)
+	-docker-compose run $(RUN_ARGS) --rm test bundle exec rspec --backtrace --format documentation$(ARGS)$(TAGS)
 endif
 	docker-compose down
 

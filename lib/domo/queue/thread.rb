@@ -80,7 +80,13 @@ module Domo
         if lock&.locked? and not extend_life
           return false unless lock.try_lock
         end
-        lock.lock unless extend_life
+        unless extend_life
+          begin
+            lock.lock
+          rescue ThreadError => e
+            raise e unless e.to_s == 'Mutex relocking by same thread'
+          end
+        end
         {
             validity: Float::INFINITY,
             resource: resource,
