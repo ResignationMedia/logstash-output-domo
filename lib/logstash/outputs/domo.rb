@@ -562,6 +562,7 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
         unless sleep_time <= 0
           @logger.debug("The API is not ready for committing yet. Will sleep for %0.2f seconds." % [sleep_time],
                         :stream_id    => @stream_id,
+                        :pipeline_id  => pipeline_id,
                         :dataset_id   => @dataset_id,
                         :execution_id => @queue.execution_id,
                         :commit_delay => @commit_delay,
@@ -624,6 +625,7 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
         @domo_client.stream_client.abortExecution(@stream_id, stream_execution.getId)
         @logger.error("Execution ID for #{stream_execution.getId} for Stream ID #{@stream_id} was aborted due to an error.",
                       :stream_id        => @stream_id,
+                      :dataset_id       => @dataset_id,
                       :execution_id     => stream_execution.getId,
                       :execution_state  => stream_execution.currentState,
                       :execution        => stream_execution.to_s)
@@ -635,6 +637,7 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
         @logger.debug("Beginning commit of Stream Execution #{execution_id} for Stream ID #{@stream_id}.",
                       :stream_id    => @stream_id,
                       :pipeline_id  => pipeline_id,
+                      :dataset_id   => @dataset_id,
                       :execution_id => execution_id,
                       :execution    => stream_execution.to_s)
         stream_execution = Concurrent::Future.execute { @domo_client.stream_client.commitExecution(@stream_id, execution_id) }
@@ -682,12 +685,14 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
         @logger.info("Committed Execution ID for #{execution_id} for Stream ID #{@stream_id}.",
                       :stream_id        => @stream_id,
                       :pipeline_id      => pipeline_id,
+                      :dataset_id       => @dataset_id,
                       :execution_id     => execution_id,
                       :execution        => stream_execution.to_s)
       else
         @logger.warn("Stream Execution ID #{stream_execution.getId} for Stream ID #{@stream_id} could not be committed or aborted because its state is #{stream_execution.currentState}",
                      :stream_id        => @stream_id,
                      :pipeline_id      => pipeline_id,
+                     :dataset_id       => @dataset_id,
                      :execution_id     => stream_execution.getId,
                      :execution_state  => stream_execution.currentState,
                      :execution        => stream_execution.to_s)
