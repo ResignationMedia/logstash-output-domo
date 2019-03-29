@@ -25,8 +25,7 @@ DROP TABLE IF EXISTS `data_parts`;
 CREATE TABLE `data_parts` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `stream_execution_id` int(11) NOT NULL,
-  `part_num` int(11) NOT NULL,
-  `active` tinyint(1) NOT NULL DEFAULT '1',
+  `part_id` int(11) NOT NULL,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
@@ -75,4 +74,4 @@ CREATE TABLE `streams` (
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2019-03-28 18:50:49
+-- Dump completed on 2019-03-28 22:52:26

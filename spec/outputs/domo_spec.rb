@@ -310,7 +310,7 @@ describe CoreExtensions, extensions: true do
   end
 end
 
-describe Domo::Models::Stream, models: true do
+describe Domo::Models, models: true do
   let(:database_config) do
     {
         :adapter  => "mysql2",
@@ -333,14 +333,7 @@ describe Domo::Models::Stream, models: true do
   end
   let(:data_part) do
     Domo::Models::DataPart.new do |d|
-      d.part_num = 1
-    end
-  end
-
-  subject do
-    Domo::Models::Stream.new do |s|
-      s.dataset_id = "abc"
-      s.stream_id = 1
+      d.part_id = 1
     end
   end
 
@@ -348,15 +341,71 @@ describe Domo::Models::Stream, models: true do
     ActiveRecord::Base.establish_connection(database_config)
   end
 
+  after(:each) do
+    stream.delete
+  end
+
+  describe Domo::Models::Stream do
+    subject do
+      stream.save
+      stream
+    end
+
+    it "is aware of its active executions" do
+      subject.stream_executions << stream_execution
+      subject.save
+
+      new_stream = Domo::Models::Stream.new do |s|
+        s.dataset_id = "cba"
+        s.stream_id = 2
+      end
+      new_stream_execution = Domo::Models::StreamExecution.new do |se|
+        se.execution_id = 10
+      end
+      new_stream.stream_executions << new_stream_execution
+      new_stream.save
+
+      expect(subject.active_execution).to_not eq(new_stream_execution)
+      expect(new_stream.active_execution).to_not eq(stream_execution)
+
+      expect(subject.active_execution).to eq(stream_execution)
+      expect(new_stream.active_execution).to eq(new_stream_execution)
+    end
+
+    it "knows how to commit" do
+      subject.stream_executions << stream_execution
+      subject.save
+
+      expect(subject.commit_ready?).to be(true)
+      expect(subject.last_commit).to be(nil)
+      expect(subject.active_execution).to eq(stream_execution)
+
+      last_commit = subject.last_commit
+      timestamp = Time.now.utc
+      subject.commit!(timestamp)
+
+      expect(subject.last_commit).not_to eq(last_commit)
+      expect(subject.last_commit).to eq(timestamp.to_i)
+      expect(Domo::Models::StreamExecution.processing(subject.id).length).to eq(0)
+      expect(subject.commit_ready?(1000)).to be(false)
+      expect(subject.commit_ready?(0)).to be(true)
+      expect(subject.active_execution).to be(nil)
+    end
+  end
+
   it "saves the data models" do
     stream.save
+    check_stream = Domo::Models::Stream.find_by(dataset_id: stream.dataset_id)
+    expect(stream).to eq(check_stream)
 
     stream.stream_executions << stream_execution
     stream.save
+    expect(stream.stream_executions.length).to eq(1)
 
     stream_execution = stream.stream_executions[0]
     stream_execution.data_parts << data_part
     stream_execution.save
+    expect(stream_execution.data_parts.length).to eq(1)
   end
 end
 

@@ -4,10 +4,10 @@ require "date"
 module Domo
   module Models
     class Stream < ActiveRecord::Base
-      has_many :stream_executions
+      has_many :stream_executions, autosave: true
 
       def active_execution
-        active_executions = :stream_executions.select { |se| se.active }
+        active_executions = stream_executions.where(active: true)
         if active_executions.nil? or active_executions.length <= 0
           return
         end
@@ -16,31 +16,25 @@ module Domo
 
       def commit_ready?(commit_delay=nil)
         return true if commit_delay.nil? or commit_delay == 0 or last_commit.nil?
-        return true if last_commit + commit_delay <= Time.now.utc
+        return true if last_commit + commit_delay <= Time.now.utc.to_i
         false
       end
 
-      def commit(timestamp=nil)
+      def commit!(timestamp=nil)
         timestamp = Time.now.utc if timestamp.nil?
         update_attribute(:last_commit, timestamp)
-        StreamExecution.processing(:id).each do |se|
+
+        stream_executions.each do |se|
           se.update_attribute(:active, false)
         end
+        save
       end
     end
 
     class StreamExecution < ActiveRecord::Base
-      has_many :data_parts
-      after_save :invalidate_data_parts, unless: :active
+      has_many :data_parts, dependent: :delete_all
 
       scope :processing, ->(stream_id) { where("active = 1 AND stream_id = ?", stream_id) }
-
-      private
-      def invalidate_data_parts
-        :data_parts.each do |dp|
-          dp.update_attribute(:active, false)
-        end
-      end
     end
 
     class DataPart < ActiveRecord::Base
