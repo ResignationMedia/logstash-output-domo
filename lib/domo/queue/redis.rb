@@ -9,14 +9,19 @@ module Domo
       # Constructor
       #
       # @param client [Redis]
+      # @param queue [RedisQueue]
       # @param key_name [String]
       # @param initial_value [Integer, nil]
-      def initialize(client, key_name, initial_value=nil)
+      def initialize(client, queue, key_name, initial_value=nil)
         super()
         # @type [Redis]
         @client = client
         # @type [String]
         @key_name = key_name
+        # @type [RedisQueue]
+        @queue = queue
+        # @type [Integer]
+        @execution_id = queue.execution_id
 
         if get.nil? or !initial_value.nil?
           initial_value = initial_value.nil? ? 0 : initial_value
@@ -26,17 +31,17 @@ module Domo
 
       # @return [Integer]
       def incr
-        @client.incr(@key_name)
+        @client.hincrby(@queue.active_execution, @key_name, 1)
       end
 
       # @return [Integer]
       def get
-        @client.get(@key_name)
+        @client.hget(@queue.active_execution, @key_name)
       end
 
       # @param value [Integer, String]
       def set(value)
-        _ = @client.getset(@key_name, value.to_s)
+        @client.hset(@queue.active_execution, @key_name, value.to_s)
       end
     end
 
@@ -59,57 +64,13 @@ module Domo
       attr_reader :pipeline_id
       # @return [Redis] An initialized redis client
       attr_reader :client
-      # @return [String] The Domo Dataset ID
-      attr_reader :dataset_id
-      # @return [Integer] The Domo Stream ID
-      attr_reader :stream_id
+      # @return [Domo::Models::Stream] The Domo Stream
+      attr_reader :stream
       # @return [String] The redis key for the part number.
       attr_reader :part_num_key
 
       attr_accessor :part_num
-
-      # Get the last time a commit was fired
-      #
-      # @return [Time]
-      def last_commit
-        last_commit = @client.hget("#{redis_key_prefix}#{KEY_SUFFIXES[:ACTIVE_EXECUTION]}", "last_commit")
-        return if last_commit.nil?
-        # Convert last_commit into a Time object
-        begin
-          last_commit = Integer(last_commit)
-          last_commit = Time.at(last_commit)
-        # Or clear garbage data out of redis and set it to nil
-        rescue TypeError => e
-          last_commit = nil
-        end
-        last_commit
-      end
-
-      # Update the last_commit timestamp
-      #
-      # @param last_commit_time [DateTime, Time, Date, String]
-      def set_last_commit(last_commit_time=nil)
-        if last_commit_time.nil?
-          last_commit_time = Time.now.utc
-        else
-          case last_commit_time.class
-          when DateTime
-            last_commit_time = last_commit_time.to_time
-          when Date
-            last_commit_time = last_commit_time.to_time
-          when String
-            last_commit_time = DateTime.parse(last_commit_time).to_time
-          when Integer
-            last_commit_time = Time.at(last_commit_time)
-          when Float
-            last_commit_time = Time.at(last_commit_time)
-          else
-            last_commit_time = last_commit_time
-          end
-        end
-        # Store the commit time in redis as a UNIX timestamp
-        @client.hset("#{redis_key_prefix}#{KEY_SUFFIXES[:ACTIVE_EXECUTION]}", "last_commit", last_commit_time.to_i)
-      end
+      attr_accessor :stream_execution
 
       # @!attribute [r] commit_status
       # The status of the commit operation.
@@ -132,18 +93,27 @@ module Domo
         KEY_PREFIX_FORMAT % {:dataset_id => @dataset_id}
       end
 
+      # @!attribute [r] execution_id
+      # The active Stream Execution ID (if available)
+      # @return [Integer, nil]
+      def execution_id
+        @stream_execution.execution_id unless @stream_execution.nil?
+      end
+
       # @param redis_client [Redis]
-      # @param dataset_id [String]
-      # @param stream_id [Integer, nil]
+      # @param stream [Domo::Models::Stream]
       # @param pipeline_id [String, nil]
-      # @param last_commit_time [DateTime, nil] The last time a commit API event was fired
-      def initialize(redis_client, dataset_id, stream_id=nil, pipeline_id='main', last_commit_time=nil)
+      def initialize(redis_client, stream, pipeline_id='main')
         # @type [Redis]
         @client = redis_client
+        # @type [Domo::Models::Stream]
+        @stream = stream
+        # @type [Domo::Models::StreamExecution]
+        @stream_execution = @stream.active_execution
         # @type [String]
-        @dataset_id = dataset_id
+        @dataset_id = @stream.dataset_id
         # @type [Integer]
-        @stream_id = stream_id
+        @stream_id = @stream.stream_id
         # @type [String]
         @pipeline_id = pipeline_id
         # @type [String]
@@ -152,8 +122,6 @@ module Domo
         # part_num = @client.get(@part_num_key)
         # part_num = 0 unless part_num
         @part_num = RedisPartNumber.new(@client, @part_num_key)
-
-        set_last_commit(last_commit_time)
       end
 
       # Check if there are any items in the queue.
@@ -271,64 +239,36 @@ module Domo
     module Redis
       # Manages a redis-based queue for sending Logstash Events to Domo
       class JobQueue < RedisQueue
-        # @!attribute [r] execution_id
-        # The active Stream Execution ID (if available)
-        # @return [Integer, nil]
-        def execution_id
-          execution_id = @client.hget("#{redis_key_prefix}#{KEY_SUFFIXES[:ACTIVE_EXECUTION]}", "id")
-          execution_id.to_i == 0 ? nil : execution_id.to_i
-        end
-
-        # @!attribute [w]
-        def execution_id=(execution_id)
-          if execution_id.nil? or execution_id == 0
-            @client.hdel("#{redis_key_prefix}#{KEY_SUFFIXES[:ACTIVE_EXECUTION]}", "id")
-          else
-            @client.hset("#{redis_key_prefix}#{KEY_SUFFIXES[:ACTIVE_EXECUTION]}", "id", execution_id)
-          end
-        end
-
         # Find an active JobQueue associated with the provided Stream and Dataset.
         #
         # @param redis_client [Redis] A redis client.
-        # @param dataset_id [String] The Domo Dataset ID.
-        # @param stream_id [Integer] The Domo Stream ID.
+        # @param stream [Domo::Models::Stream]
         # @param pipeline_id [String] The Logstash Pipeline ID.
         # @return [JobQueue]
-        def self.active_queue(redis_client, dataset_id, stream_id=nil, pipeline_id='main')
-          redis_key_prefix = KEY_PREFIX_FORMAT % {:dataset_id => dataset_id}
+        def self.active_queue(redis_client, stream, pipeline_id='main')
+          redis_key_prefix = KEY_PREFIX_FORMAT % {:dataset_id => stream.dataset_id}
 
-          execution_id = self.active_execution_id(redis_client, dataset_id, pipeline_id)
-          last_commit = redis_client.hget("#{redis_key_prefix}#{KEY_SUFFIXES[:ACTIVE_EXECUTION]}", "last_commit")
-          self.new(redis_client, dataset_id, stream_id, execution_id, pipeline_id, last_commit)
+          execution_id = self.active_execution_id(redis_client, stream, pipeline_id)
+          self.new(redis_client, stream, execution_id, pipeline_id)
         end
 
         # Get the active Stream Execution ID for the provided Stream's JobQueue.
         #
         # @param redis_client [Redis] A redis client.
-        # @param dataset_id [String] The Domo Dataset ID.
+        # @param stream [Domo::Models::Stream]
         # @param pipeline_id [String] The Logstash Pipeline ID.
         # @return [Integer, nil]
-        def self.active_execution_id(redis_client, dataset_id, pipeline_id='main')
-          redis_key_prefix = KEY_PREFIX_FORMAT % {:dataset_id => dataset_id}
+        def self.active_execution_id(redis_client, stream, pipeline_id='main')
+          redis_key_prefix = KEY_PREFIX_FORMAT % {:dataset_id => stream.dataset_id}
           execution_id = redis_client.hget("#{redis_key_prefix}#{KEY_SUFFIXES[:ACTIVE_EXECUTION]}", "id")
           execution_id.to_i == 0 ? nil : execution_id.to_i
         end
 
         # @param redis_client [Redis]
-        # @param dataset_id [String]
-        # @param stream_id [Integer, nil]
-        # @param execution_id [Integer, nil]
+        # @param stream [Domo::Models::Stream]
         # @param pipeline_id [String, nil]
-        # @param last_commit_time [DateTime, String, nil]
-        def initialize(redis_client, dataset_id, stream_id=nil, execution_id=nil, pipeline_id='main', last_commit_time=nil)
-          super(redis_client, dataset_id, stream_id, pipeline_id, last_commit_time)
-          # Set the active Execution ID if it's not nil.
-          unless execution_id.nil?
-            if execution_id != self.class.active_execution_id(@client, @dataset_id, @pipeline_id)
-              @client.hset("#{redis_key_prefix}#{KEY_SUFFIXES[:ACTIVE_EXECUTION]}", "id", execution_id)
-            end
-          end
+        def initialize(redis_client, stream, pipeline_id='main')
+          super(redis_client, stream, pipeline_id)
           # @type [String]
           @queue_name = "#{redis_key_prefix}#{KEY_SUFFIXES[:QUEUE]}"
         end
@@ -341,7 +281,7 @@ module Domo
 
         # The {FailureQueue} associated with this queue.
         def failures
-          FailureQueue.new(@client, @dataset_id, @stream_id, @pipeline_id, last_commit)
+          FailureQueue.new(@client, @stream, @pipeline_id)
         end
       end
 
@@ -350,16 +290,14 @@ module Domo
         # @param job_queue [JobQueue]
         # @return [FailureQueue]
         def self.from_job_queue!(job_queue)
-          self.new(job_queue.client, job_queue.dataset_id, job_queue.stream_id, job_queue.pipeline_id, job_queue.last_commit)
+          self.new(job_queue.client, job_queue.stream, job_queue.pipeline_id)
         end
 
         # @param redis_client [Redis]
-        # @param dataset_id [String]
-        # @param stream_id [Integer, nil]
+        # @param stream [Domo::Models::Stream]
         # @param pipeline_id [String, nil]
-        # @param last_commit_time [DateTime, String, nil]
-        def initialize(redis_client, dataset_id, stream_id=nil, pipeline_id='main', last_commit_time=nil)
-          super(redis_client, dataset_id, stream_id, pipeline_id, last_commit_time)
+        def initialize(redis_client, stream, pipeline_id='main')
+          super(redis_client, stream, pipeline_id)
           # @type [String]
           @queue_name = "#{redis_key_prefix}#{KEY_SUFFIXES[:FAILURE]}"
           if length <= 0
@@ -378,7 +316,7 @@ module Domo
         def job_queue
           queue = JobQueue.active_queue(@client, @dataset_id, @stream_id, @pipeline_id)
           return queue unless queue.nil?
-          JobQueue.new(@client, @dataset_id, @stream_id, nil, @pipeline_id, last_commit)
+          JobQueue.new(@client, @stream, nil, @pipeline_id)
         end
 
         # @!attribute [r] processing_status

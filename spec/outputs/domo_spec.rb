@@ -1,7 +1,10 @@
 # encoding: utf-8
+require "active_record"
+require "activerecord-jdbc-adapter"
 require "java"
 require "logstash/devutils/rspec/spec_helper"
 require "domo/queue"
+require "domo/models"
 require "logstash/outputs/domo"
 require "logstash/event"
 require "core_extensions/flatten"
@@ -165,9 +168,6 @@ RSpec.shared_examples "LogStash::Outputs::Domo" do
         wait_for_commit(subject, true)
         expect(subject.instance_variable_get(:@logger)).to have_received(:debug).with(/The API is not ready for committing yet/, anything).twice
 
-        # commit_thread = subject.instance_variable_get(:@commit_thread)
-        # sleep(0.1) while commit_thread&.status
-
         expect(dataset_data_match?(domo_client, dataset_id, expected_domo_data)).to be(true)
       end
 
@@ -205,6 +205,38 @@ RSpec.shared_examples "LogStash::Outputs::Domo" do
         subject.close
         commit_thread.join
 
+        expect(dataset_data_match?(domo_client, dataset_id, expected_domo_data)).to be(true)
+      end
+    end
+
+    context "when there is an upload batch size", commit_delay: true, slow: true, upload_batch: true do
+      let(:config) do
+        global_config.clone.merge(
+            {
+                "commit_delay" => 100,
+                "upload_batch_size" => 20,
+            }
+        )
+      end
+
+      it "honors the batch size" do
+        batch_events = (1..40).map do |i|
+          LogStash::Event.new("Event Name"      => i.to_s,
+                              "Count"           => i,
+                              "Event Timestamp" => LogStash::Timestamp.now,
+                              "Event Date"      => Date.today.to_s,
+                              "Percent"         => ((i.to_f/200)*100).round(2))
+        end
+        expected_domo_data = batch_events.map { |event| event_to_domo_hash(event) }
+
+        queue = subject.instance_variable_get(:@queue)
+        subject.multi_receive(batch_events)
+        execution_id = queue.execution_id
+        wait_for_commit(subject, true)
+
+        expect(dataset_data_match?(domo_client, dataset_id, expected_domo_data.slice(0..19))).to be(true)
+        sleep(0.1) until queue.execution_id != execution_id
+        wait_for_commit(subject, true)
         expect(dataset_data_match?(domo_client, dataset_id, expected_domo_data)).to be(true)
       end
     end
@@ -275,6 +307,56 @@ describe CoreExtensions, extensions: true do
     expect(flattened_event).not_to eq(subject)
     expect(flattened_event).to be_a(Hash)
     expect(flattened_event).not_to satisfy("not have sub-hashes") { |v| v.any? { |k, v| v.is_a? Hash } }
+  end
+end
+
+describe Domo::Models::Stream, models: true do
+  let(:database_config) do
+    {
+        :adapter  => "mysql2",
+        :host     => "mysql",
+        :username => "root",
+        :password => "root",
+        :database => "domo",
+    }
+  end
+  let(:stream) do
+    Domo::Models::Stream.new do |s|
+      s.dataset_id = "abc"
+      s.stream_id = 1
+    end
+  end
+  let(:stream_execution) do
+    Domo::Models::StreamExecution.new do |se|
+      se.execution_id = 1
+    end
+  end
+  let(:data_part) do
+    Domo::Models::DataPart.new do |d|
+      d.part_num = 1
+    end
+  end
+
+  subject do
+    Domo::Models::Stream.new do |s|
+      s.dataset_id = "abc"
+      s.stream_id = 1
+    end
+  end
+
+  before(:each) do
+    ActiveRecord::Base.establish_connection(database_config)
+  end
+
+  it "saves the data models" do
+    stream.save
+
+    stream.stream_executions << stream_execution
+    stream.save
+
+    stream_execution = stream.stream_executions[0]
+    stream_execution.data_parts << data_part
+    stream_execution.save
   end
 end
 

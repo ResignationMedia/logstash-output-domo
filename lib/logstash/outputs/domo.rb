@@ -2,6 +2,8 @@
 require "logstash/outputs/base"
 require "logstash/namespace"
 require "core_extensions/flatten"
+require "active_record"
+require "activerecord-jdbc-adapter"
 require "concurrent"
 require "csv"
 require "java"
@@ -9,6 +11,7 @@ require "redis"
 require "redlock"
 require "thread"
 require "domo/client"
+require "domo/models"
 require "domo/queue/redis"
 require "domo/queue/thread"
 require "logstash-output-domo_jars.rb"
@@ -53,6 +56,10 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
   # Use TLS for API requests
   config :api_ssl, :validate => :boolean, :default => true
 
+  # The maximum size of a Data Part before triggering a commit.
+  # If the commit would occur before the commit_delay is up, then a new Data Part will be created without committing.
+  config :upload_batch_size, :validate => :number, :default => 10000
+
   # The amount of time (seconds) to wait between Stream commits.
   # Data will continue to be uploaded until the delay has passed and the queue has empty.
   # Domo Support recommends setting this to at least 15 minutes.
@@ -88,6 +95,20 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
   # The delay (ms) on retrying acquiring the lock.
   # The default matches the default for the distributed locking library (redlock)
   config :lock_retry_delay, :validate => :number, :default => 200
+
+  # The connection information for the MySQL database. Only needed with distributed locking.
+  #
+  # Example configuration is below. Any valid arguments (except adapter) for ActiveRecord::Base.establish_connection will work.
+  # [source,ruby]
+  # ----------------------------------
+  # database_client => {
+  #   "host"     => "localhost"
+  #   "username" => "user"
+  #   "password" => "password"
+  #   "database" => "logstash-output-domo"
+  # }
+  # -----------------------
+  config :database_client, :validate => :hash
 
   # An array of redis hosts (using the redis:// URI syntax) to connect to for the distributed lock
   #
@@ -222,6 +243,18 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
     end
     # Distributed lock requires a redis queuing mechanism, among other things.
     if @distributed_lock
+      if @database_client.nil?
+        raise LogStash::ConfigurationError.new("The database_client parameter is required when using distributed_lock")
+      else
+        begin
+          @database_client = @database_client.inject({}) {|memo, (k, v)| memo[k.to_sym] = v; memo}
+          @database_client[:adapter] = "mysql"
+        rescue Exception
+          raise LogStash::ConfigurationError.new("The provided database_client parameter is invalid.")
+        end
+        @database_client = ActiveRecord::Base.establish_connection(@database_client)
+      end
+
       if @redis_client.nil?
         raise LogStash::ConfigurationError.new("The redis_client parameter is required when using distributed_lock")
       else
@@ -301,13 +334,14 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
       queue = Domo::Queue::Threaded::JobQueue.new(@dataset_id, @stream_id, nil, pipeline_id)
     # Redis based queue.
     else
+      stream = Domo::Models::Stream.find_or_create_by(dataset_id: @dataset_id, stream_id: @stream_id)
       # Attempt to load the queue from redis in case there are still active jobs.
-      queue = Domo::Queue::Redis::JobQueue.active_queue(@redis_client, @dataset_id, @stream_id, pipeline_id)
+      queue = Domo::Queue::Redis::JobQueue.active_queue(@redis_client, stream, pipeline_id)
       # If we can't find one, let's make one
       if queue.nil?
         begin
           queue = @lock_manager.lock!(lock_key, @lock_timeout) do |locked|
-            Domo::Queue::Redis::JobQueue.new(@redis_client, @dataset_id, @stream_id, nil, pipeline_id)
+            Domo::Queue::Redis::JobQueue.new(@redis_client, stream, pipeline_id)
           end
         rescue Redlock::LockError => e
           raise e if @queue.nil?
