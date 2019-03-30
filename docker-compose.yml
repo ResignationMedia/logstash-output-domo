@@ -18,22 +18,11 @@ services:
       - DEFAULT_REDIS_HOST=redis1
       - DEFAULT_REDIS_PORT=6379
     depends_on:
-      - mysql
       - redis1
       - redis2
       - sentinel1
       - sentinel2
       - sentinel3
-  mysql:
-    image: percona:5.7
-    restart: always
-    environment:
-      MYSQL_ROOT_PASSWORD: root
-      MYSQL_DATABASE: domo
-      MYSQL_USER: domo
-      MYSQL_PASSWORD: domo
-    volumes:
-      - ./testing/mysql:/docker-entrypoint-initdb.d
   redis1:
     build:
       context: .

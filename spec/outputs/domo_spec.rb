@@ -1,10 +1,7 @@
 # encoding: utf-8
-require "active_record"
-require "activerecord-jdbc-adapter"
 require "java"
 require "logstash/devutils/rspec/spec_helper"
 require "domo/queue"
-require "domo/models"
 require "logstash/outputs/domo"
 require "logstash/event"
 require "core_extensions/flatten"
@@ -85,7 +82,7 @@ RSpec.shared_examples "LogStash::Outputs::Domo" do
     end
   end
 
-  context "when receiving multiple events" do
+  context "when receiving multiple events", multi: true do
     let(:config) do
       global_config
     end
@@ -310,105 +307,6 @@ describe CoreExtensions, extensions: true do
   end
 end
 
-describe Domo::Models, models: true do
-  let(:database_config) do
-    {
-        :adapter  => "mysql2",
-        :host     => "mysql",
-        :username => "root",
-        :password => "root",
-        :database => "domo",
-    }
-  end
-  let(:stream) do
-    Domo::Models::Stream.new do |s|
-      s.dataset_id = "abc"
-      s.stream_id = 1
-    end
-  end
-  let(:stream_execution) do
-    Domo::Models::StreamExecution.new do |se|
-      se.execution_id = 1
-    end
-  end
-  let(:data_part) do
-    Domo::Models::DataPart.new do |d|
-      d.part_id = 1
-    end
-  end
-
-  before(:each) do
-    ActiveRecord::Base.establish_connection(database_config)
-  end
-
-  after(:each) do
-    stream.delete
-  end
-
-  describe Domo::Models::Stream do
-    subject do
-      stream.save
-      stream
-    end
-
-    it "is aware of its active executions" do
-      subject.stream_executions << stream_execution
-      subject.save
-
-      new_stream = Domo::Models::Stream.new do |s|
-        s.dataset_id = "cba"
-        s.stream_id = 2
-      end
-      new_stream_execution = Domo::Models::StreamExecution.new do |se|
-        se.execution_id = 10
-      end
-      new_stream.stream_executions << new_stream_execution
-      new_stream.save
-
-      expect(subject.active_execution).to_not eq(new_stream_execution)
-      expect(new_stream.active_execution).to_not eq(stream_execution)
-
-      expect(subject.active_execution).to eq(stream_execution)
-      expect(new_stream.active_execution).to eq(new_stream_execution)
-    end
-
-    it "knows how to commit" do
-      subject.stream_executions << stream_execution
-      subject.save
-
-      expect(subject.commit_ready?).to be(true)
-      expect(subject.last_commit).to be(nil)
-      expect(subject.active_execution).to eq(stream_execution)
-
-      last_commit = subject.last_commit
-      timestamp = Time.now.utc
-      subject.commit!(timestamp)
-
-      expect(subject.last_commit).not_to eq(last_commit)
-      expect(subject.last_commit).to eq(timestamp.to_i)
-      expect(Domo::Models::StreamExecution.processing(subject.id).length).to eq(0)
-      expect(subject.commit_ready?(1000)).to be(false)
-      expect(subject.commit_ready?(0)).to be(true)
-      expect(subject.active_execution).to be(nil)
-    end
-  end
-
-  it "saves the data models" do
-    stream.save
-    check_stream = Domo::Models::Stream.find_by(dataset_id: stream.dataset_id)
-    expect(stream).to eq(check_stream)
-
-    stream.stream_executions << stream_execution
-    stream.save
-    expect(stream.stream_executions.length).to eq(1)
-
-    stream_execution = stream.stream_executions[0]
-    stream_execution.data_parts << data_part
-    stream_execution.save
-    expect(stream_execution.data_parts.length).to eq(1)
-  end
-end
-
 describe LogStash::Outputs::Domo do
   before(:each) do |example|
     subject.register unless example.metadata[:skip_before]
@@ -471,7 +369,6 @@ describe LogStash::Outputs::Domo do
 
       sentinels
     end
-
     let(:global_config) do
       test_settings.clone.merge(
           {
@@ -505,12 +402,10 @@ describe LogStash::Outputs::Domo do
     it_should_behave_like "LogStash::Outputs::Domo"
 
     it "pulls events off the redis queue", redis_queue: true do
-      redis_client = subject.instance_variable_get(:@redis_client)
-      part_num = redis_client.incr("#{subject.part_num_key}")
       data = subject.encode_event_data(queued_event)
 
-      queue = Domo::Queue::Redis::JobQueue.new(redis_client, dataset_id, stream_id)
-      job = Domo::Queue::Job.new(queued_event, data, part_num)
+      queue = subject.get_queue
+      job = Domo::Queue::Job.new([data])
       queue.add(job)
       expect(queue.size).to eq(1)
 
@@ -535,19 +430,15 @@ describe LogStash::Outputs::Domo do
         }
       end
       client = Redis.new(url: ENV["REDIS_URL"], sentinels: sentinels)
-      part_num_key = "#{Domo::Queue::RedisQueue::KEY_PREFIX_FORMAT}" % {:dataset_id => dataset_id}
-      part_num_key = "#{part_num_key}#{Domo::Queue::RedisQueue::KEY_SUFFIXES[:PART_NUM]}"
-      part_num = client.incr(part_num_key)
 
+      queue = Domo::Queue::Redis::JobQueue.new(client, dataset_id, stream_id, 1)
       data = event_to_csv(queued_event)
-      queue = Domo::Queue::Redis::JobQueue.new(client, dataset_id, stream_id)
-      job = Domo::Queue::Job.new(queued_event, data, part_num)
+      job = Domo::Queue::Job.new([data])
       queue.add(job)
       expect(queue.size).to eq(1)
 
       queue.commit_status = :running
-      queue.execution_id = 1
-      queue.set_last_commit(Time.now - 200)
+      queue.last_commit = Time.now - 200
 
       subject.register
       wait_for_commit(subject)
@@ -564,13 +455,9 @@ describe LogStash::Outputs::Domo do
         }
       end
       client = Redis.new(url: ENV["REDIS_URL"], sentinels: sentinels)
-      part_num_key = "#{Domo::Queue::RedisQueue::KEY_PREFIX_FORMAT}" % {:dataset_id => dataset_id}
-      part_num_key = "#{part_num_key}#{Domo::Queue::RedisQueue::KEY_SUFFIXES[:PART_NUM]}"
-      part_num = client.incr(part_num_key)
-
       data = event_to_csv(queued_event)
       queue = Domo::Queue::Redis::JobQueue.new(client, dataset_id, stream_id)
-      job = Domo::Queue::Job.new(queued_event, data, part_num)
+      job = Domo::Queue::Job.new([data])
       queue.add(job)
       expect(queue.size).to eq(1)
 
@@ -581,19 +468,20 @@ describe LogStash::Outputs::Domo do
       expect(dataset_data_match?(domo_client, dataset_id, expected_domo_data)).to be(true)
     end
 
-    it "processes events in the failures queue", :failure_queue => true do
+    it "processes events in the failures queue", :failure_queue => true, hi: true do
       failed_event = queued_event
-      redis_client = subject.instance_variable_get(:@redis_client)
-      part_num = 2
       data = subject.encode_event_data(failed_event)
+      redis_client = subject.instance_variable_get(:@redis_client)
 
-      failed_job = Domo::Queue::Job.new(failed_event, data, part_num, 10000)
-      expect(failed_job.part_num).to eq(part_num)
-      expect(failed_job.execution_id).to eq(10000)
-      failed_queue = Domo::Queue::Redis::FailureQueue.new(redis_client, dataset_id, stream_id)
-
-      failed_queue << failed_job
-      expect(failed_queue.size).to eq(1)
+      data_part = Domo::Queue::RedisPartNumber.new(1, 12131, :failed)
+      failed_job = Domo::Queue::Job.new([data], data_part)
+      # failed_job = Domo::Queue::Job.new(failed_event, data, part_num, 10000)
+      # expect(failed_job.part_num).to eq(part_num)
+      # expect(failed_job.execution_id).to eq(10000)
+      #
+      failures = Domo::Queue::Redis::FailureQueue.new(redis_client, dataset_id, stream_id)
+      failures << failed_job
+      expect(failures.size).to eq(1)
 
       subject.multi_receive(events)
       expected_domo_data = [event_to_domo_hash(failed_event)]

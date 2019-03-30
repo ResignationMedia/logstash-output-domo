@@ -13,22 +13,22 @@ module Domo
       # @param initial_value [Integer]
       def initialize(initial_value=0)
         super()
-        @part_num = java.util.concurrent.atomic.AtomicInteger.new(initial_value)
+        @data_part = java.util.concurrent.atomic.AtomicInteger.new(initial_value)
       end
 
       # @return [Integer]
       def incr
-        @part_num.incrementAndGet
+        @data_part.incrementAndGet
       end
 
       # @return [Integer]
       def get
-        @part_num.get
+        @data_part.get
       end
 
       # @param value [Integer]
       def set(value)
-        @part_num.set(value)
+        @data_part.set(value)
       end
     end
 
@@ -177,9 +177,9 @@ module Domo
 
         set_last_commit(last_commit_time)
         if part_num.nil?
-          @part_num = ThreadPartNumber.new
+          @data_part = ThreadPartNumber.new
         else
-          @part_num = part_num
+          @data_part = part_num
         end
         @commit_status = :open
       end
@@ -332,7 +332,7 @@ module Domo
           @queue_name = "logstash-output-domo:#{@dataset_id}_failures"
           @job_queue = job_queue
 
-          super(@job_queue.dataset_id, @job_queue.stream_id, @job_queue.pipeline_id, @job_queue.last_commit, @job_queue.part_num)
+          super(@job_queue.dataset_id, @job_queue.stream_id, @job_queue.pipeline_id, @job_queue.last_commit, @job_queue.data_parts)
 
           @processing_status = length <= 0 ? :open : :processing
         end
@@ -355,7 +355,7 @@ module Domo
           @processing_status = :reprocessing
           each do |job|
             if job.execution_id != stream_execution_id
-              job.part_num = nil
+              job.data_part = nil
             end
             job.execution_id = stream_execution_id
             @job_queue << job

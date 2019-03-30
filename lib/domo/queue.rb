@@ -30,44 +30,30 @@ module Domo
       attr_reader :id
       # @return [DateTime] The job's creation time.
       attr_reader :timestamp
-      # @return [LogStash::Event] The job's Logstash Event.
-      attr_accessor :event
-      # @return [String] A CSV string of the event's data.
+      # @return [Array<String>] CSV strings for all the event data in this job.
       attr_accessor :data
-      # @return [Integer] The Stream Execution ID.
-      attr_accessor :execution_id
+      attr_accessor :data_part
 
-      # @!attribute [r] part_num
-      # The Streams API part number.
-      # @return [Integer]
-      def part_num
-        return @part_num.get if @part_num.is_a? java.util.concurrent.atomic.AtomicInteger
-        @part_num
+      def upload_data
+        @data.join("\n")
       end
 
-      # @!attribute [w]
-      def part_num=(part_num)
-        if part_num.is_a? java.util.concurrent.atomic.AtomicInteger
-          @part_num = part_num.get
-        else
-          @part_num = part_num
-        end
+      def row_count
+        @data.length
       end
 
-      # @param event [LogStash::Event]
-      # @param data [String]
-      # @param part_num [Integer, java.util.concurrent.atomic.AtomicInteger, nil]
-      # @param execution_id [Integer, nil]
+      def execution_id
+        return if @data_part.nil?
+        @data_part.execution_id
+      end
+
+      # @param data [Array<String>]
+      # @param data_part [Integer, java.util.concurrent.atomic.AtomicInteger, nil]
       # @param id [Integer, nil] A unique ID for the job. Do not set this yourself. It will be auto generated, or set from the JSON serialized instance in redis.
       # @param timestamp [String, DateTime] The timestamp when the job was created. Set to now (UTC) if not provided.
-      def initialize(event, data, part_num=nil, execution_id=nil, id=nil, timestamp=nil)
-        @event = event
+      def initialize(data, data_part=nil, id=nil, timestamp=nil)
         @data = data
-        @part_num = part_num
-        if @part_num.is_a? java.util.concurrent.atomic.AtomicInteger
-          @part_num = @part_num.get
-        end
-        @execution_id = execution_id
+        @data_part = data_part
 
         @id = id.nil? ? SecureRandom.uuid : id
         # Parse the timestamp from a string into a date, if possible.
@@ -102,9 +88,13 @@ module Domo
       # @return [Job]
       def self.from_json!(json_str)
         json_hash = JSON.parse(json_str, {:symbolize_names => true})
+        if json_hash[:data_part].nil?
+          data_part = nil
+        else
+          data_part = RedisPartNumber.from_json!(json_hash[:data_part])
+        end
 
-        self.new(json_hash[:event], json_hash[:data], json_hash[:part_num],
-                 json_hash[:execution_id], json_hash[:id], json_hash[:timestamp])
+        self.new(json_hash[:data], data_part, json_hash[:id], json_hash[:timestamp])
       end
 
       # Convert the class's (important) attributes to a JSON string.
@@ -115,10 +105,8 @@ module Domo
         json_hash = {
             :id           => @id,
             :timestamp    => @timestamp.to_s,
-            :event        => @event,
             :data         => @data,
-            :part_num     => @part_num,
-            :execution_id => @execution_id,
+            :data_part    => @data_part&.to_json,
         }
 
         JSON.generate(json_hash)
@@ -127,19 +115,18 @@ module Domo
       # Return a hash representation of the Job.
       # Useful for debugging.
       #
-      # @param exclude_event [Boolean] Exclude the Event + Data from the Hash output. This is useful for logging.
+      # @param exclude_data [Boolean] Exclude the Data from the Hash output. This is useful for logging.
       # @return [Hash]
-      def to_hash(exclude_event=false)
+      def to_hash(exclude_data=false)
         job = {
             :id           => @id,
             :timestamp    => @timestamp,
-            :event        => @event.to_hash,
             :data         => @data,
-            :part_num     => @part_num,
+            :row_count    => row_count,
+            :data_part    => @data_part,
             :execution_id => @execution_id,
         }
-        if exclude_event
-          _ = job.delete(:event)
+        if exclude_data
           _ = job.delete(:data)
         end
         job
