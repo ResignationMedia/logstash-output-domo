@@ -368,8 +368,13 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
         job.data = data
       end
 
-      if job.status == :incomplete and job.timestamp < @queue.next_commit + @commit_delay
+      if job.status == :incomplete and job.timestamp + @commit_delay*2 > Time.now.utc
         @queue.pending_jobs << job
+        @logger.debug("Putting Job in pending queue",
+                      :stream_id         => @stream_id,
+                      :execution_id      => stream_execution.getId,
+                      :queue_pipeline_id => pipeline_id,
+                      :job               => job.to_hash(true))
       else
         @queue << job
       end
@@ -513,8 +518,7 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
                       :stream_id         => @stream_id,
                       :execution_id      => execution_id,
                       :queue_pipeline_id => queue_pipeline_id,
-                      :job               => job.to_hash(true),
-                      :data              => job.data)
+                      :job               => job.to_hash(true))
       rescue Java::ComDomoSdkRequest::RequestException => e
         status_code = Domo::Client.request_error_status_code(e)
         if status_code.nil? or status_code == -1
@@ -550,8 +554,7 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
           @logger.error(log_message,
                         :code       => e.getStatusCode,
                         :exception  => e,
-                        :job        => job.to_hash(true),
-                        :data       => job.data)
+                        :job        => job.to_hash(true))
           @queue.failures << job unless @queue.nil?
         end
       end
