@@ -398,10 +398,15 @@ module Domo
         end
 
         def set_execution_id(execution_id)
+          old_id = self.execution_id
           if execution_id.nil?
             @client.hdel("#{redis_key_prefix}#{KEY_SUFFIXES[:ACTIVE_EXECUTION]}", "id")
           else
             @client.hset("#{redis_key_prefix}#{KEY_SUFFIXES[:ACTIVE_EXECUTION]}", "id", execution_id.to_s)
+          end
+          unless old_id.nil? or old_id == self.execution_id
+            @client.hdel("#{redis_key_prefix}#{KEY_SUFFIXES[:ACTIVE_EXECUTION]}", "part_id")
+            @data_parts.clear
           end
         end
 
@@ -425,7 +430,6 @@ module Domo
           @data_parts.clear(execution_id)
           @client.del(@queue_name)
           @client.del("#{redis_key_prefix}#{KEY_SUFFIXES[:ACTIVE_EXECUTION]}")
-
         end
 
         # The {FailureQueue} associated with this queue.

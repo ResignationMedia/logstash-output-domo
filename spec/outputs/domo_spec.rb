@@ -210,7 +210,7 @@ RSpec.shared_examples "LogStash::Outputs::Domo" do
       let(:config) do
         global_config.clone.merge(
             {
-                "commit_delay" => 100,
+                "commit_delay" => 2,
                 "upload_batch_size" => 20,
             }
         )
@@ -227,12 +227,10 @@ RSpec.shared_examples "LogStash::Outputs::Domo" do
         expected_domo_data = batch_events.map { |event| event_to_domo_hash(event) }
 
         queue = subject.instance_variable_get(:@queue)
+        queue.last_commit = Time.now.utc
         subject.multi_receive(batch_events)
-        execution_id = queue.execution_id
-        wait_for_commit(subject, true)
+        expect(queue.data_parts.length).to eq(2)
 
-        expect(dataset_data_match?(domo_client, dataset_id, expected_domo_data.slice(0..19))).to be(true)
-        sleep(0.1) until queue.execution_id != execution_id
         wait_for_commit(subject, true)
         expect(dataset_data_match?(domo_client, dataset_id, expected_domo_data)).to be(true)
       end

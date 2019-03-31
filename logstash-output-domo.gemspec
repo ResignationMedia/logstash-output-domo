@@ -28,7 +28,6 @@ Gem::Specification.new do |s|
   s.requirements << "jar 'org.apache.commons:commons-io', '1.3.2'"
   s.requirements << "jar 'org.slf4j:slf4j-api', '1.7.21'"
   s.requirements << "jar 'com.squareup.okio:okio', '2.1.0'"
-  # s.requirements << "jar 'mysql:mysql-connector-java', '5.1.47'"
 
   # Gem dependencies
   s.add_runtime_dependency "logstash-core-plugin-api", "~> 2.0"
@@ -38,8 +37,6 @@ Gem::Specification.new do |s|
   s.add_runtime_dependency "redis", ">= 3.0.0", "< 5.0"
   s.add_runtime_dependency "redlock", "~> 1.0"
   s.add_runtime_dependency "nokogiri", "~> 1.10", ">= 1.10.1"
-  # s.add_runtime_dependency "activerecord" , "4.1.16"
-  # s.add_runtime_dependency "activerecord-jdbc-adapter", "1.3.25"
 
   s.add_development_dependency "logstash-devutils"
 end

@@ -124,7 +124,7 @@ module Domo
             :data         => @data,
             :row_count    => row_count,
             :data_part    => @data_part,
-            :execution_id => @execution_id,
+            :execution_id => execution_id,
         }
         if exclude_data
           _ = job.delete(:data)

@@ -53,9 +53,9 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
   # Use TLS for API requests
   config :api_ssl, :validate => :boolean, :default => true
 
-  # The maximum size of a Data Part before triggering a commit.
-  # If the commit would occur before the commit_delay is up, then a new Data Part will be created without committing.
-  config :upload_batch_size, :validate => :number, :default => 10000
+  # The maximum number of rows in a single Data Part.
+  # Set to 0 (default) to disable
+  config :upload_batch_size, :validate => :number, :default => 0
 
   # The amount of time (seconds) to wait between Stream commits.
   # Data will continue to be uploaded until the delay has passed and the queue has empty.
@@ -318,7 +318,8 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
     plugin_closing = false
 
     data = Array.new
-    events.each do |event|
+    num_batches = 1
+    events.each_with_index do |event, i|
       if event == LogStash::SHUTDOWN
         plugin_closing = true
         break
@@ -336,8 +337,13 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
                       :event       => event.to_hash,
                       :exception   => e)
       end
+      if @upload_batch_size > 0 and i + 1 >= @upload_batch_size * num_batches
+        @queue << Domo::Queue::Job.new(data)
+        data.clear
+        num_batches += 1
+      end
     end
-    @queue << Domo::Queue::Job.new(data)
+    @queue << Domo::Queue::Job.new(data) unless data.length <= 0
     # Process the queue
     send_to_domo unless queue_processed?
 
@@ -374,9 +380,8 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
       if @queue.execution_id
         if @queue.data_parts.length > 0
           data_part = @queue.data_parts[-1]
-          data_part = nil if data_part.execution_id != @queue.execution_id or data_part.status != :ready
+          data_part = nil if data_part.status != :ready
         end
-        data_part = @queue.incr_data_part if data_part.nil?
       end
       # Block the loop while commits are in progress
       sleep(0.1) until @queue.commit_status != :running
@@ -449,14 +454,11 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
               end
               stream_execution = @domo_client.stream_client.createExecution(@stream_id)
               @queue.execution_id = stream_execution.getId
-
-              @queue.data_parts.clear
               @queue.commit_status = :open
-              data_part = @queue.incr_data_part
             end
           end
         end
-        data_part = @queue.incr_data_part if data_part.nil?
+        data_part = @queue.incr_data_part if data_part.nil? or data_part.execution_id != @queue.execution_id
         # If the queue is missing an Execution ID (e.g. another worker committed the execution before we got here),
         # then it's time to defer this job to the next round of processing.
         if @queue.execution_id.nil?
@@ -465,10 +467,6 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
           next
         end
         # Ensure that the job has the right Execution ID and update its part number if we have to change the ID.
-        if job.execution_id != @queue.execution_id
-          job.data_part = nil
-          data_part = @queue.incr_data_part
-        end
         job.data_part = data_part
         # Add a little jitter so Domo's API doesn't shit itself
         sleep(Random.new.rand(0.15))
@@ -526,7 +524,7 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
                         :exception  => e,
                         :job        => job.to_hash(true),
                         :data       => job.data)
-          # @dlq_writer.write(job.event, "#{log_message} Exception: #{e}") unless @dlq_writer.nil?
+          @queue.failures << job unless @queue.nil?
         end
       end
     end
