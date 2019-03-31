@@ -128,6 +128,7 @@ module Domo
           :QUEUE            => "_queue",
           :PART_NUM         => "_part_num",
           :FAILURE          => "_failures",
+          :PENDING          => "_pending",
       }
 
       # A format string for the redis key prefix
@@ -166,6 +167,7 @@ module Domo
       end
 
       def next_commit(delay)
+        return Time.now.utc if last_commit.nil?
         last_commit + commit_delay(delay)
       end
 
@@ -437,6 +439,10 @@ module Domo
           FailureQueue.new(@client, @dataset_id, @stream_id, @pipeline_id)
         end
 
+        def pending_jobs
+          PendingJobQueue.new(@client, @dataset_id, @stream_id, @pipeline_id)
+        end
+
         # Clear the queue's execution_id and update the last commit timestamp.
         #
         # @param timestamp [Time, nil]
@@ -444,6 +450,26 @@ module Domo
           timestamp = Time.now.utc if timestamp.nil?
           set_execution_id(nil)
           set_last_commit(timestamp)
+        end
+      end
+
+      class PendingJobQueue < RedisQueue
+        # @param redis_client [Redis]
+        # @param dataset_id [String]
+        # @param stream_id [Integer]
+        # @param pipeline_id [String, nil]
+        def initialize(redis_client, dataset_id, stream_id, pipeline_id='main')
+          super(redis_client, dataset_id, stream_id, pipeline_id)
+          # @type [String]
+          @queue_name = "#{redis_key_prefix}#{KEY_SUFFIXES[:PENDING]}"
+        end
+
+        def clear
+          @client.del(@queue_name)
+        end
+
+        def data_part_valid?(data_part)
+          true
         end
       end
 

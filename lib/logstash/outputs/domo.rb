@@ -53,9 +53,13 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
   # Use TLS for API requests
   config :api_ssl, :validate => :boolean, :default => true
 
+  # The minimum number of rows before a Job is processed.
+  # Set to 0 (default) to disable.
+  config :upload_min_batch_size, :validate => :number, :default => 0
+
   # The maximum number of rows in a single Data Part.
   # Set to 0 (default) to disable
-  config :upload_batch_size, :validate => :number, :default => 0
+  config :upload_max_batch_size, :validate => :number, :default => 0
 
   # The amount of time (seconds) to wait between Stream commits.
   # Data will continue to be uploaded until the delay has passed and the queue has empty.
@@ -317,7 +321,13 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
     # LogStash::SHUTDOWN events will set this to true
     plugin_closing = false
 
-    data = Array.new
+    if @queue.pending_jobs.length <= 0
+      data = Array.new
+      pending_job = nil
+    else
+      pending_job = @queue.pending_jobs.pop
+      data = pending_job.nil? ? Array.new : pending_job.data
+    end
     num_batches = 1
     events.each_with_index do |event, i|
       if event == LogStash::SHUTDOWN
@@ -326,7 +336,8 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
       end
       # Encode the Event data and add a job to the queue
       begin
-        data << encode_event_data(event)
+        encoded_event = encode_event_data(event)
+        data << encoded_event
       # Reject the invalid event and send it to the DLQ if it's enabled.
       rescue ColumnTypeError => e
         @dlq_writer.write(event, e.log_entry) unless @dlq_writer.nil?
@@ -337,16 +348,34 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
                       :event       => event.to_hash,
                       :exception   => e)
       end
-      if @upload_batch_size > 0 and i + 1 >= @upload_batch_size * num_batches
-        @queue << Domo::Queue::Job.new(data)
+      if @upload_max_batch_size > 0 and i + 1 >= @upload_max_batch_size * num_batches
+        if pending_job.nil?
+          job = Domo::Queue::Job.new(data, @upload_min_batch_size)
+        else
+          job = pending_job
+          job.data = data
+        end
+        @queue << job
         data.clear
         num_batches += 1
       end
     end
-    @queue << Domo::Queue::Job.new(data) unless data.length <= 0
+    unless data.length <= 0
+      if pending_job.nil?
+        job = Domo::Queue::Job.new(data, @upload_min_batch_size)
+      else
+        job = pending_job
+        job.data = data
+      end
+
+      if job.status == :incomplete and job.timestamp < @queue.next_commit + @commit_delay
+        @queue.pending_jobs << job
+      else
+        @queue << job
+      end
+    end
     # Process the queue
     send_to_domo unless queue_processed?
-
     # Commit
     # Wake up sleeping commit thread if we're ready to commit
     if @commit_thread&.status == 'sleep'
@@ -477,7 +506,6 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
         end
         # Upload the job's data to Domo.
         @domo_client.stream_client.uploadDataPart(@stream_id, job.execution_id, job.data_part.part_id, job.upload_data)
-        puts job.to_hash(true)
         # Debug log output
         execution_id = @queue.nil? ? job.execution_id : @queue.execution_id
         queue_pipeline_id = @queue.nil? ? pipeline_id : @queue.pipeline_id

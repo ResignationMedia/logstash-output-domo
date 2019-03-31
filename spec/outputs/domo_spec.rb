@@ -206,12 +206,12 @@ RSpec.shared_examples "LogStash::Outputs::Domo" do
       end
     end
 
-    context "when there is an upload batch size", commit_delay: true, slow: true, upload_batch: true do
+    context "when there is a maximum upload batch size", commit_delay: true, slow: true, upload_batch: true do
       let(:config) do
         global_config.clone.merge(
             {
-                "commit_delay" => 2,
-                "upload_batch_size" => 20,
+                "commit_delay" => 10,
+                "upload_max_batch_size" => 20,
             }
         )
       end
@@ -230,6 +230,40 @@ RSpec.shared_examples "LogStash::Outputs::Domo" do
         queue.last_commit = Time.now.utc
         subject.multi_receive(batch_events)
         expect(queue.data_parts.length).to eq(2)
+
+        wait_for_commit(subject, true)
+        expect(dataset_data_match?(domo_client, dataset_id, expected_domo_data)).to be(true)
+      end
+    end
+
+    context "when there is a minimum upload batch size", commit_delay: true, slow: true, upload_batch: true do
+      let(:config) do
+        global_config.clone.merge(
+            {
+                "commit_delay" => 10,
+                "upload_min_batch_size" => 50,
+            }
+        )
+      end
+
+      it "waits until the batch size is reached" do
+        batch_events = (1..50).map do |i|
+          LogStash::Event.new("Event Name"      => i.to_s,
+                              "Count"           => i,
+                              "Event Timestamp" => LogStash::Timestamp.now,
+                              "Event Date"      => Date.today.to_s,
+                              "Percent"         => ((i.to_f/200)*100).round(2))
+        end
+        expected_domo_data = batch_events.map { |event| event_to_domo_hash(event) }
+
+        queue = subject.get_queue
+        subject.multi_receive(batch_events.slice(0..25))
+        expect(queue.length).to eq(0)
+        expect(queue.pending_jobs.length).to eq(1)
+
+        queue.last_commit = Time.now.utc
+        subject.multi_receive(batch_events.slice(26..-1))
+        expect(queue.data_parts.length).to eq(1)
 
         wait_for_commit(subject, true)
         expect(dataset_data_match?(domo_client, dataset_id, expected_domo_data)).to be(true)
@@ -472,7 +506,7 @@ describe LogStash::Outputs::Domo do
       redis_client = subject.instance_variable_get(:@redis_client)
 
       data_part = Domo::Queue::RedisPartNumber.new(1, 12131, :failed)
-      failed_job = Domo::Queue::Job.new([data], data_part)
+      failed_job = Domo::Queue::Job.new([data], 0, data_part)
       # failed_job = Domo::Queue::Job.new(failed_event, data, part_num, 10000)
       # expect(failed_job.part_num).to eq(part_num)
       # expect(failed_job.execution_id).to eq(10000)

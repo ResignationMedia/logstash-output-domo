@@ -33,6 +33,7 @@ module Domo
       # @return [Array<String>] CSV strings for all the event data in this job.
       attr_accessor :data
       attr_accessor :data_part
+      attr_accessor :minimum_size
 
       def upload_data
         @data.join("\n")
@@ -47,13 +48,20 @@ module Domo
         @data_part.execution_id
       end
 
+      def status
+        return :complete if @minimum_size <= 0
+        return :complete if row_count >= @minimum_size
+        :incomplete
+      end
+
       # @param data [Array<String>]
       # @param data_part [Integer, java.util.concurrent.atomic.AtomicInteger, nil]
       # @param id [Integer, nil] A unique ID for the job. Do not set this yourself. It will be auto generated, or set from the JSON serialized instance in redis.
       # @param timestamp [String, DateTime] The timestamp when the job was created. Set to now (UTC) if not provided.
-      def initialize(data, data_part=nil, id=nil, timestamp=nil)
+      def initialize(data, minimum_size=0, data_part=nil, id=nil, timestamp=nil)
         @data = data
         @data_part = data_part
+        @minimum_size = minimum_size.to_i
 
         @id = id.nil? ? SecureRandom.uuid : id
         # Parse the timestamp from a string into a date, if possible.
@@ -94,7 +102,7 @@ module Domo
           data_part = RedisPartNumber.from_json!(json_hash[:data_part])
         end
 
-        self.new(json_hash[:data], data_part, json_hash[:id], json_hash[:timestamp])
+        self.new(json_hash[:data], json_hash[:minimum_size], data_part, json_hash[:id], json_hash[:timestamp])
       end
 
       # Convert the class's (important) attributes to a JSON string.
@@ -107,6 +115,7 @@ module Domo
             :timestamp    => @timestamp.to_s,
             :data         => @data,
             :data_part    => @data_part&.to_json,
+            :minimum_size => @minimum_size,
         }
 
         JSON.generate(json_hash)
@@ -125,6 +134,7 @@ module Domo
             :row_count    => row_count,
             :data_part    => @data_part,
             :execution_id => execution_id,
+            :minimum_size => @minimum_size,
         }
         if exclude_data
           _ = job.delete(:data)
