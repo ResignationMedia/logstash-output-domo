@@ -486,7 +486,7 @@ parameters for distributed locking.</p>
         <li class="public ">
   <span class="summary_signature">
     
-      <a href="#queue_processed%3F-instance_method" title="#queue_processed? (instance method)">#<strong>queue_processed?</strong>  &#x21d2; Boolean </a>
+      <a href="#queue_processed%3F-instance_method" title="#queue_processed? (instance method)">#<strong>queue_processed?</strong>(include_pending = false)  &#x21d2; Boolean </a>
     
 
     
@@ -502,7 +502,7 @@ parameters for distributed locking.</p>
   
     <span class="summary_desc"><div class='inline'>
 <p>Establishes whether or not the queue is empty and that there are no failed
-jobs.</p>
+jobs and (optionally) no pending jobs.</p>
 </div></span>
   
 </li>
@@ -583,7 +583,7 @@ the corresponding Domo column.</p>
         <li class="public ">
   <span class="summary_signature">
     
-      <a href="#send_to_domo-instance_method" title="#send_to_domo (instance method)">#<strong>send_to_domo</strong>  &#x21d2; Object </a>
+      <a href="#send_to_domo-instance_method" title="#send_to_domo (instance method)">#<strong>send_to_domo</strong>(force_pending = false)  &#x21d2; Object </a>
     
 
     
@@ -678,15 +678,15 @@ them keys, but redis-rb wants symbols.</p>
       <pre class="lines">
 
 
-166
-167
-168</pre>
+174
+175
+176</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/logstash/outputs/domo.rb', line 166</span>
+      <pre class="code"><span class="info file"># File 'lib/logstash/outputs/domo.rb', line 174</span>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_commit_lock_key'>commit_lock_key</span>
-  <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>logstash-output-domo:</span><span class='embexpr_beg'>#{</span><span class='ivar'>@dataset_id</span><span class='embexpr_end'>}</span><span class='tstring_content'>_commit_lock</span><span class='tstring_end'>&quot;</span></span>
+  <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>logstash-output-domo:</span><span class='embexpr_beg'>#{</span><span class='ivar'>@dataset_id</span><span class='embexpr_end'>}</span><span class='tstring_content'>:</span><span class='embexpr_beg'>#{</span><span class='ivar'>@stream_id</span><span class='embexpr_end'>}</span><span class='tstring_content'>_commit_lock</span><span class='tstring_end'>&quot;</span></span>
 <span class='kw'>end</span></pre>
     </td>
   </tr>
@@ -739,12 +739,12 @@ them keys, but redis-rb wants symbols.</p>
       <pre class="lines">
 
 
-143
-144
-145</pre>
+151
+152
+153</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/logstash/outputs/domo.rb', line 143</span>
+      <pre class="code"><span class="info file"># File 'lib/logstash/outputs/domo.rb', line 151</span>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_dataset_columns'>dataset_columns</span>
   <span class='ivar'>@dataset_columns</span>
@@ -795,15 +795,15 @@ them keys, but redis-rb wants symbols.</p>
       <pre class="lines">
 
 
-159
-160
-161</pre>
+167
+168
+169</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/logstash/outputs/domo.rb', line 159</span>
+      <pre class="code"><span class="info file"># File 'lib/logstash/outputs/domo.rb', line 167</span>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_lock_key'>lock_key</span>
-  <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>logstash-output-domo:</span><span class='embexpr_beg'>#{</span><span class='ivar'>@dataset_id</span><span class='embexpr_end'>}</span><span class='tstring_content'>_lock</span><span class='tstring_end'>&quot;</span></span>
+  <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>logstash-output-domo:</span><span class='embexpr_beg'>#{</span><span class='ivar'>@dataset_id</span><span class='embexpr_end'>}</span><span class='tstring_content'>:</span><span class='embexpr_beg'>#{</span><span class='ivar'>@stream_id</span><span class='embexpr_end'>}</span><span class='tstring_content'>_lock</span><span class='tstring_end'>&quot;</span></span>
 <span class='kw'>end</span></pre>
     </td>
   </tr>
@@ -851,22 +851,22 @@ them keys, but redis-rb wants symbols.</p>
       <pre class="lines">
 
 
-173
-174
-175
-176
-177
-178
-179</pre>
+181
+182
+183
+184
+185
+186
+187</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/logstash/outputs/domo.rb', line 173</span>
+      <pre class="code"><span class="info file"># File 'lib/logstash/outputs/domo.rb', line 181</span>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_part_num_key'>part_num_key</span>
   <span class='kw'>if</span> <span class='ivar'>@queue</span><span class='period'>.</span><span class='id identifier rubyid_is_a?'>is_a?</span> <span class='const'><span class='object_link'><a href="" title="LogStash::Outputs::Domo (class)">Domo</a></span></span><span class='op'>::</span><span class='const'>Queue</span><span class='op'>::</span><span class='const'>RedisQueue</span>
     <span class='kw'>return</span> <span class='ivar'>@queue</span><span class='period'>.</span><span class='id identifier rubyid_part_num_key'>part_num_key</span>
   <span class='kw'>end</span>
-  <span class='id identifier rubyid_part_num_key'>part_num_key</span> <span class='op'>=</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='embexpr_beg'>#{</span><span class='const'><span class='object_link'><a href="" title="LogStash::Outputs::Domo (class)">Domo</a></span></span><span class='op'>::</span><span class='const'>Queue</span><span class='op'>::</span><span class='const'>RedisQueue</span><span class='op'>::</span><span class='const'>KEY_PREFIX_FORMAT</span><span class='embexpr_end'>}</span><span class='tstring_end'>&quot;</span></span> <span class='op'>%</span> <span class='lbrace'>{</span><span class='symbol'>:dataset_id</span> <span class='op'>=&gt;</span> <span class='ivar'>@dataset_id</span><span class='rbrace'>}</span>
+  <span class='id identifier rubyid_part_num_key'>part_num_key</span> <span class='op'>=</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='embexpr_beg'>#{</span><span class='const'><span class='object_link'><a href="" title="LogStash::Outputs::Domo (class)">Domo</a></span></span><span class='op'>::</span><span class='const'>Queue</span><span class='op'>::</span><span class='const'>RedisQueue</span><span class='op'>::</span><span class='const'>KEY_PREFIX_FORMAT</span><span class='embexpr_end'>}</span><span class='tstring_end'>&quot;</span></span> <span class='op'>%</span> <span class='lbrace'>{</span><span class='symbol'>:dataset_id</span> <span class='op'>=&gt;</span> <span class='ivar'>@dataset_id</span><span class='comma'>,</span> <span class='symbol'>:stream_id</span> <span class='op'>=&gt;</span> <span class='ivar'>@stream_id</span><span class='rbrace'>}</span>
   <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_part_num_key'>part_num_key</span><span class='embexpr_end'>}</span><span class='embexpr_beg'>#{</span><span class='const'><span class='object_link'><a href="" title="LogStash::Outputs::Domo (class)">Domo</a></span></span><span class='op'>::</span><span class='const'>Queue</span><span class='op'>::</span><span class='const'>RedisQueue</span><span class='op'>::</span><span class='const'>KEY_SUFFIXES</span><span class='lbracket'>[</span><span class='symbol'>:PART_NUM</span><span class='rbracket'>]</span><span class='embexpr_end'>}</span><span class='tstring_end'>&quot;</span></span>
 <span class='kw'>end</span></pre>
     </td>
@@ -915,16 +915,16 @@ them keys, but redis-rb wants symbols.</p>
       <pre class="lines">
 
 
-148
-149
-150
-151
-152
-153
-154</pre>
+156
+157
+158
+159
+160
+161
+162</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/logstash/outputs/domo.rb', line 148</span>
+      <pre class="code"><span class="info file"># File 'lib/logstash/outputs/domo.rb', line 156</span>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_pipeline_id'>pipeline_id</span>
   <span class='kw'>if</span> <span class='id identifier rubyid_respond_to?'>respond_to?</span><span class='lparen'>(</span><span class='symbol'>:execution_context</span><span class='rparen'>)</span> <span class='kw'>and</span> <span class='id identifier rubyid_execution_context'>execution_context</span><span class='period'>.</span><span class='id identifier rubyid_respond_to?'>respond_to?</span><span class='lparen'>(</span><span class='symbol'>:pipeline</span><span class='rparen'>)</span>
@@ -960,52 +960,34 @@ them keys, but redis-rb wants symbols.</p>
       <pre class="lines">
 
 
-699
-700
-701
-702
-703
-704
-705
-706
-707
-708
-709
-710
-711
-712
-713
-714
-715
-716
-717
-718
-719
-720</pre>
+776
+777
+778
+779
+780
+781
+782
+783
+784
+785
+786
+787
+788</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/logstash/outputs/domo.rb', line 699</span>
+      <pre class="code"><span class="info file"># File 'lib/logstash/outputs/domo.rb', line 776</span>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_close'>close</span>
-  <span class='comment'># This can happen somehow.
-</span>  <span class='kw'>if</span> <span class='ivar'>@queue</span><span class='period'>.</span><span class='id identifier rubyid_nil?'>nil?</span>
-    <span class='kw'>return</span> <span class='kw'>if</span> <span class='ivar'>@redis_client</span><span class='period'>.</span><span class='id identifier rubyid_nil?'>nil?</span>
-    <span class='kw'>begin</span>
-      <span class='ivar'>@queue</span> <span class='op'>=</span> <span class='id identifier rubyid_get_queue'>get_queue</span>
-      <span class='kw'>return</span> <span class='kw'>if</span> <span class='ivar'>@queue</span><span class='period'>.</span><span class='id identifier rubyid_nil?'>nil?</span>
-    <span class='kw'>rescue</span> <span class='const'>Redlock</span><span class='op'>::</span><span class='const'>LockError</span>
-      <span class='kw'>return</span>
-    <span class='kw'>end</span>
-  <span class='kw'>end</span>
-  <span class='id identifier rubyid_send_to_domo'>send_to_domo</span> <span class='kw'>unless</span> <span class='id identifier rubyid_queue_processed?'>queue_processed?</span>
-  <span class='kw'>return</span> <span class='kw'>unless</span> <span class='ivar'>@queue</span><span class='period'>.</span><span class='id identifier rubyid_execution_id'>execution_id</span>
+  <span class='comment'># It seems like this is called from a Thread that was not aware of #register so we need to reset the @queue variable.
+</span>  <span class='ivar'>@queue</span> <span class='op'>=</span> <span class='id identifier rubyid_get_queue'>get_queue</span>
+  <span class='id identifier rubyid_send_to_domo'>send_to_domo</span><span class='lparen'>(</span><span class='kw'>true</span><span class='rparen'>)</span> <span class='kw'>unless</span> <span class='id identifier rubyid_queue_processed?'>queue_processed?</span><span class='lparen'>(</span><span class='kw'>true</span><span class='rparen'>)</span>
   <span class='comment'># Wake up the sleeping commit Thread, or make a new one to force fire off the commit
 </span>  <span class='kw'>if</span> <span class='ivar'>@commit_thread</span><span class='op'>&amp;.</span><span class='id identifier rubyid_status'>status</span> <span class='op'>==</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>sleep</span><span class='tstring_end'>&quot;</span></span>
     <span class='ivar'>@commit_thread</span><span class='period'>.</span><span class='id identifier rubyid_run'>run</span>
     <span class='id identifier rubyid_commit_status'>commit_status</span> <span class='op'>=</span> <span class='ivar'>@commit_thread</span><span class='period'>.</span><span class='id identifier rubyid_value'>value</span> <span class='kw'>if</span> <span class='ivar'>@commit_thread</span>
   <span class='kw'>elsif</span> <span class='ivar'>@commit_thread</span><span class='period'>.</span><span class='id identifier rubyid_nil?'>nil?</span> <span class='kw'>or</span> <span class='op'>!</span><span class='ivar'>@commit_thread</span><span class='period'>.</span><span class='id identifier rubyid_status'>status</span>
     <span class='ivar'>@commit_thread</span> <span class='op'>=</span> <span class='const'>Thread</span><span class='period'>.</span><span class='id identifier rubyid_new'>new</span> <span class='lbrace'>{</span> <span class='id identifier rubyid_commit_stream'>commit_stream</span><span class='lparen'>(</span><span class='kw'>true</span><span class='rparen'>)</span> <span class='rbrace'>}</span>
-    <span class='id identifier rubyid_commit_status'>commit_status</span> <span class='op'>=</span> <span class='ivar'>@commit_thread</span><span class='period'>.</span><span class='id identifier rubyid_value'>value</span>
+    <span class='id identifier rubyid_commit_status'>commit_status</span> <span class='op'>=</span> <span class='ivar'>@commit_thread</span><span class='op'>&amp;.</span><span class='id identifier rubyid_value'>value</span>
   <span class='kw'>end</span>
 <span class='kw'>end</span></pre>
     </td>
@@ -1052,21 +1034,21 @@ them keys, but redis-rb wants symbols.</p>
       <pre class="lines">
 
 
-776
-777
-778
-779
-780
-781
-782</pre>
+844
+845
+846
+847
+848
+849
+850</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/logstash/outputs/domo.rb', line 776</span>
+      <pre class="code"><span class="info file"># File 'lib/logstash/outputs/domo.rb', line 844</span>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_commit_ready?'>commit_ready?</span>
   <span class='kw'>if</span> <span class='id identifier rubyid_queue_processed?'>queue_processed?</span> <span class='kw'>and</span> <span class='ivar'>@queue</span><span class='period'>.</span><span class='id identifier rubyid_commit_status'>commit_status</span> <span class='op'>!=</span> <span class='symbol'>:running</span>
     <span class='kw'>return</span> <span class='kw'>true</span> <span class='kw'>if</span> <span class='ivar'>@commit_delay</span> <span class='op'>&lt;=</span> <span class='int'>0</span> <span class='kw'>or</span> <span class='ivar'>@queue</span><span class='period'>.</span><span class='id identifier rubyid_last_commit'>last_commit</span><span class='period'>.</span><span class='id identifier rubyid_nil?'>nil?</span>
-    <span class='kw'>return</span> <span class='kw'>true</span> <span class='kw'>if</span> <span class='ivar'>@queue</span><span class='period'>.</span><span class='id identifier rubyid_last_commit'>last_commit</span> <span class='op'>+</span> <span class='ivar'>@commit_delay</span> <span class='op'>&lt;=</span> <span class='const'>Time</span><span class='period'>.</span><span class='id identifier rubyid_now'>now</span><span class='period'>.</span><span class='id identifier rubyid_utc'>utc</span>
+    <span class='kw'>return</span> <span class='kw'>true</span> <span class='kw'>if</span> <span class='ivar'>@queue</span><span class='period'>.</span><span class='id identifier rubyid_next_commit'>next_commit</span><span class='lparen'>(</span><span class='ivar'>@commit_delay</span><span class='rparen'>)</span> <span class='op'>&lt;=</span> <span class='const'>Time</span><span class='period'>.</span><span class='id identifier rubyid_now'>now</span><span class='period'>.</span><span class='id identifier rubyid_utc'>utc</span>
   <span class='kw'>end</span>
   <span class='kw'>false</span>
 <span class='kw'>end</span></pre>
@@ -1143,63 +1125,6 @@ commit_delay</p>
       <pre class="lines">
 
 
-546
-547
-548
-549
-550
-551
-552
-553
-554
-555
-556
-557
-558
-559
-560
-561
-562
-563
-564
-565
-566
-567
-568
-569
-570
-571
-572
-573
-574
-575
-576
-577
-578
-579
-580
-581
-582
-583
-584
-585
-586
-587
-588
-589
-590
-591
-592
-593
-594
-595
-596
-597
-598
-599
-600
-601
-602
 603
 604
 605
@@ -1293,10 +1218,87 @@ commit_delay</p>
 693
 694
 695
-696</pre>
+696
+697
+698
+699
+700
+701
+702
+703
+704
+705
+706
+707
+708
+709
+710
+711
+712
+713
+714
+715
+716
+717
+718
+719
+720
+721
+722
+723
+724
+725
+726
+727
+728
+729
+730
+731
+732
+733
+734
+735
+736
+737
+738
+739
+740
+741
+742
+743
+744
+745
+746
+747
+748
+749
+750
+751
+752
+753
+754
+755
+756
+757
+758
+759
+760
+761
+762
+763
+764
+765
+766
+767
+768
+769
+770
+771
+772
+773</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/logstash/outputs/domo.rb', line 546</span>
+      <pre class="code"><span class="info file"># File 'lib/logstash/outputs/domo.rb', line 603</span>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_commit_stream'>commit_stream</span><span class='lparen'>(</span><span class='id identifier rubyid_plugin_closing'>plugin_closing</span><span class='op'>=</span><span class='kw'>false</span><span class='rparen'>)</span>
   <span class='id identifier rubyid_commit_status'>commit_status</span> <span class='op'>=</span> <span class='symbol'>:failed</span>
@@ -1307,144 +1309,164 @@ commit_delay</p>
 </span>  <span class='ivar'>@commit_lock</span> <span class='op'>=</span> <span class='ivar'>@lock_manager</span><span class='period'>.</span><span class='id identifier rubyid_lock'>lock</span><span class='lparen'>(</span><span class='id identifier rubyid_commit_lock_key'>commit_lock_key</span><span class='comma'>,</span> <span class='id identifier rubyid_lock_ttl'>lock_ttl</span><span class='rparen'>)</span>
   <span class='comment'># We&#39;ll be locking API later on
 </span>  <span class='id identifier rubyid_api_lock'>api_lock</span> <span class='op'>=</span> <span class='kw'>false</span>
-  <span class='kw'>return</span> <span class='symbol'>:wait</span> <span class='kw'>unless</span> <span class='ivar'>@commit_lock</span> <span class='kw'>or</span> <span class='id identifier rubyid_plugin_closing'>plugin_closing</span>
-  <span class='comment'># Keep hanging on to the commit lock until we can commit.
-</span>  <span class='kw'>while</span> <span class='ivar'>@commit_lock</span> <span class='kw'>or</span> <span class='lparen'>(</span><span class='id identifier rubyid_plugin_closing'>plugin_closing</span> <span class='kw'>and</span> <span class='op'>!</span><span class='ivar'>@distributed_lock</span><span class='rparen'>)</span>
-    <span class='comment'># Don&#39;t commit unless we&#39;re ready or shutting down Logstash
-</span>    <span class='kw'>unless</span> <span class='id identifier rubyid_commit_ready?'>commit_ready?</span> <span class='kw'>or</span> <span class='id identifier rubyid_plugin_closing'>plugin_closing</span>
-      <span class='comment'># The amount of time to sleep before committing.
-</span>      <span class='id identifier rubyid_sleep_time'>sleep_time</span> <span class='op'>=</span> <span class='lparen'>(</span><span class='ivar'>@queue</span><span class='period'>.</span><span class='id identifier rubyid_last_commit'>last_commit</span> <span class='op'>+</span> <span class='ivar'>@commit_delay</span><span class='rparen'>)</span> <span class='op'>-</span> <span class='const'>Time</span><span class='period'>.</span><span class='id identifier rubyid_now'>now</span><span class='period'>.</span><span class='id identifier rubyid_utc'>utc</span>
-      <span class='kw'>unless</span> <span class='id identifier rubyid_sleep_time'>sleep_time</span> <span class='op'>&lt;=</span> <span class='int'>0</span>
-        <span class='ivar'>@logger</span><span class='period'>.</span><span class='id identifier rubyid_debug'>debug</span><span class='lparen'>(</span><span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>The API is not ready for committing yet. Will sleep for %0.2f seconds.</span><span class='tstring_end'>&quot;</span></span> <span class='op'>%</span> <span class='lbracket'>[</span><span class='id identifier rubyid_sleep_time'>sleep_time</span><span class='rbracket'>]</span><span class='comma'>,</span>
-                      <span class='symbol'>:stream_id</span>    <span class='op'>=&gt;</span> <span class='ivar'>@stream_id</span><span class='comma'>,</span>
-                      <span class='symbol'>:dataset_id</span>   <span class='op'>=&gt;</span> <span class='ivar'>@dataset_id</span><span class='comma'>,</span>
-                      <span class='symbol'>:execution_id</span> <span class='op'>=&gt;</span> <span class='ivar'>@queue</span><span class='period'>.</span><span class='id identifier rubyid_execution_id'>execution_id</span><span class='comma'>,</span>
-                      <span class='symbol'>:commit_delay</span> <span class='op'>=&gt;</span> <span class='ivar'>@commit_delay</span><span class='comma'>,</span>
-                      <span class='symbol'>:sleep_time</span>   <span class='op'>=&gt;</span> <span class='id identifier rubyid_sleep_time'>sleep_time</span><span class='comma'>,</span>
-                      <span class='symbol'>:last_commit</span>  <span class='op'>=&gt;</span> <span class='ivar'>@queue</span><span class='period'>.</span><span class='id identifier rubyid_last_commit'>last_commit</span><span class='comma'>,</span>
-                      <span class='symbol'>:next_commit</span>  <span class='op'>=&gt;</span> <span class='ivar'>@queue</span><span class='period'>.</span><span class='id identifier rubyid_last_commit'>last_commit</span> <span class='op'>+</span> <span class='id identifier rubyid_sleep_time'>sleep_time</span><span class='rparen'>)</span>
-        <span class='comment'># (Distributed lock only) Make sure we hold the lock for at least as long as the amount of time we&#39;re sleeping for.
-</span>        <span class='kw'>if</span> <span class='ivar'>@commit_lock</span><span class='lbracket'>[</span><span class='symbol'>:validity</span><span class='rbracket'>]</span> <span class='op'>&lt;=</span> <span class='id identifier rubyid_sleep_time'>sleep_time</span>
-          <span class='id identifier rubyid_lock_timeout'>lock_timeout</span> <span class='op'>=</span> <span class='id identifier rubyid_sleep_time'>sleep_time</span> <span class='op'>&gt;</span> <span class='ivar'>@commit_delay</span> <span class='op'>*</span> <span class='int'>1000</span> <span class='op'>?</span> <span class='id identifier rubyid_sleep_time'>sleep_time</span> <span class='op'>+</span> <span class='int'>1000</span> <span class='op'>:</span> <span class='ivar'>@commit_delay</span> <span class='op'>*</span> <span class='int'>1000</span>
-          <span class='ivar'>@commit_lock</span> <span class='op'>=</span> <span class='ivar'>@lock_manager</span><span class='period'>.</span><span class='id identifier rubyid_lock'>lock</span><span class='lparen'>(</span><span class='id identifier rubyid_commit_lock_key'>commit_lock_key</span><span class='comma'>,</span> <span class='id identifier rubyid_lock_timeout'>lock_timeout</span><span class='comma'>,</span> <span class='label'>extend:</span> <span class='ivar'>@commit_lock</span><span class='comma'>,</span> <span class='label'>extend_life:</span> <span class='kw'>true</span><span class='rparen'>)</span>
+  <span class='kw'>return</span> <span class='symbol'>:wait</span> <span class='kw'>unless</span> <span class='ivar'>@commit_lock</span> <span class='kw'>or</span> <span class='lparen'>(</span><span class='id identifier rubyid_plugin_closing'>plugin_closing</span> <span class='kw'>and</span> <span class='op'>!</span><span class='ivar'>@distributed_lock</span><span class='rparen'>)</span>
+  <span class='kw'>begin</span>
+    <span class='comment'># Keep hanging on to the commit lock until we can commit.
+</span>    <span class='kw'>while</span> <span class='ivar'>@commit_lock</span> <span class='kw'>or</span> <span class='lparen'>(</span><span class='id identifier rubyid_plugin_closing'>plugin_closing</span> <span class='kw'>and</span> <span class='op'>!</span><span class='ivar'>@distributed_lock</span><span class='rparen'>)</span>
+      <span class='comment'># Don&#39;t commit unless we&#39;re ready or shutting down Logstash
+</span>      <span class='kw'>unless</span> <span class='id identifier rubyid_commit_ready?'>commit_ready?</span> <span class='kw'>or</span> <span class='id identifier rubyid_plugin_closing'>plugin_closing</span>
+        <span class='comment'># The amount of time to sleep before committing.
+</span>        <span class='id identifier rubyid_sleep_time'>sleep_time</span> <span class='op'>=</span> <span class='ivar'>@queue</span><span class='period'>.</span><span class='id identifier rubyid_commit_delay'>commit_delay</span><span class='lparen'>(</span><span class='ivar'>@commit_delay</span><span class='rparen'>)</span>
+        <span class='kw'>unless</span> <span class='id identifier rubyid_sleep_time'>sleep_time</span> <span class='op'>&lt;=</span> <span class='int'>0</span>
+          <span class='ivar'>@logger</span><span class='period'>.</span><span class='id identifier rubyid_debug'>debug</span><span class='lparen'>(</span><span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>The API is not ready for committing yet. Will sleep for %0.2f seconds.</span><span class='tstring_end'>&quot;</span></span> <span class='op'>%</span> <span class='lbracket'>[</span><span class='id identifier rubyid_sleep_time'>sleep_time</span><span class='rbracket'>]</span><span class='comma'>,</span>
+                        <span class='symbol'>:stream_id</span>    <span class='op'>=&gt;</span> <span class='ivar'>@stream_id</span><span class='comma'>,</span>
+                        <span class='symbol'>:pipeline_id</span>  <span class='op'>=&gt;</span> <span class='id identifier rubyid_pipeline_id'>pipeline_id</span><span class='comma'>,</span>
+                        <span class='symbol'>:dataset_id</span>   <span class='op'>=&gt;</span> <span class='ivar'>@dataset_id</span><span class='comma'>,</span>
+                        <span class='symbol'>:execution_id</span> <span class='op'>=&gt;</span> <span class='ivar'>@queue</span><span class='period'>.</span><span class='id identifier rubyid_execution_id'>execution_id</span><span class='comma'>,</span>
+                        <span class='symbol'>:commit_delay</span> <span class='op'>=&gt;</span> <span class='ivar'>@commit_delay</span><span class='comma'>,</span>
+                        <span class='symbol'>:sleep_time</span>   <span class='op'>=&gt;</span> <span class='id identifier rubyid_sleep_time'>sleep_time</span><span class='comma'>,</span>
+                        <span class='symbol'>:last_commit</span>  <span class='op'>=&gt;</span> <span class='ivar'>@queue</span><span class='period'>.</span><span class='id identifier rubyid_last_commit'>last_commit</span><span class='comma'>,</span>
+                        <span class='symbol'>:next_commit</span>  <span class='op'>=&gt;</span> <span class='ivar'>@queue</span><span class='period'>.</span><span class='id identifier rubyid_next_commit'>next_commit</span><span class='lparen'>(</span><span class='ivar'>@commit_delay</span><span class='rparen'>)</span><span class='rparen'>)</span>
+          <span class='comment'># (Distributed lock only) Make sure we hold the lock for at least as long as the amount of time we&#39;re sleeping for.
+</span>          <span class='kw'>if</span> <span class='ivar'>@commit_lock</span><span class='lbracket'>[</span><span class='symbol'>:validity</span><span class='rbracket'>]</span> <span class='op'>&lt;=</span> <span class='id identifier rubyid_sleep_time'>sleep_time</span>
+            <span class='id identifier rubyid_lock_timeout'>lock_timeout</span> <span class='op'>=</span> <span class='id identifier rubyid_sleep_time'>sleep_time</span> <span class='op'>&gt;</span> <span class='ivar'>@commit_delay</span> <span class='op'>*</span> <span class='int'>1000</span> <span class='op'>?</span> <span class='id identifier rubyid_sleep_time'>sleep_time</span> <span class='op'>+</span> <span class='int'>1000</span> <span class='op'>:</span> <span class='ivar'>@commit_delay</span> <span class='op'>*</span> <span class='int'>1000</span>
+            <span class='ivar'>@commit_lock</span> <span class='op'>=</span> <span class='ivar'>@lock_manager</span><span class='period'>.</span><span class='id identifier rubyid_lock'>lock</span><span class='lparen'>(</span><span class='id identifier rubyid_commit_lock_key'>commit_lock_key</span><span class='comma'>,</span> <span class='id identifier rubyid_lock_timeout'>lock_timeout</span><span class='comma'>,</span> <span class='label'>extend:</span> <span class='ivar'>@commit_lock</span><span class='comma'>,</span> <span class='label'>extend_life:</span> <span class='kw'>true</span><span class='rparen'>)</span>
+          <span class='kw'>end</span>
+          <span class='ivar'>@queue</span><span class='period'>.</span><span class='id identifier rubyid_commit_status'>commit_status</span> <span class='op'>=</span> <span class='symbol'>:open</span>
+          <span class='id identifier rubyid_sleep'>sleep</span><span class='lparen'>(</span><span class='id identifier rubyid_sleep_time'>sleep_time</span><span class='rparen'>)</span>
         <span class='kw'>end</span>
-        <span class='ivar'>@queue</span><span class='period'>.</span><span class='id identifier rubyid_commit_status'>commit_status</span> <span class='op'>=</span> <span class='symbol'>:open</span>
-        <span class='id identifier rubyid_sleep'>sleep</span><span class='lparen'>(</span><span class='id identifier rubyid_sleep_time'>sleep_time</span><span class='rparen'>)</span>
       <span class='kw'>end</span>
-    <span class='kw'>end</span>
-    <span class='comment'># Probably a good idea to extend the lock at this point
-</span>    <span class='ivar'>@commit_lock</span> <span class='op'>=</span> <span class='ivar'>@lock_manager</span><span class='period'>.</span><span class='id identifier rubyid_lock'>lock</span><span class='lparen'>(</span><span class='id identifier rubyid_commit_lock_key'>commit_lock_key</span><span class='comma'>,</span> <span class='id identifier rubyid_lock_ttl'>lock_ttl</span><span class='comma'>,</span> <span class='label'>extend:</span> <span class='ivar'>@commit_lock</span><span class='comma'>,</span> <span class='label'>extend_life:</span> <span class='kw'>true</span><span class='rparen'>)</span>
-    <span class='comment'># TODO: Hurry up and commit when there&#39;s a distributed lock.
-</span>    <span class='comment'># Somebody else *should* grab the lock, but testing went poorly.
-</span>    <span class='id identifier rubyid_sleep'>sleep</span><span class='lparen'>(</span><span class='float'>0.1</span><span class='rparen'>)</span> <span class='kw'>until</span> <span class='id identifier rubyid_queue_processed?'>queue_processed?</span>
-    <span class='comment'># Acquire a lock on the key used for the non-commit API calls so nobody goes and creates a new Stream Execution in the middle of this.
-</span>    <span class='id identifier rubyid_api_lock'>api_lock</span> <span class='op'>=</span> <span class='ivar'>@lock_manager</span><span class='period'>.</span><span class='id identifier rubyid_lock'>lock</span><span class='lparen'>(</span><span class='id identifier rubyid_lock_key'>lock_key</span><span class='comma'>,</span> <span class='ivar'>@lock_timeout</span><span class='rparen'>)</span>
-    <span class='kw'>break</span> <span class='kw'>unless</span> <span class='id identifier rubyid_api_lock'>api_lock</span>
-    <span class='comment'># Make sure the API lock and commit lock will last for at least the same amount of time.
-</span>    <span class='kw'>if</span> <span class='ivar'>@commit_lock</span><span class='lbracket'>[</span><span class='symbol'>:validity</span><span class='rbracket'>]</span> <span class='op'>&lt;=</span> <span class='id identifier rubyid_api_lock'>api_lock</span><span class='lbracket'>[</span><span class='symbol'>:validity</span><span class='rbracket'>]</span>
-      <span class='ivar'>@commit_lock</span> <span class='op'>=</span> <span class='ivar'>@lock_manager</span><span class='period'>.</span><span class='id identifier rubyid_lock'>lock</span><span class='lparen'>(</span><span class='id identifier rubyid_commit_lock_key'>commit_lock_key</span><span class='comma'>,</span> <span class='id identifier rubyid_lock_ttl'>lock_ttl</span><span class='comma'>,</span> <span class='label'>extend:</span> <span class='ivar'>@commit_lock</span><span class='comma'>,</span> <span class='label'>extend_life:</span> <span class='kw'>true</span><span class='rparen'>)</span>
-    <span class='kw'>end</span>
-    <span class='comment'># Validate the active Stream Execution
-</span>    <span class='kw'>unless</span> <span class='ivar'>@queue</span><span class='period'>.</span><span class='id identifier rubyid_execution_id'>execution_id</span>
-      <span class='ivar'>@queue</span><span class='period'>.</span><span class='id identifier rubyid_commit_status'>commit_status</span> <span class='op'>=</span> <span class='symbol'>:open</span>
+      <span class='comment'># Probably a good idea to extend the lock at this point
+</span>      <span class='ivar'>@commit_lock</span> <span class='op'>=</span> <span class='ivar'>@lock_manager</span><span class='period'>.</span><span class='id identifier rubyid_lock'>lock</span><span class='lparen'>(</span><span class='id identifier rubyid_commit_lock_key'>commit_lock_key</span><span class='comma'>,</span> <span class='id identifier rubyid_lock_ttl'>lock_ttl</span><span class='comma'>,</span> <span class='label'>extend:</span> <span class='ivar'>@commit_lock</span><span class='comma'>,</span> <span class='label'>extend_life:</span> <span class='kw'>true</span><span class='rparen'>)</span>
+      <span class='comment'># TODO: Hurry up and commit when there&#39;s a distributed lock.
+</span>      <span class='comment'># Somebody else *should* grab the lock, but testing went poorly.
+</span>      <span class='id identifier rubyid_send_to_domo'>send_to_domo</span><span class='lparen'>(</span><span class='id identifier rubyid_plugin_closing'>plugin_closing</span><span class='rparen'>)</span> <span class='kw'>until</span> <span class='id identifier rubyid_queue_processed?'>queue_processed?</span><span class='lparen'>(</span><span class='id identifier rubyid_plugin_closing'>plugin_closing</span><span class='rparen'>)</span>
+      <span class='comment'># Acquire a lock on the key used for the non-commit API calls so nobody goes and creates a new Stream Execution in the middle of this.
+</span>      <span class='id identifier rubyid_api_lock'>api_lock</span> <span class='op'>=</span> <span class='ivar'>@lock_manager</span><span class='period'>.</span><span class='id identifier rubyid_lock'>lock</span><span class='lparen'>(</span><span class='id identifier rubyid_lock_key'>lock_key</span><span class='comma'>,</span> <span class='ivar'>@lock_timeout</span><span class='rparen'>)</span>
+      <span class='kw'>break</span> <span class='kw'>unless</span> <span class='id identifier rubyid_api_lock'>api_lock</span>
+      <span class='comment'># Make sure the API lock and commit lock will last for at least the same amount of time.
+</span>      <span class='kw'>if</span> <span class='ivar'>@commit_lock</span><span class='lbracket'>[</span><span class='symbol'>:validity</span><span class='rbracket'>]</span> <span class='op'>&lt;=</span> <span class='id identifier rubyid_api_lock'>api_lock</span><span class='lbracket'>[</span><span class='symbol'>:validity</span><span class='rbracket'>]</span>
+        <span class='ivar'>@commit_lock</span> <span class='op'>=</span> <span class='ivar'>@lock_manager</span><span class='period'>.</span><span class='id identifier rubyid_lock'>lock</span><span class='lparen'>(</span><span class='id identifier rubyid_commit_lock_key'>commit_lock_key</span><span class='comma'>,</span> <span class='id identifier rubyid_lock_ttl'>lock_ttl</span><span class='comma'>,</span> <span class='label'>extend:</span> <span class='ivar'>@commit_lock</span><span class='comma'>,</span> <span class='label'>extend_life:</span> <span class='kw'>true</span><span class='rparen'>)</span>
+      <span class='kw'>end</span>
+      <span class='comment'># Validate the active Stream Execution
+</span>      <span class='kw'>unless</span> <span class='ivar'>@queue</span><span class='period'>.</span><span class='id identifier rubyid_execution_id'>execution_id</span>
+        <span class='ivar'>@queue</span><span class='period'>.</span><span class='id identifier rubyid_commit_status'>commit_status</span> <span class='op'>=</span> <span class='symbol'>:open</span>
+        <span class='kw'>break</span>
+      <span class='kw'>end</span>
+      <span class='comment'># Block everybody from uploading now
+</span>      <span class='ivar'>@queue</span><span class='period'>.</span><span class='id identifier rubyid_commit_status'>commit_status</span> <span class='op'>=</span> <span class='symbol'>:running</span>
+      <span class='comment'># Do one last validation on the Stream Execution and abort if there are irregularities.
+</span>      <span class='kw'>begin</span>
+        <span class='id identifier rubyid_stream_execution'>stream_execution</span> <span class='op'>=</span> <span class='ivar'>@domo_client</span><span class='period'>.</span><span class='id identifier rubyid_stream_client'>stream_client</span><span class='period'>.</span><span class='id identifier rubyid_getExecution'>getExecution</span><span class='lparen'>(</span><span class='ivar'>@stream_id</span><span class='comma'>,</span> <span class='ivar'>@queue</span><span class='period'>.</span><span class='id identifier rubyid_execution_id'>execution_id</span><span class='rparen'>)</span>
+      <span class='kw'>rescue</span> <span class='const'>Java</span><span class='op'>::</span><span class='const'>ComDomoSdkRequest</span><span class='op'>::</span><span class='const'>RequestException</span> <span class='op'>=&gt;</span> <span class='id identifier rubyid_e'>e</span>
+        <span class='id identifier rubyid_status_code'>status_code</span> <span class='op'>=</span> <span class='const'><span class='object_link'><a href="" title="LogStash::Outputs::Domo (class)">Domo</a></span></span><span class='op'>::</span><span class='const'>Client</span><span class='period'>.</span><span class='id identifier rubyid_request_error_status_code'>request_error_status_code</span><span class='lparen'>(</span><span class='id identifier rubyid_e'>e</span><span class='rparen'>)</span>
+        <span class='kw'>if</span> <span class='id identifier rubyid_status_code'>status_code</span><span class='period'>.</span><span class='id identifier rubyid_nil?'>nil?</span> <span class='kw'>or</span> <span class='id identifier rubyid_status_code'>status_code</span> <span class='op'>==</span> <span class='op'>-</span><span class='int'>1</span>
+          <span class='ivar'>@logger</span><span class='period'>.</span><span class='id identifier rubyid_debug'>debug</span><span class='lparen'>(</span><span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>We got a status code of -1 somehow. Let&#39;s look at the exception.</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span>
+                        <span class='symbol'>:exception</span> <span class='op'>=&gt;</span> <span class='id identifier rubyid_e'>e</span><span class='comma'>,</span>
+                        <span class='symbol'>:status_code</span> <span class='op'>=&gt;</span> <span class='id identifier rubyid_status_code'>status_code</span><span class='comma'>,</span>
+                        <span class='symbol'>:message</span> <span class='op'>=&gt;</span> <span class='id identifier rubyid_e'>e</span><span class='period'>.</span><span class='id identifier rubyid_to_s'>to_s</span><span class='rparen'>)</span>
+        <span class='kw'>end</span>
+        <span class='comment'># The Execution no longer exists.
+</span>        <span class='kw'>if</span> <span class='id identifier rubyid_status_code'>status_code</span> <span class='op'>==</span> <span class='int'>404</span> <span class='kw'>or</span> <span class='id identifier rubyid_status_code'>status_code</span> <span class='op'>==</span> <span class='op'>-</span><span class='int'>1</span>
+          <span class='ivar'>@queue</span><span class='period'>.</span><span class='id identifier rubyid_commit_status'>commit_status</span> <span class='op'>=</span> <span class='symbol'>:open</span>
+          <span class='ivar'>@lock_manager</span><span class='period'>.</span><span class='id identifier rubyid_unlock'>unlock</span><span class='lparen'>(</span><span class='id identifier rubyid_api_lock'>api_lock</span><span class='rparen'>)</span> <span class='kw'>if</span> <span class='id identifier rubyid_api_lock'>api_lock</span>
+          <span class='ivar'>@lock_manager</span><span class='period'>.</span><span class='id identifier rubyid_unlock'>unlock</span><span class='lparen'>(</span><span class='ivar'>@commit_lock</span><span class='rparen'>)</span> <span class='kw'>if</span> <span class='ivar'>@commit_lock</span>
+          <span class='kw'>return</span> <span class='symbol'>:open</span>
+        <span class='kw'>else</span>
+          <span class='ivar'>@lock_manager</span><span class='period'>.</span><span class='id identifier rubyid_unlock'>unlock</span><span class='lparen'>(</span><span class='id identifier rubyid_api_lock'>api_lock</span><span class='rparen'>)</span> <span class='kw'>if</span> <span class='id identifier rubyid_api_lock'>api_lock</span>
+          <span class='ivar'>@lock_manager</span><span class='period'>.</span><span class='id identifier rubyid_unlock'>unlock</span><span class='lparen'>(</span><span class='ivar'>@commit_lock</span><span class='rparen'>)</span> <span class='kw'>if</span> <span class='ivar'>@commit_lock</span>
+          <span class='id identifier rubyid_raise'>raise</span> <span class='id identifier rubyid_e'>e</span>
+        <span class='kw'>end</span>
+      <span class='kw'>end</span>
+      <span class='comment'># Abort errored out streams
+</span>      <span class='kw'>if</span> <span class='id identifier rubyid_stream_execution'>stream_execution</span><span class='period'>.</span><span class='id identifier rubyid_currentState'>currentState</span> <span class='op'>==</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>ERROR</span><span class='tstring_end'>&quot;</span></span> <span class='kw'>or</span> <span class='id identifier rubyid_stream_execution'>stream_execution</span><span class='period'>.</span><span class='id identifier rubyid_currentState'>currentState</span> <span class='op'>==</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>FAILED</span><span class='tstring_end'>&quot;</span></span>
+        <span class='ivar'>@domo_client</span><span class='period'>.</span><span class='id identifier rubyid_stream_client'>stream_client</span><span class='period'>.</span><span class='id identifier rubyid_abortExecution'>abortExecution</span><span class='lparen'>(</span><span class='ivar'>@stream_id</span><span class='comma'>,</span> <span class='id identifier rubyid_stream_execution'>stream_execution</span><span class='period'>.</span><span class='id identifier rubyid_getId'>getId</span><span class='rparen'>)</span>
+        <span class='ivar'>@logger</span><span class='period'>.</span><span class='id identifier rubyid_error'>error</span><span class='lparen'>(</span><span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Execution ID for </span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_stream_execution'>stream_execution</span><span class='period'>.</span><span class='id identifier rubyid_getId'>getId</span><span class='embexpr_end'>}</span><span class='tstring_content'> for Stream ID </span><span class='embexpr_beg'>#{</span><span class='ivar'>@stream_id</span><span class='embexpr_end'>}</span><span class='tstring_content'> was aborted due to an error.</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span>
+                      <span class='symbol'>:stream_id</span>        <span class='op'>=&gt;</span> <span class='ivar'>@stream_id</span><span class='comma'>,</span>
+                      <span class='symbol'>:dataset_id</span>       <span class='op'>=&gt;</span> <span class='ivar'>@dataset_id</span><span class='comma'>,</span>
+                      <span class='symbol'>:execution_id</span>     <span class='op'>=&gt;</span> <span class='id identifier rubyid_stream_execution'>stream_execution</span><span class='period'>.</span><span class='id identifier rubyid_getId'>getId</span><span class='comma'>,</span>
+                      <span class='symbol'>:execution_state</span>  <span class='op'>=&gt;</span> <span class='id identifier rubyid_stream_execution'>stream_execution</span><span class='period'>.</span><span class='id identifier rubyid_currentState'>currentState</span><span class='comma'>,</span>
+                      <span class='symbol'>:execution</span>        <span class='op'>=&gt;</span> <span class='id identifier rubyid_stream_execution'>stream_execution</span><span class='period'>.</span><span class='id identifier rubyid_to_s'>to_s</span><span class='rparen'>)</span>
+        <span class='ivar'>@queue</span><span class='period'>.</span><span class='id identifier rubyid_commit_status'>commit_status</span> <span class='op'>=</span> <span class='symbol'>:failed</span>
+      <span class='comment'># Commit!
+</span>      <span class='kw'>elsif</span> <span class='id identifier rubyid_stream_execution'>stream_execution</span><span class='period'>.</span><span class='id identifier rubyid_currentState'>currentState</span> <span class='op'>==</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>ACTIVE</span><span class='tstring_end'>&quot;</span></span>
+        <span class='id identifier rubyid_execution_id'>execution_id</span> <span class='op'>=</span> <span class='id identifier rubyid_stream_execution'>stream_execution</span><span class='period'>.</span><span class='id identifier rubyid_getId'>getId</span>
+        <span class='comment'># Start the commit
+</span>        <span class='ivar'>@logger</span><span class='period'>.</span><span class='id identifier rubyid_debug'>debug</span><span class='lparen'>(</span><span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Beginning commit of Stream Execution </span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_execution_id'>execution_id</span><span class='embexpr_end'>}</span><span class='tstring_content'> for Stream ID </span><span class='embexpr_beg'>#{</span><span class='ivar'>@stream_id</span><span class='embexpr_end'>}</span><span class='tstring_content'>.</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span>
+                      <span class='symbol'>:stream_id</span>    <span class='op'>=&gt;</span> <span class='ivar'>@stream_id</span><span class='comma'>,</span>
+                      <span class='symbol'>:pipeline_id</span>  <span class='op'>=&gt;</span> <span class='id identifier rubyid_pipeline_id'>pipeline_id</span><span class='comma'>,</span>
+                      <span class='symbol'>:dataset_id</span>   <span class='op'>=&gt;</span> <span class='ivar'>@dataset_id</span><span class='comma'>,</span>
+                      <span class='symbol'>:execution_id</span> <span class='op'>=&gt;</span> <span class='id identifier rubyid_execution_id'>execution_id</span><span class='comma'>,</span>
+                      <span class='symbol'>:execution</span>    <span class='op'>=&gt;</span> <span class='id identifier rubyid_stream_execution'>stream_execution</span><span class='period'>.</span><span class='id identifier rubyid_to_s'>to_s</span><span class='rparen'>)</span>
+        <span class='id identifier rubyid_stream_execution'>stream_execution</span> <span class='op'>=</span> <span class='const'>Concurrent</span><span class='op'>::</span><span class='const'>Future</span><span class='period'>.</span><span class='id identifier rubyid_execute'>execute</span> <span class='lbrace'>{</span> <span class='ivar'>@domo_client</span><span class='period'>.</span><span class='id identifier rubyid_stream_client'>stream_client</span><span class='period'>.</span><span class='id identifier rubyid_commitExecution'>commitExecution</span><span class='lparen'>(</span><span class='ivar'>@stream_id</span><span class='comma'>,</span> <span class='id identifier rubyid_execution_id'>execution_id</span><span class='rparen'>)</span> <span class='rbrace'>}</span>
+        <span class='kw'>until</span> <span class='id identifier rubyid_stream_execution'>stream_execution</span><span class='period'>.</span><span class='id identifier rubyid_complete?'>complete?</span>
+          <span class='id identifier rubyid_sleep'>sleep</span><span class='lparen'>(</span><span class='float'>0.5</span><span class='rparen'>)</span>
+          <span class='comment'># Keep the locks active
+</span>          <span class='kw'>if</span> <span class='ivar'>@commit_lock</span><span class='lbracket'>[</span><span class='symbol'>:validity</span><span class='rbracket'>]</span> <span class='op'>&lt;=</span> <span class='int'>1000</span> <span class='kw'>or</span> <span class='id identifier rubyid_api_lock'>api_lock</span><span class='lbracket'>[</span><span class='symbol'>:validity</span><span class='rbracket'>]</span> <span class='op'>&lt;=</span> <span class='int'>1000</span>
+            <span class='ivar'>@commit_lock</span> <span class='op'>=</span> <span class='ivar'>@lock_manager</span><span class='period'>.</span><span class='id identifier rubyid_lock'>lock</span><span class='lparen'>(</span><span class='id identifier rubyid_commit_lock_key'>commit_lock_key</span><span class='comma'>,</span> <span class='id identifier rubyid_lock_ttl'>lock_ttl</span><span class='comma'>,</span> <span class='label'>extend:</span> <span class='ivar'>@commit_lock</span><span class='comma'>,</span> <span class='label'>extend_life:</span> <span class='kw'>true</span><span class='rparen'>)</span>
+            <span class='id identifier rubyid_api_lock'>api_lock</span> <span class='op'>=</span> <span class='ivar'>@lock_manager</span><span class='period'>.</span><span class='id identifier rubyid_lock'>lock</span><span class='lparen'>(</span><span class='id identifier rubyid_lock_key'>lock_key</span><span class='comma'>,</span> <span class='ivar'>@lock_timeout</span><span class='comma'>,</span> <span class='label'>extend:</span> <span class='id identifier rubyid_api_lock'>api_lock</span><span class='comma'>,</span> <span class='label'>extend_life:</span> <span class='kw'>true</span><span class='rparen'>)</span>
+          <span class='kw'>end</span>
+        <span class='kw'>end</span>
+        <span class='id identifier rubyid_stream_execution'>stream_execution</span> <span class='op'>=</span> <span class='id identifier rubyid_stream_execution'>stream_execution</span><span class='period'>.</span><span class='id identifier rubyid_value'>value</span>
+        <span class='comment'># Wait until the commit is actually done processing
+</span>        <span class='kw'>while</span> <span class='id identifier rubyid_stream_execution'>stream_execution</span><span class='op'>&amp;.</span><span class='id identifier rubyid_currentState'>currentState</span> <span class='op'>==</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>ACTIVE</span><span class='tstring_end'>&quot;</span></span>
+          <span class='id identifier rubyid_sleep'>sleep</span><span class='lparen'>(</span><span class='float'>0.5</span><span class='rparen'>)</span>
+          <span class='comment'># Keep the locks active
+</span>          <span class='kw'>if</span> <span class='ivar'>@commit_lock</span><span class='lbracket'>[</span><span class='symbol'>:validity</span><span class='rbracket'>]</span> <span class='op'>&lt;=</span> <span class='int'>1000</span> <span class='kw'>or</span> <span class='id identifier rubyid_api_lock'>api_lock</span><span class='lbracket'>[</span><span class='symbol'>:validity</span><span class='rbracket'>]</span> <span class='op'>&lt;=</span> <span class='int'>1000</span>
+            <span class='ivar'>@commit_lock</span> <span class='op'>=</span> <span class='ivar'>@lock_manager</span><span class='period'>.</span><span class='id identifier rubyid_lock'>lock</span><span class='lparen'>(</span><span class='id identifier rubyid_commit_lock_key'>commit_lock_key</span><span class='comma'>,</span> <span class='id identifier rubyid_lock_ttl'>lock_ttl</span><span class='comma'>,</span> <span class='label'>extend:</span> <span class='ivar'>@commit_lock</span><span class='comma'>,</span> <span class='label'>extend_life:</span> <span class='kw'>true</span><span class='rparen'>)</span>
+            <span class='id identifier rubyid_api_lock'>api_lock</span> <span class='op'>=</span> <span class='ivar'>@lock_manager</span><span class='period'>.</span><span class='id identifier rubyid_lock'>lock</span><span class='lparen'>(</span><span class='id identifier rubyid_lock_key'>lock_key</span><span class='comma'>,</span> <span class='ivar'>@lock_timeout</span><span class='comma'>,</span> <span class='label'>extend:</span> <span class='id identifier rubyid_api_lock'>api_lock</span><span class='comma'>,</span> <span class='label'>extend_life:</span> <span class='kw'>true</span><span class='rparen'>)</span>
+          <span class='kw'>end</span>
+          <span class='comment'># Update the StreamExecution from the API.
+</span>          <span class='kw'>begin</span>
+            <span class='id identifier rubyid_stream_execution'>stream_execution</span> <span class='op'>=</span> <span class='ivar'>@domo_client</span><span class='period'>.</span><span class='id identifier rubyid_stream_client'>stream_client</span><span class='period'>.</span><span class='id identifier rubyid_getExecution'>getExecution</span><span class='lparen'>(</span><span class='ivar'>@stream_id</span><span class='comma'>,</span> <span class='id identifier rubyid_execution_id'>execution_id</span><span class='rparen'>)</span>
+          <span class='kw'>rescue</span> <span class='const'>Java</span><span class='op'>::</span><span class='const'>ComDomoSdkRequest</span><span class='op'>::</span><span class='const'>RequestException</span> <span class='op'>=&gt;</span> <span class='id identifier rubyid_e'>e</span>
+            <span class='comment'># Almost every exception means we&#39;re done.
+</span>            <span class='id identifier rubyid_status_code'>status_code</span> <span class='op'>=</span> <span class='const'><span class='object_link'><a href="" title="LogStash::Outputs::Domo (class)">Domo</a></span></span><span class='op'>::</span><span class='const'>Client</span><span class='period'>.</span><span class='id identifier rubyid_request_error_status_code'>request_error_status_code</span><span class='lparen'>(</span><span class='id identifier rubyid_e'>e</span><span class='rparen'>)</span>
+            <span class='kw'>if</span> <span class='id identifier rubyid_status_code'>status_code</span><span class='period'>.</span><span class='id identifier rubyid_nil?'>nil?</span> <span class='kw'>or</span> <span class='id identifier rubyid_status_code'>status_code</span> <span class='op'>==</span> <span class='op'>-</span><span class='int'>1</span>
+              <span class='ivar'>@logger</span><span class='period'>.</span><span class='id identifier rubyid_debug'>debug</span><span class='lparen'>(</span><span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>We got a status code of -1 somehow. Let&#39;s look at the exception.</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span>
+                            <span class='symbol'>:exception</span> <span class='op'>=&gt;</span> <span class='id identifier rubyid_e'>e</span><span class='comma'>,</span>
+                            <span class='symbol'>:status_code</span> <span class='op'>=&gt;</span> <span class='id identifier rubyid_status_code'>status_code</span><span class='comma'>,</span>
+                            <span class='symbol'>:message</span> <span class='op'>=&gt;</span> <span class='id identifier rubyid_e'>e</span><span class='period'>.</span><span class='id identifier rubyid_to_s'>to_s</span><span class='rparen'>)</span>
+            <span class='kw'>end</span>
+            <span class='kw'>if</span> <span class='id identifier rubyid_status_code'>status_code</span> <span class='op'>==</span> <span class='int'>404</span> <span class='kw'>or</span> <span class='id identifier rubyid_status_code'>status_code</span> <span class='op'>&lt;</span> <span class='int'>400</span> <span class='kw'>or</span> <span class='id identifier rubyid_status_code'>status_code</span> <span class='op'>&gt;=</span> <span class='int'>500</span>
+              <span class='kw'>break</span>
+            <span class='kw'>else</span>
+              <span class='id identifier rubyid_raise'>raise</span> <span class='id identifier rubyid_e'>e</span>
+            <span class='kw'>end</span>
+          <span class='kw'>end</span>
+        <span class='kw'>end</span>
+        <span class='comment'># Pause for API lag to condition race prevent :p
+</span>        <span class='id identifier rubyid_sleep'>sleep</span><span class='lparen'>(</span><span class='float'>0.5</span><span class='rparen'>)</span>
+        <span class='comment'># Mark the queue as successfully committed.
+</span>        <span class='ivar'>@queue</span><span class='period'>.</span><span class='id identifier rubyid_commit'>commit</span>
+        <span class='ivar'>@queue</span><span class='period'>.</span><span class='id identifier rubyid_commit_status'>commit_status</span> <span class='op'>=</span> <span class='symbol'>:success</span>
+        <span class='ivar'>@logger</span><span class='period'>.</span><span class='id identifier rubyid_info'>info</span><span class='lparen'>(</span><span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Committed Execution ID for </span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_execution_id'>execution_id</span><span class='embexpr_end'>}</span><span class='tstring_content'> for Stream ID </span><span class='embexpr_beg'>#{</span><span class='ivar'>@stream_id</span><span class='embexpr_end'>}</span><span class='tstring_content'>.</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span>
+                      <span class='symbol'>:stream_id</span>        <span class='op'>=&gt;</span> <span class='ivar'>@stream_id</span><span class='comma'>,</span>
+                      <span class='symbol'>:pipeline_id</span>      <span class='op'>=&gt;</span> <span class='id identifier rubyid_pipeline_id'>pipeline_id</span><span class='comma'>,</span>
+                      <span class='symbol'>:dataset_id</span>       <span class='op'>=&gt;</span> <span class='ivar'>@dataset_id</span><span class='comma'>,</span>
+                      <span class='symbol'>:execution_id</span>     <span class='op'>=&gt;</span> <span class='id identifier rubyid_execution_id'>execution_id</span><span class='comma'>,</span>
+                      <span class='symbol'>:execution</span>        <span class='op'>=&gt;</span> <span class='id identifier rubyid_stream_execution'>stream_execution</span><span class='period'>.</span><span class='id identifier rubyid_to_s'>to_s</span><span class='rparen'>)</span>
+      <span class='kw'>else</span>
+        <span class='ivar'>@logger</span><span class='period'>.</span><span class='id identifier rubyid_warn'>warn</span><span class='lparen'>(</span><span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Stream Execution ID </span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_stream_execution'>stream_execution</span><span class='period'>.</span><span class='id identifier rubyid_getId'>getId</span><span class='embexpr_end'>}</span><span class='tstring_content'> for Stream ID </span><span class='embexpr_beg'>#{</span><span class='ivar'>@stream_id</span><span class='embexpr_end'>}</span><span class='tstring_content'> could not be committed or aborted because its state is </span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_stream_execution'>stream_execution</span><span class='period'>.</span><span class='id identifier rubyid_currentState'>currentState</span><span class='embexpr_end'>}</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span>
+                     <span class='symbol'>:stream_id</span>        <span class='op'>=&gt;</span> <span class='ivar'>@stream_id</span><span class='comma'>,</span>
+                     <span class='symbol'>:pipeline_id</span>      <span class='op'>=&gt;</span> <span class='id identifier rubyid_pipeline_id'>pipeline_id</span><span class='comma'>,</span>
+                     <span class='symbol'>:dataset_id</span>       <span class='op'>=&gt;</span> <span class='ivar'>@dataset_id</span><span class='comma'>,</span>
+                     <span class='symbol'>:execution_id</span>     <span class='op'>=&gt;</span> <span class='id identifier rubyid_stream_execution'>stream_execution</span><span class='period'>.</span><span class='id identifier rubyid_getId'>getId</span><span class='comma'>,</span>
+                     <span class='symbol'>:execution_state</span>  <span class='op'>=&gt;</span> <span class='id identifier rubyid_stream_execution'>stream_execution</span><span class='period'>.</span><span class='id identifier rubyid_currentState'>currentState</span><span class='comma'>,</span>
+                     <span class='symbol'>:execution</span>        <span class='op'>=&gt;</span> <span class='id identifier rubyid_stream_execution'>stream_execution</span><span class='period'>.</span><span class='id identifier rubyid_to_s'>to_s</span><span class='rparen'>)</span>
+        <span class='ivar'>@queue</span><span class='period'>.</span><span class='id identifier rubyid_commit_status'>commit_status</span> <span class='op'>=</span> <span class='symbol'>:failed</span>
+      <span class='kw'>end</span>
+      <span class='comment'># There is no execution to associate with the queue at this point.
+</span>      <span class='ivar'>@queue</span><span class='period'>.</span><span class='id identifier rubyid_execution_id'>execution_id</span> <span class='op'>=</span> <span class='kw'>nil</span> <span class='kw'>unless</span> <span class='ivar'>@queue</span><span class='period'>.</span><span class='id identifier rubyid_commit_status'>commit_status</span> <span class='op'>==</span> <span class='symbol'>:success</span>
       <span class='kw'>break</span>
     <span class='kw'>end</span>
-    <span class='comment'># Block everybody from uploading now
-</span>    <span class='ivar'>@queue</span><span class='period'>.</span><span class='id identifier rubyid_commit_status'>commit_status</span> <span class='op'>=</span> <span class='symbol'>:running</span>
-    <span class='comment'># Do one last validation on the Stream Execution and abort if there are irregularities.
-</span>    <span class='kw'>begin</span>
-      <span class='id identifier rubyid_stream_execution'>stream_execution</span> <span class='op'>=</span> <span class='ivar'>@domo_client</span><span class='period'>.</span><span class='id identifier rubyid_stream_client'>stream_client</span><span class='period'>.</span><span class='id identifier rubyid_getExecution'>getExecution</span><span class='lparen'>(</span><span class='ivar'>@stream_id</span><span class='comma'>,</span> <span class='ivar'>@queue</span><span class='period'>.</span><span class='id identifier rubyid_execution_id'>execution_id</span><span class='rparen'>)</span>
-    <span class='kw'>rescue</span> <span class='const'>Java</span><span class='op'>::</span><span class='const'>ComDomoSdkRequest</span><span class='op'>::</span><span class='const'>RequestException</span> <span class='op'>=&gt;</span> <span class='id identifier rubyid_e'>e</span>
-      <span class='id identifier rubyid_status_code'>status_code</span> <span class='op'>=</span> <span class='const'><span class='object_link'><a href="" title="LogStash::Outputs::Domo (class)">Domo</a></span></span><span class='op'>::</span><span class='const'>Client</span><span class='period'>.</span><span class='id identifier rubyid_request_error_status_code'>request_error_status_code</span><span class='lparen'>(</span><span class='id identifier rubyid_e'>e</span><span class='rparen'>)</span>
-      <span class='kw'>if</span> <span class='id identifier rubyid_status_code'>status_code</span><span class='period'>.</span><span class='id identifier rubyid_nil?'>nil?</span> <span class='kw'>or</span> <span class='id identifier rubyid_status_code'>status_code</span> <span class='op'>==</span> <span class='op'>-</span><span class='int'>1</span>
-        <span class='ivar'>@logger</span><span class='period'>.</span><span class='id identifier rubyid_debug'>debug</span><span class='lparen'>(</span><span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>We got a status code of -1 somehow. Let&#39;s look at the exception.</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span>
-                      <span class='symbol'>:exception</span> <span class='op'>=&gt;</span> <span class='id identifier rubyid_e'>e</span><span class='comma'>,</span>
-                      <span class='symbol'>:status_code</span> <span class='op'>=&gt;</span> <span class='id identifier rubyid_status_code'>status_code</span><span class='comma'>,</span>
-                      <span class='symbol'>:message</span> <span class='op'>=&gt;</span> <span class='id identifier rubyid_e'>e</span><span class='period'>.</span><span class='id identifier rubyid_to_s'>to_s</span><span class='rparen'>)</span>
-      <span class='kw'>end</span>
-      <span class='comment'># The Execution no longer exists.
-</span>      <span class='kw'>if</span> <span class='id identifier rubyid_status_code'>status_code</span> <span class='op'>==</span> <span class='int'>404</span> <span class='kw'>or</span> <span class='id identifier rubyid_status_code'>status_code</span> <span class='op'>==</span> <span class='op'>-</span><span class='int'>1</span>
-        <span class='ivar'>@queue</span><span class='period'>.</span><span class='id identifier rubyid_commit_status'>commit_status</span> <span class='op'>=</span> <span class='symbol'>:open</span>
-        <span class='ivar'>@lock_manager</span><span class='period'>.</span><span class='id identifier rubyid_unlock'>unlock</span><span class='lparen'>(</span><span class='id identifier rubyid_api_lock'>api_lock</span><span class='rparen'>)</span> <span class='kw'>if</span> <span class='id identifier rubyid_api_lock'>api_lock</span>
-        <span class='ivar'>@lock_manager</span><span class='period'>.</span><span class='id identifier rubyid_unlock'>unlock</span><span class='lparen'>(</span><span class='ivar'>@commit_lock</span><span class='rparen'>)</span> <span class='kw'>if</span> <span class='ivar'>@commit_lock</span>
-        <span class='kw'>return</span> <span class='symbol'>:open</span>
-      <span class='kw'>else</span>
-        <span class='ivar'>@lock_manager</span><span class='period'>.</span><span class='id identifier rubyid_unlock'>unlock</span><span class='lparen'>(</span><span class='id identifier rubyid_api_lock'>api_lock</span><span class='rparen'>)</span> <span class='kw'>if</span> <span class='id identifier rubyid_api_lock'>api_lock</span>
-        <span class='ivar'>@lock_manager</span><span class='period'>.</span><span class='id identifier rubyid_unlock'>unlock</span><span class='lparen'>(</span><span class='ivar'>@commit_lock</span><span class='rparen'>)</span> <span class='kw'>if</span> <span class='ivar'>@commit_lock</span>
-        <span class='id identifier rubyid_raise'>raise</span> <span class='id identifier rubyid_e'>e</span>
-      <span class='kw'>end</span>
+  <span class='comment'># Make sure to unlock all the locks
+</span>  <span class='kw'>ensure</span>
+    <span class='ivar'>@lock_manager</span><span class='period'>.</span><span class='id identifier rubyid_unlock'>unlock</span><span class='lparen'>(</span><span class='id identifier rubyid_api_lock'>api_lock</span><span class='rparen'>)</span> <span class='kw'>if</span> <span class='id identifier rubyid_api_lock'>api_lock</span>
+    <span class='kw'>if</span> <span class='ivar'>@commit_lock</span>
+      <span class='ivar'>@commit_thread</span> <span class='op'>=</span> <span class='kw'>nil</span>
+      <span class='ivar'>@lock_manager</span><span class='period'>.</span><span class='id identifier rubyid_unlock'>unlock</span><span class='lparen'>(</span><span class='ivar'>@commit_lock</span><span class='rparen'>)</span>
     <span class='kw'>end</span>
-    <span class='comment'># Abort errored out streams
-</span>    <span class='kw'>if</span> <span class='id identifier rubyid_stream_execution'>stream_execution</span><span class='period'>.</span><span class='id identifier rubyid_currentState'>currentState</span> <span class='op'>==</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>ERROR</span><span class='tstring_end'>&quot;</span></span> <span class='kw'>or</span> <span class='id identifier rubyid_stream_execution'>stream_execution</span><span class='period'>.</span><span class='id identifier rubyid_currentState'>currentState</span> <span class='op'>==</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>FAILED</span><span class='tstring_end'>&quot;</span></span>
-      <span class='ivar'>@domo_client</span><span class='period'>.</span><span class='id identifier rubyid_stream_client'>stream_client</span><span class='period'>.</span><span class='id identifier rubyid_abortExecution'>abortExecution</span><span class='lparen'>(</span><span class='ivar'>@stream_id</span><span class='comma'>,</span> <span class='id identifier rubyid_stream_execution'>stream_execution</span><span class='period'>.</span><span class='id identifier rubyid_getId'>getId</span><span class='rparen'>)</span>
-      <span class='ivar'>@logger</span><span class='period'>.</span><span class='id identifier rubyid_error'>error</span><span class='lparen'>(</span><span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Execution ID for </span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_stream_execution'>stream_execution</span><span class='period'>.</span><span class='id identifier rubyid_getId'>getId</span><span class='embexpr_end'>}</span><span class='tstring_content'> for Stream ID </span><span class='embexpr_beg'>#{</span><span class='ivar'>@stream_id</span><span class='embexpr_end'>}</span><span class='tstring_content'> was aborted due to an error.</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span>
-                    <span class='symbol'>:stream_id</span>        <span class='op'>=&gt;</span> <span class='ivar'>@stream_id</span><span class='comma'>,</span>
-                    <span class='symbol'>:execution_id</span>     <span class='op'>=&gt;</span> <span class='id identifier rubyid_stream_execution'>stream_execution</span><span class='period'>.</span><span class='id identifier rubyid_getId'>getId</span><span class='comma'>,</span>
-                    <span class='symbol'>:execution_state</span>  <span class='op'>=&gt;</span> <span class='id identifier rubyid_stream_execution'>stream_execution</span><span class='period'>.</span><span class='id identifier rubyid_currentState'>currentState</span><span class='comma'>,</span>
-                    <span class='symbol'>:execution</span>        <span class='op'>=&gt;</span> <span class='id identifier rubyid_stream_execution'>stream_execution</span><span class='period'>.</span><span class='id identifier rubyid_to_s'>to_s</span><span class='rparen'>)</span>
-      <span class='ivar'>@queue</span><span class='period'>.</span><span class='id identifier rubyid_commit_status'>commit_status</span> <span class='op'>=</span> <span class='symbol'>:failed</span>
-    <span class='comment'># Commit!
-</span>    <span class='kw'>elsif</span> <span class='id identifier rubyid_stream_execution'>stream_execution</span><span class='period'>.</span><span class='id identifier rubyid_currentState'>currentState</span> <span class='op'>==</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>ACTIVE</span><span class='tstring_end'>&quot;</span></span>
-      <span class='id identifier rubyid_execution_id'>execution_id</span> <span class='op'>=</span> <span class='id identifier rubyid_stream_execution'>stream_execution</span><span class='period'>.</span><span class='id identifier rubyid_getId'>getId</span>
-      <span class='comment'># Start the commit
-</span>      <span class='ivar'>@logger</span><span class='period'>.</span><span class='id identifier rubyid_debug'>debug</span><span class='lparen'>(</span><span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Beginning commit of Stream Execution </span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_execution_id'>execution_id</span><span class='embexpr_end'>}</span><span class='tstring_content'> for Stream ID </span><span class='embexpr_beg'>#{</span><span class='ivar'>@stream_id</span><span class='embexpr_end'>}</span><span class='tstring_content'>.</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span>
-                    <span class='symbol'>:stream_id</span>    <span class='op'>=&gt;</span> <span class='ivar'>@stream_id</span><span class='comma'>,</span>
-                    <span class='symbol'>:execution_id</span> <span class='op'>=&gt;</span> <span class='id identifier rubyid_execution_id'>execution_id</span><span class='comma'>,</span>
-                    <span class='symbol'>:execution</span>    <span class='op'>=&gt;</span> <span class='id identifier rubyid_stream_execution'>stream_execution</span><span class='period'>.</span><span class='id identifier rubyid_to_s'>to_s</span><span class='rparen'>)</span>
-      <span class='id identifier rubyid_stream_execution'>stream_execution</span> <span class='op'>=</span> <span class='ivar'>@domo_client</span><span class='period'>.</span><span class='id identifier rubyid_stream_client'>stream_client</span><span class='period'>.</span><span class='id identifier rubyid_commitExecution'>commitExecution</span><span class='lparen'>(</span><span class='ivar'>@stream_id</span><span class='comma'>,</span> <span class='id identifier rubyid_execution_id'>execution_id</span><span class='rparen'>)</span>
-      <span class='comment'># Wait until the commit is actually done processing
-</span>      <span class='kw'>while</span> <span class='id identifier rubyid_stream_execution'>stream_execution</span><span class='op'>&amp;.</span><span class='id identifier rubyid_currentState'>currentState</span> <span class='op'>==</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>ACTIVE</span><span class='tstring_end'>&quot;</span></span>
-        <span class='id identifier rubyid_sleep'>sleep</span><span class='lparen'>(</span><span class='float'>0.5</span><span class='rparen'>)</span>
-        <span class='comment'># Keep the locks active
-</span>        <span class='kw'>if</span> <span class='ivar'>@commit_lock</span><span class='lbracket'>[</span><span class='symbol'>:validity</span><span class='rbracket'>]</span> <span class='op'>&lt;=</span> <span class='int'>1000</span> <span class='kw'>or</span> <span class='id identifier rubyid_api_lock'>api_lock</span><span class='lbracket'>[</span><span class='symbol'>:validity</span><span class='rbracket'>]</span> <span class='op'>&lt;=</span> <span class='int'>1000</span>
-          <span class='ivar'>@commit_lock</span> <span class='op'>=</span> <span class='ivar'>@lock_manager</span><span class='period'>.</span><span class='id identifier rubyid_lock'>lock</span><span class='lparen'>(</span><span class='id identifier rubyid_commit_lock_key'>commit_lock_key</span><span class='comma'>,</span> <span class='id identifier rubyid_lock_ttl'>lock_ttl</span><span class='comma'>,</span> <span class='label'>extend:</span> <span class='ivar'>@commit_lock</span><span class='comma'>,</span> <span class='label'>extend_life:</span> <span class='kw'>true</span><span class='rparen'>)</span>
-          <span class='id identifier rubyid_api_lock'>api_lock</span> <span class='op'>=</span> <span class='ivar'>@lock_manager</span><span class='period'>.</span><span class='id identifier rubyid_lock'>lock</span><span class='lparen'>(</span><span class='id identifier rubyid_lock_key'>lock_key</span><span class='comma'>,</span> <span class='ivar'>@lock_timeout</span><span class='comma'>,</span> <span class='label'>extend:</span> <span class='id identifier rubyid_api_lock'>api_lock</span><span class='comma'>,</span> <span class='label'>extend_life:</span> <span class='kw'>true</span><span class='rparen'>)</span>
-        <span class='kw'>end</span>
-        <span class='comment'># Update the StreamExecution from the API.
-</span>        <span class='kw'>begin</span>
-          <span class='id identifier rubyid_stream_execution'>stream_execution</span> <span class='op'>=</span> <span class='ivar'>@domo_client</span><span class='period'>.</span><span class='id identifier rubyid_stream_client'>stream_client</span><span class='period'>.</span><span class='id identifier rubyid_getExecution'>getExecution</span><span class='lparen'>(</span><span class='ivar'>@stream_id</span><span class='comma'>,</span> <span class='id identifier rubyid_execution_id'>execution_id</span><span class='rparen'>)</span>
-        <span class='kw'>rescue</span> <span class='const'>Java</span><span class='op'>::</span><span class='const'>ComDomoSdkRequest</span><span class='op'>::</span><span class='const'>RequestException</span> <span class='op'>=&gt;</span> <span class='id identifier rubyid_e'>e</span>
-          <span class='comment'># Almost every exception means we&#39;re done.
-</span>          <span class='id identifier rubyid_status_code'>status_code</span> <span class='op'>=</span> <span class='const'><span class='object_link'><a href="" title="LogStash::Outputs::Domo (class)">Domo</a></span></span><span class='op'>::</span><span class='const'>Client</span><span class='period'>.</span><span class='id identifier rubyid_request_error_status_code'>request_error_status_code</span><span class='lparen'>(</span><span class='id identifier rubyid_e'>e</span><span class='rparen'>)</span>
-          <span class='kw'>if</span> <span class='id identifier rubyid_status_code'>status_code</span><span class='period'>.</span><span class='id identifier rubyid_nil?'>nil?</span> <span class='kw'>or</span> <span class='id identifier rubyid_status_code'>status_code</span> <span class='op'>==</span> <span class='op'>-</span><span class='int'>1</span>
-            <span class='ivar'>@logger</span><span class='period'>.</span><span class='id identifier rubyid_debug'>debug</span><span class='lparen'>(</span><span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>We got a status code of -1 somehow. Let&#39;s look at the exception.</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span>
-                          <span class='symbol'>:exception</span> <span class='op'>=&gt;</span> <span class='id identifier rubyid_e'>e</span><span class='comma'>,</span>
-                          <span class='symbol'>:status_code</span> <span class='op'>=&gt;</span> <span class='id identifier rubyid_status_code'>status_code</span><span class='comma'>,</span>
-                          <span class='symbol'>:message</span> <span class='op'>=&gt;</span> <span class='id identifier rubyid_e'>e</span><span class='period'>.</span><span class='id identifier rubyid_to_s'>to_s</span><span class='rparen'>)</span>
-          <span class='kw'>end</span>
-          <span class='kw'>if</span> <span class='id identifier rubyid_status_code'>status_code</span> <span class='op'>==</span> <span class='int'>404</span> <span class='kw'>or</span> <span class='id identifier rubyid_status_code'>status_code</span> <span class='op'>&lt;</span> <span class='int'>400</span> <span class='kw'>or</span> <span class='id identifier rubyid_status_code'>status_code</span> <span class='op'>&gt;=</span> <span class='int'>500</span>
-            <span class='kw'>break</span>
-          <span class='kw'>else</span>
-            <span class='id identifier rubyid_raise'>raise</span> <span class='id identifier rubyid_e'>e</span>
-          <span class='kw'>end</span>
-        <span class='kw'>end</span>
-      <span class='kw'>end</span>
-      <span class='comment'># Pause for API lag to condition race prevent :p
-</span>      <span class='id identifier rubyid_sleep'>sleep</span><span class='lparen'>(</span><span class='float'>0.5</span><span class='rparen'>)</span>
-      <span class='comment'># Mark the queue as successfully committed.
-</span>      <span class='ivar'>@queue</span><span class='period'>.</span><span class='id identifier rubyid_commit'>commit</span>
-      <span class='ivar'>@queue</span><span class='period'>.</span><span class='id identifier rubyid_commit_status'>commit_status</span> <span class='op'>=</span> <span class='symbol'>:success</span>
-      <span class='ivar'>@logger</span><span class='period'>.</span><span class='id identifier rubyid_info'>info</span><span class='lparen'>(</span><span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Committed Execution ID for </span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_execution_id'>execution_id</span><span class='embexpr_end'>}</span><span class='tstring_content'> for Stream ID </span><span class='embexpr_beg'>#{</span><span class='ivar'>@stream_id</span><span class='embexpr_end'>}</span><span class='tstring_content'>.</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span>
-                    <span class='symbol'>:stream_id</span>        <span class='op'>=&gt;</span> <span class='ivar'>@stream_id</span><span class='comma'>,</span>
-                    <span class='symbol'>:execution_id</span>     <span class='op'>=&gt;</span> <span class='id identifier rubyid_execution_id'>execution_id</span><span class='comma'>,</span>
-                    <span class='symbol'>:execution</span>        <span class='op'>=&gt;</span> <span class='id identifier rubyid_stream_execution'>stream_execution</span><span class='period'>.</span><span class='id identifier rubyid_to_s'>to_s</span><span class='rparen'>)</span>
-    <span class='kw'>else</span>
-      <span class='ivar'>@logger</span><span class='period'>.</span><span class='id identifier rubyid_warn'>warn</span><span class='lparen'>(</span><span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Stream Execution ID </span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_stream_execution'>stream_execution</span><span class='period'>.</span><span class='id identifier rubyid_getId'>getId</span><span class='embexpr_end'>}</span><span class='tstring_content'> for Stream ID </span><span class='embexpr_beg'>#{</span><span class='ivar'>@stream_id</span><span class='embexpr_end'>}</span><span class='tstring_content'> could not be committed or aborted because its state is </span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_stream_execution'>stream_execution</span><span class='period'>.</span><span class='id identifier rubyid_currentState'>currentState</span><span class='embexpr_end'>}</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span>
-                   <span class='symbol'>:stream_id</span>        <span class='op'>=&gt;</span> <span class='ivar'>@stream_id</span><span class='comma'>,</span>
-                   <span class='symbol'>:execution_id</span>     <span class='op'>=&gt;</span> <span class='id identifier rubyid_stream_execution'>stream_execution</span><span class='period'>.</span><span class='id identifier rubyid_getId'>getId</span><span class='comma'>,</span>
-                   <span class='symbol'>:execution_state</span>  <span class='op'>=&gt;</span> <span class='id identifier rubyid_stream_execution'>stream_execution</span><span class='period'>.</span><span class='id identifier rubyid_currentState'>currentState</span><span class='comma'>,</span>
-                   <span class='symbol'>:execution</span>        <span class='op'>=&gt;</span> <span class='id identifier rubyid_stream_execution'>stream_execution</span><span class='period'>.</span><span class='id identifier rubyid_to_s'>to_s</span><span class='rparen'>)</span>
-      <span class='ivar'>@queue</span><span class='period'>.</span><span class='id identifier rubyid_commit_status'>commit_status</span> <span class='op'>=</span> <span class='symbol'>:failed</span>
-    <span class='kw'>end</span>
-    <span class='comment'># There is no execution to associate with the queue at this point.
-</span>    <span class='ivar'>@queue</span><span class='period'>.</span><span class='id identifier rubyid_execution_id'>execution_id</span> <span class='op'>=</span> <span class='kw'>nil</span> <span class='kw'>unless</span> <span class='ivar'>@queue</span><span class='period'>.</span><span class='id identifier rubyid_commit_status'>commit_status</span> <span class='op'>==</span> <span class='symbol'>:success</span>
-    <span class='kw'>break</span>
-  <span class='kw'>end</span>
-  <span class='comment'># Unlock all the locks
-</span>  <span class='ivar'>@lock_manager</span><span class='period'>.</span><span class='id identifier rubyid_unlock'>unlock</span><span class='lparen'>(</span><span class='id identifier rubyid_api_lock'>api_lock</span><span class='rparen'>)</span> <span class='kw'>if</span> <span class='id identifier rubyid_api_lock'>api_lock</span>
-  <span class='kw'>if</span> <span class='ivar'>@commit_lock</span>
-    <span class='ivar'>@commit_thread</span> <span class='op'>=</span> <span class='kw'>nil</span>
-    <span class='ivar'>@lock_manager</span><span class='period'>.</span><span class='id identifier rubyid_unlock'>unlock</span><span class='lparen'>(</span><span class='ivar'>@commit_lock</span><span class='rparen'>)</span>
   <span class='kw'>end</span>
   <span class='comment'># Return the status of the commit.
 </span>  <span class='ivar'>@queue</span><span class='period'>.</span><span class='id identifier rubyid_commit_status'>commit_status</span>
@@ -1493,16 +1515,16 @@ commit_delay</p>
       <pre class="lines">
 
 
-889
-890
-891
-892
-893
-894
-895</pre>
+957
+958
+959
+960
+961
+962
+963</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/logstash/outputs/domo.rb', line 889</span>
+      <pre class="code"><span class="info file"># File 'lib/logstash/outputs/domo.rb', line 957</span>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_dlq_enabled?'>dlq_enabled?</span>
   <span class='comment'># Thanks Elasticsearch plugin team!
@@ -1580,53 +1602,53 @@ commit_delay</p>
       <pre class="lines">
 
 
-727
-728
-729
-730
-731
-732
-733
-734
-735
-736
-737
-738
-739
-740
-741
-742
-743
-744
-745
-746
-747
-748
-749
-750
-751
-752
-753
-754
-755
-756
-757
-758
-759
-760
-761
-762
-763
-764
-765
-766
-767
-768
-769
-770</pre>
+795
+796
+797
+798
+799
+800
+801
+802
+803
+804
+805
+806
+807
+808
+809
+810
+811
+812
+813
+814
+815
+816
+817
+818
+819
+820
+821
+822
+823
+824
+825
+826
+827
+828
+829
+830
+831
+832
+833
+834
+835
+836
+837
+838</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/logstash/outputs/domo.rb', line 727</span>
+      <pre class="code"><span class="info file"># File 'lib/logstash/outputs/domo.rb', line 795</span>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_encode_event_data'>encode_event_data</span><span class='lparen'>(</span><span class='id identifier rubyid_event'>event</span><span class='rparen'>)</span>
   <span class='id identifier rubyid_column_names'>column_names</span> <span class='op'>=</span> <span class='ivar'>@dataset_columns</span><span class='period'>.</span><span class='id identifier rubyid_map'>map</span> <span class='lbrace'>{</span> <span class='op'>|</span><span class='id identifier rubyid_col'>col</span><span class='op'>|</span> <span class='id identifier rubyid_col'>col</span><span class='lbracket'>[</span><span class='symbol'>:name</span><span class='rbracket'>]</span> <span class='rbrace'>}</span>
@@ -1722,21 +1744,6 @@ multi-threaded)</p>
       <pre class="lines">
 
 
-297
-298
-299
-300
-301
-302
-303
-304
-305
-306
-307
-308
-309
-310
-311
 312
 313
 314
@@ -1744,31 +1751,22 @@ multi-threaded)</p>
 316
 317
 318
-319</pre>
+319
+320
+321
+322</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/logstash/outputs/domo.rb', line 297</span>
+      <pre class="code"><span class="info file"># File 'lib/logstash/outputs/domo.rb', line 312</span>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_get_queue'>get_queue</span>
+  <span class='kw'>return</span> <span class='ivar'>@queue</span> <span class='kw'>unless</span> <span class='ivar'>@queue</span><span class='period'>.</span><span class='id identifier rubyid_nil?'>nil?</span>
   <span class='comment'># Simple multi-threaded queue.
-</span>  <span class='kw'>return</span> <span class='ivar'>@queue</span> <span class='kw'>if</span> <span class='ivar'>@queue</span><span class='period'>.</span><span class='id identifier rubyid_is_a?'>is_a?</span> <span class='const'><span class='object_link'><a href="" title="LogStash::Outputs::Domo (class)">Domo</a></span></span><span class='op'>::</span><span class='const'>Queue</span><span class='op'>::</span><span class='const'>ThreadedQueue</span>
-  <span class='kw'>if</span> <span class='ivar'>@redis_client</span><span class='period'>.</span><span class='id identifier rubyid_nil?'>nil?</span>
+</span>  <span class='kw'>if</span> <span class='ivar'>@redis_client</span><span class='period'>.</span><span class='id identifier rubyid_nil?'>nil?</span>
     <span class='id identifier rubyid_queue'>queue</span> <span class='op'>=</span> <span class='const'><span class='object_link'><a href="" title="LogStash::Outputs::Domo (class)">Domo</a></span></span><span class='op'>::</span><span class='const'>Queue</span><span class='op'>::</span><span class='const'>Threaded</span><span class='op'>::</span><span class='const'>JobQueue</span><span class='period'>.</span><span class='id identifier rubyid_new'>new</span><span class='lparen'>(</span><span class='ivar'>@dataset_id</span><span class='comma'>,</span> <span class='ivar'>@stream_id</span><span class='comma'>,</span> <span class='kw'>nil</span><span class='comma'>,</span> <span class='id identifier rubyid_pipeline_id'>pipeline_id</span><span class='rparen'>)</span>
   <span class='comment'># Redis based queue.
 </span>  <span class='kw'>else</span>
-    <span class='comment'># Attempt to load the queue from redis in case there are still active jobs.
-</span>    <span class='id identifier rubyid_queue'>queue</span> <span class='op'>=</span> <span class='const'><span class='object_link'><a href="" title="LogStash::Outputs::Domo (class)">Domo</a></span></span><span class='op'>::</span><span class='const'>Queue</span><span class='op'>::</span><span class='const'>Redis</span><span class='op'>::</span><span class='const'>JobQueue</span><span class='period'>.</span><span class='id identifier rubyid_active_queue'>active_queue</span><span class='lparen'>(</span><span class='ivar'>@redis_client</span><span class='comma'>,</span> <span class='ivar'>@dataset_id</span><span class='comma'>,</span> <span class='ivar'>@stream_id</span><span class='comma'>,</span> <span class='id identifier rubyid_pipeline_id'>pipeline_id</span><span class='rparen'>)</span>
-    <span class='comment'># If we can&#39;t find one, let&#39;s make one
-</span>    <span class='kw'>if</span> <span class='id identifier rubyid_queue'>queue</span><span class='period'>.</span><span class='id identifier rubyid_nil?'>nil?</span>
-      <span class='kw'>begin</span>
-        <span class='id identifier rubyid_queue'>queue</span> <span class='op'>=</span> <span class='ivar'>@lock_manager</span><span class='period'>.</span><span class='id identifier rubyid_lock!'>lock!</span><span class='lparen'>(</span><span class='id identifier rubyid_lock_key'>lock_key</span><span class='comma'>,</span> <span class='ivar'>@lock_timeout</span><span class='rparen'>)</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_locked'>locked</span><span class='op'>|</span>
-          <span class='const'><span class='object_link'><a href="" title="LogStash::Outputs::Domo (class)">Domo</a></span></span><span class='op'>::</span><span class='const'>Queue</span><span class='op'>::</span><span class='const'>Redis</span><span class='op'>::</span><span class='const'>JobQueue</span><span class='period'>.</span><span class='id identifier rubyid_new'>new</span><span class='lparen'>(</span><span class='ivar'>@redis_client</span><span class='comma'>,</span> <span class='ivar'>@dataset_id</span><span class='comma'>,</span> <span class='ivar'>@stream_id</span><span class='comma'>,</span> <span class='kw'>nil</span><span class='comma'>,</span> <span class='id identifier rubyid_pipeline_id'>pipeline_id</span><span class='rparen'>)</span>
-        <span class='kw'>end</span>
-      <span class='kw'>rescue</span> <span class='const'>Redlock</span><span class='op'>::</span><span class='const'>LockError</span> <span class='op'>=&gt;</span> <span class='id identifier rubyid_e'>e</span>
-        <span class='id identifier rubyid_raise'>raise</span> <span class='id identifier rubyid_e'>e</span> <span class='kw'>if</span> <span class='ivar'>@queue</span><span class='period'>.</span><span class='id identifier rubyid_nil?'>nil?</span>
-        <span class='kw'>return</span> <span class='ivar'>@queue</span>
-      <span class='kw'>end</span>
-    <span class='kw'>end</span>
+    <span class='id identifier rubyid_queue'>queue</span> <span class='op'>=</span> <span class='const'><span class='object_link'><a href="" title="LogStash::Outputs::Domo (class)">Domo</a></span></span><span class='op'>::</span><span class='const'>Queue</span><span class='op'>::</span><span class='const'>Redis</span><span class='op'>::</span><span class='const'>JobQueue</span><span class='period'>.</span><span class='id identifier rubyid_active_queue'>active_queue</span><span class='lparen'>(</span><span class='ivar'>@redis_client</span><span class='comma'>,</span> <span class='ivar'>@dataset_id</span><span class='comma'>,</span> <span class='ivar'>@stream_id</span><span class='rparen'>)</span>
   <span class='kw'>end</span>
   <span class='id identifier rubyid_queue'>queue</span>
 <span class='kw'>end</span></pre>
@@ -1817,20 +1815,20 @@ parameters for distributed locking</p>
       <pre class="lines">
 
 
-856
-857
-858
-859
-860
-861
-862
-863
-864
-865
-866</pre>
+924
+925
+926
+927
+928
+929
+930
+931
+932
+933
+934</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/logstash/outputs/domo.rb', line 856</span>
+      <pre class="code"><span class="info file"># File 'lib/logstash/outputs/domo.rb', line 924</span>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_lock_hosts'>lock_hosts</span><span class='lparen'>(</span><span class='id identifier rubyid_lock_hosts'>lock_hosts</span><span class='comma'>,</span> <span class='id identifier rubyid_lock_ports'>lock_ports</span><span class='comma'>,</span> <span class='id identifier rubyid_lock_passwords'>lock_passwords</span><span class='rparen'>)</span>
   <span class='id identifier rubyid_lock_servers'>lock_servers</span> <span class='op'>=</span> <span class='const'>Array</span><span class='period'>.</span><span class='id identifier rubyid_new'>new</span>
@@ -1863,9 +1861,6 @@ parameters for distributed locking</p>
       <pre class="lines">
 
 
-322
-323
-324
 325
 326
 327
@@ -1911,10 +1906,60 @@ parameters for distributed locking</p>
 367
 368
 369
-370</pre>
+370
+371
+372
+373
+374
+375
+376
+377
+378
+379
+380
+381
+382
+383
+384
+385
+386
+387
+388
+389
+390
+391
+392
+393
+394
+395
+396
+397
+398
+399
+400
+401
+402
+403
+404
+405
+406
+407
+408
+409
+410
+411
+412
+413
+414
+415
+416
+417
+418
+419
+420</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/logstash/outputs/domo.rb', line 322</span>
+      <pre class="code"><span class="info file"># File 'lib/logstash/outputs/domo.rb', line 325</span>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_multi_receive'>multi_receive</span><span class='lparen'>(</span><span class='id identifier rubyid_events'>events</span><span class='rparen'>)</span>
   <span class='comment'># Get the current queue
@@ -1922,17 +1967,27 @@ parameters for distributed locking</p>
   <span class='comment'># LogStash::SHUTDOWN events will set this to true
 </span>  <span class='id identifier rubyid_plugin_closing'>plugin_closing</span> <span class='op'>=</span> <span class='kw'>false</span>
 
-  <span class='id identifier rubyid_events'>events</span><span class='period'>.</span><span class='id identifier rubyid_each'>each</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_event'>event</span><span class='op'>|</span>
+  <span class='comment'># Add the events to a pending job if there are any
+</span>  <span class='comment'># Otherwise just set data to a new Array
+</span>  <span class='kw'>if</span> <span class='ivar'>@queue</span><span class='period'>.</span><span class='id identifier rubyid_pending_jobs'>pending_jobs</span><span class='period'>.</span><span class='id identifier rubyid_length'>length</span> <span class='op'>&lt;=</span> <span class='int'>0</span>
+    <span class='id identifier rubyid_data'>data</span> <span class='op'>=</span> <span class='const'>Array</span><span class='period'>.</span><span class='id identifier rubyid_new'>new</span>
+    <span class='id identifier rubyid_pending_job'>pending_job</span> <span class='op'>=</span> <span class='kw'>nil</span>
+  <span class='kw'>else</span>
+    <span class='id identifier rubyid_pending_job'>pending_job</span> <span class='op'>=</span> <span class='ivar'>@queue</span><span class='period'>.</span><span class='id identifier rubyid_pending_jobs'>pending_jobs</span><span class='period'>.</span><span class='id identifier rubyid_pop'>pop</span>
+    <span class='id identifier rubyid_data'>data</span> <span class='op'>=</span> <span class='id identifier rubyid_pending_job'>pending_job</span><span class='period'>.</span><span class='id identifier rubyid_nil?'>nil?</span> <span class='op'>?</span> <span class='const'>Array</span><span class='period'>.</span><span class='id identifier rubyid_new'>new</span> <span class='op'>:</span> <span class='id identifier rubyid_pending_job'>pending_job</span><span class='period'>.</span><span class='id identifier rubyid_data'>data</span>
+  <span class='kw'>end</span>
+  <span class='comment'># When using upload_max_batch_size we keep track of the number of batches generated from the provided events
+</span>  <span class='id identifier rubyid_num_batches'>num_batches</span> <span class='op'>=</span> <span class='int'>1</span>
+  <span class='comment'># Loop through the incoming events, encode them, add the encoded data to the data Array, and parcel out jobs.
+</span>  <span class='id identifier rubyid_events'>events</span><span class='period'>.</span><span class='id identifier rubyid_each_with_index'>each_with_index</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_event'>event</span><span class='comma'>,</span> <span class='id identifier rubyid_i'>i</span><span class='op'>|</span>
     <span class='kw'>if</span> <span class='id identifier rubyid_event'>event</span> <span class='op'>==</span> <span class='const'>LogStash</span><span class='op'>::</span><span class='const'>SHUTDOWN</span>
       <span class='id identifier rubyid_plugin_closing'>plugin_closing</span> <span class='op'>=</span> <span class='kw'>true</span>
       <span class='kw'>break</span>
     <span class='kw'>end</span>
-    <span class='comment'># Encode the Event data and add a job to the queue
+    <span class='comment'># Encode the Event data
 </span>    <span class='kw'>begin</span>
-      <span class='id identifier rubyid_data'>data</span> <span class='op'>=</span> <span class='id identifier rubyid_encode_event_data'>encode_event_data</span><span class='lparen'>(</span><span class='id identifier rubyid_event'>event</span><span class='rparen'>)</span>
-      <span class='comment'># Create a job for the event + data and add it to the queue.
-</span>      <span class='id identifier rubyid_job'>job</span> <span class='op'>=</span> <span class='const'><span class='object_link'><a href="" title="LogStash::Outputs::Domo (class)">Domo</a></span></span><span class='op'>::</span><span class='const'>Queue</span><span class='op'>::</span><span class='const'>Job</span><span class='period'>.</span><span class='id identifier rubyid_new'>new</span><span class='lparen'>(</span><span class='id identifier rubyid_event'>event</span><span class='comma'>,</span> <span class='id identifier rubyid_data'>data</span><span class='rparen'>)</span>
-      <span class='ivar'>@queue</span> <span class='op'>&lt;&lt;</span> <span class='id identifier rubyid_job'>job</span>
+      <span class='id identifier rubyid_encoded_event'>encoded_event</span> <span class='op'>=</span> <span class='id identifier rubyid_encode_event_data'>encode_event_data</span><span class='lparen'>(</span><span class='id identifier rubyid_event'>event</span><span class='rparen'>)</span>
+      <span class='id identifier rubyid_data'>data</span> <span class='op'>&lt;&lt;</span> <span class='id identifier rubyid_encoded_event'>encoded_event</span>
     <span class='comment'># Reject the invalid event and send it to the DLQ if it&#39;s enabled.
 </span>    <span class='kw'>rescue</span> <span class='const'><span class='object_link'><a href="Domo/ColumnTypeError.html" title="LogStash::Outputs::Domo::ColumnTypeError (class)">ColumnTypeError</a></span></span> <span class='op'>=&gt;</span> <span class='id identifier rubyid_e'>e</span>
       <span class='ivar'>@dlq_writer</span><span class='period'>.</span><span class='id identifier rubyid_write'>write</span><span class='lparen'>(</span><span class='id identifier rubyid_event'>event</span><span class='comma'>,</span> <span class='id identifier rubyid_e'>e</span><span class='period'>.</span><span class='id identifier rubyid_log_entry'>log_entry</span><span class='rparen'>)</span> <span class='kw'>unless</span> <span class='ivar'>@dlq_writer</span><span class='period'>.</span><span class='id identifier rubyid_nil?'>nil?</span>
@@ -1943,9 +1998,46 @@ parameters for distributed locking</p>
                     <span class='symbol'>:event</span>       <span class='op'>=&gt;</span> <span class='id identifier rubyid_event'>event</span><span class='period'>.</span><span class='id identifier rubyid_to_hash'>to_hash</span><span class='comma'>,</span>
                     <span class='symbol'>:exception</span>   <span class='op'>=&gt;</span> <span class='id identifier rubyid_e'>e</span><span class='rparen'>)</span>
     <span class='kw'>end</span>
+    <span class='comment'># Carve out Job batches if we have a maximum batch size.
+</span>    <span class='kw'>if</span> <span class='ivar'>@upload_max_batch_size</span> <span class='op'>&gt;</span> <span class='int'>0</span> <span class='kw'>and</span> <span class='id identifier rubyid_i'>i</span> <span class='op'>+</span> <span class='int'>1</span> <span class='op'>&gt;=</span> <span class='ivar'>@upload_max_batch_size</span> <span class='op'>*</span> <span class='id identifier rubyid_num_batches'>num_batches</span>
+      <span class='kw'>if</span> <span class='id identifier rubyid_pending_job'>pending_job</span><span class='period'>.</span><span class='id identifier rubyid_nil?'>nil?</span>
+        <span class='id identifier rubyid_job'>job</span> <span class='op'>=</span> <span class='const'><span class='object_link'><a href="" title="LogStash::Outputs::Domo (class)">Domo</a></span></span><span class='op'>::</span><span class='const'>Queue</span><span class='op'>::</span><span class='const'>Job</span><span class='period'>.</span><span class='id identifier rubyid_new'>new</span><span class='lparen'>(</span><span class='id identifier rubyid_data'>data</span><span class='comma'>,</span> <span class='ivar'>@upload_min_batch_size</span><span class='rparen'>)</span>
+      <span class='kw'>else</span>
+        <span class='id identifier rubyid_job'>job</span> <span class='op'>=</span> <span class='id identifier rubyid_pending_job'>pending_job</span>
+        <span class='id identifier rubyid_job'>job</span><span class='period'>.</span><span class='id identifier rubyid_data'>data</span> <span class='op'>=</span> <span class='id identifier rubyid_data'>data</span>
+        <span class='id identifier rubyid_job'>job</span><span class='period'>.</span><span class='id identifier rubyid_minimum_size'>minimum_size</span> <span class='op'>=</span> <span class='ivar'>@upload_min_batch_size</span>
+      <span class='kw'>end</span>
+      <span class='ivar'>@queue</span> <span class='op'>&lt;&lt;</span> <span class='id identifier rubyid_job'>job</span>
+      <span class='id identifier rubyid_data'>data</span><span class='period'>.</span><span class='id identifier rubyid_clear'>clear</span>
+      <span class='id identifier rubyid_pending_job'>pending_job</span> <span class='op'>=</span> <span class='ivar'>@queue</span><span class='period'>.</span><span class='id identifier rubyid_pending_jobs'>pending_jobs</span><span class='period'>.</span><span class='id identifier rubyid_pop'>pop</span>
+      <span class='id identifier rubyid_num_batches'>num_batches</span> <span class='op'>+=</span> <span class='int'>1</span>
+    <span class='kw'>end</span>
+  <span class='kw'>end</span>
+  <span class='kw'>unless</span> <span class='id identifier rubyid_data'>data</span><span class='period'>.</span><span class='id identifier rubyid_length'>length</span> <span class='op'>&lt;=</span> <span class='int'>0</span>
+    <span class='kw'>if</span> <span class='id identifier rubyid_pending_job'>pending_job</span><span class='period'>.</span><span class='id identifier rubyid_nil?'>nil?</span>
+      <span class='id identifier rubyid_job'>job</span> <span class='op'>=</span> <span class='const'><span class='object_link'><a href="" title="LogStash::Outputs::Domo (class)">Domo</a></span></span><span class='op'>::</span><span class='const'>Queue</span><span class='op'>::</span><span class='const'>Job</span><span class='period'>.</span><span class='id identifier rubyid_new'>new</span><span class='lparen'>(</span><span class='id identifier rubyid_data'>data</span><span class='comma'>,</span> <span class='ivar'>@upload_min_batch_size</span><span class='rparen'>)</span>
+    <span class='kw'>else</span>
+      <span class='id identifier rubyid_job'>job</span> <span class='op'>=</span> <span class='id identifier rubyid_pending_job'>pending_job</span>
+      <span class='id identifier rubyid_job'>job</span><span class='period'>.</span><span class='id identifier rubyid_data'>data</span> <span class='op'>=</span> <span class='id identifier rubyid_data'>data</span>
+      <span class='comment'># Reset the Job&#39;s minimum_size in case the Job was still pending prior to a configuration change that adjusted the minimum batch size.
+</span>      <span class='id identifier rubyid_job'>job</span><span class='period'>.</span><span class='id identifier rubyid_minimum_size'>minimum_size</span> <span class='op'>=</span> <span class='ivar'>@upload_min_batch_size</span>
+    <span class='kw'>end</span>
+
+    <span class='comment'># Incomplete jobs that aren&#39;t super old need to go in the pending queue
+</span>    <span class='kw'>if</span> <span class='id identifier rubyid_job'>job</span><span class='period'>.</span><span class='id identifier rubyid_status'>status</span> <span class='op'>==</span> <span class='symbol'>:incomplete</span> <span class='kw'>and</span> <span class='lparen'>(</span><span class='ivar'>@commit_delay</span> <span class='op'>&lt;=</span> <span class='int'>0</span> <span class='kw'>or</span> <span class='id identifier rubyid_job'>job</span><span class='period'>.</span><span class='id identifier rubyid_timestamp'>timestamp</span> <span class='op'>+</span> <span class='ivar'>@commit_delay</span><span class='op'>*</span><span class='int'>2</span> <span class='op'>&gt;</span> <span class='const'>Time</span><span class='period'>.</span><span class='id identifier rubyid_now'>now</span><span class='period'>.</span><span class='id identifier rubyid_utc'>utc</span><span class='rparen'>)</span>
+      <span class='ivar'>@queue</span><span class='period'>.</span><span class='id identifier rubyid_pending_jobs'>pending_jobs</span> <span class='op'>&lt;&lt;</span> <span class='id identifier rubyid_job'>job</span>
+      <span class='ivar'>@logger</span><span class='period'>.</span><span class='id identifier rubyid_debug'>debug</span><span class='lparen'>(</span><span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Putting Job in pending queue</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span>
+                    <span class='symbol'>:stream_id</span>         <span class='op'>=&gt;</span> <span class='ivar'>@stream_id</span><span class='comma'>,</span>
+                    <span class='symbol'>:execution_id</span>      <span class='op'>=&gt;</span> <span class='ivar'>@queue</span><span class='period'>.</span><span class='id identifier rubyid_execution_id'>execution_id</span><span class='comma'>,</span>
+                    <span class='symbol'>:queue_pipeline_id</span> <span class='op'>=&gt;</span> <span class='id identifier rubyid_pipeline_id'>pipeline_id</span><span class='comma'>,</span>
+                    <span class='symbol'>:job</span>               <span class='op'>=&gt;</span> <span class='id identifier rubyid_job'>job</span><span class='period'>.</span><span class='id identifier rubyid_to_hash'>to_hash</span><span class='lparen'>(</span><span class='kw'>true</span><span class='rparen'>)</span><span class='rparen'>)</span>
+    <span class='comment'># Everybody else goes to the main queue
+</span>    <span class='kw'>else</span>
+      <span class='ivar'>@queue</span> <span class='op'>&lt;&lt;</span> <span class='id identifier rubyid_job'>job</span>
+    <span class='kw'>end</span>
   <span class='kw'>end</span>
   <span class='comment'># Process the queue
-</span>  <span class='id identifier rubyid_send_to_domo'>send_to_domo</span> <span class='kw'>unless</span> <span class='id identifier rubyid_queue_processed?'>queue_processed?</span>
+</span>  <span class='id identifier rubyid_send_to_domo'>send_to_domo</span><span class='lparen'>(</span><span class='id identifier rubyid_plugin_closing'>plugin_closing</span><span class='rparen'>)</span> <span class='kw'>unless</span> <span class='id identifier rubyid_queue_processed?'>queue_processed?</span><span class='lparen'>(</span><span class='kw'>true</span><span class='rparen'>)</span>
   <span class='comment'># Commit
 </span>  <span class='comment'># Wake up sleeping commit thread if we&#39;re ready to commit
 </span>  <span class='kw'>if</span> <span class='ivar'>@commit_thread</span><span class='op'>&amp;.</span><span class='id identifier rubyid_status'>status</span> <span class='op'>==</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>sleep</span><span class='tstring_end'>&#39;</span></span>
@@ -1958,10 +2050,10 @@ parameters for distributed locking</p>
     <span class='ivar'>@commit_thread</span> <span class='op'>=</span> <span class='const'>Thread</span><span class='period'>.</span><span class='id identifier rubyid_new'>new</span> <span class='lbrace'>{</span> <span class='id identifier rubyid_commit_stream'>commit_stream</span><span class='lparen'>(</span><span class='id identifier rubyid_plugin_closing'>plugin_closing</span><span class='rparen'>)</span> <span class='rbrace'>}</span>
     <span class='comment'># Block if we&#39;re ready to commit or the plugin needs to shutdown
 </span>    <span class='kw'>if</span> <span class='id identifier rubyid_commit_ready?'>commit_ready?</span> <span class='kw'>or</span> <span class='lparen'>(</span><span class='op'>!</span><span class='ivar'>@distributed_lock</span> <span class='kw'>and</span> <span class='id identifier rubyid_plugin_closing'>plugin_closing</span><span class='rparen'>)</span>
-      <span class='id identifier rubyid_commit_status'>commit_status</span> <span class='op'>=</span> <span class='ivar'>@commit_thread</span><span class='period'>.</span><span class='id identifier rubyid_value'>value</span>
+      <span class='id identifier rubyid_commit_status'>commit_status</span> <span class='op'>=</span> <span class='ivar'>@commit_thread</span><span class='op'>&amp;.</span><span class='id identifier rubyid_value'>value</span>
     <span class='kw'>end</span>
   <span class='comment'># Block if we&#39;re ready to commit or the plugin needs to shutdown
-</span>  <span class='kw'>elsif</span> <span class='ivar'>@commit_thread</span><span class='op'>&amp;.</span><span class='id identifier rubyid_status'>status</span> <span class='op'>!=</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>sleep</span><span class='tstring_end'>&#39;</span></span> <span class='kw'>and</span> <span class='lparen'>(</span><span class='id identifier rubyid_commit_ready?'>commit_ready?</span> <span class='kw'>or</span> <span class='lparen'>(</span><span class='op'>!</span><span class='ivar'>@distributed_lock</span> <span class='kw'>and</span> <span class='id identifier rubyid_plugin_closing'>plugin_closing</span><span class='rparen'>)</span><span class='rparen'>)</span>
+</span>  <span class='kw'>elsif</span> <span class='ivar'>@commit_thread</span><span class='period'>.</span><span class='id identifier rubyid_status'>status</span> <span class='op'>!=</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>sleep</span><span class='tstring_end'>&#39;</span></span> <span class='kw'>and</span> <span class='lparen'>(</span><span class='id identifier rubyid_commit_ready?'>commit_ready?</span> <span class='kw'>or</span> <span class='lparen'>(</span><span class='op'>!</span><span class='ivar'>@distributed_lock</span> <span class='kw'>and</span> <span class='id identifier rubyid_plugin_closing'>plugin_closing</span><span class='rparen'>)</span><span class='rparen'>)</span>
     <span class='id identifier rubyid_commit_status'>commit_status</span> <span class='op'>=</span> <span class='ivar'>@commit_thread</span><span class='period'>.</span><span class='id identifier rubyid_value'>value</span>
   <span class='kw'>end</span>
 <span class='kw'>end</span></pre>
@@ -1973,7 +2065,7 @@ parameters for distributed locking</p>
       <div class="method_details ">
   <h3 class="signature " id="queue_processed?-instance_method">
   
-    #<strong>queue_processed?</strong>  &#x21d2; <tt>Boolean</tt> 
+    #<strong>queue_processed?</strong>(include_pending = false)  &#x21d2; <tt>Boolean</tt> 
   
 
   
@@ -1983,13 +2075,35 @@ parameters for distributed locking</p>
   <div class="discussion">
     
 <p>Establishes whether or not the queue is empty and that there are no failed
-jobs.</p>
+jobs and (optionally) no pending jobs.</p>
 
 
   </div>
 </div>
 <div class="tags">
+  <p class="tag_title">Parameters:</p>
+<ul class="param">
   
+    <li>
+      
+        <span class='name'>include_pending</span>
+      
+      
+        <span class='type'>(<tt>Boolean</tt>)</span>
+      
+      
+        <em class="default">(defaults to: <tt>false</tt>)</em>
+      
+      
+        &mdash;
+        <div class='inline'>
+<p>Check that there are no pending jobs as well.</p>
+</div>
+      
+    </li>
+  
+</ul>
+
 <p class="tag_title">Returns:</p>
 <ul class="return">
   
@@ -2010,15 +2124,17 @@ jobs.</p>
       <pre class="lines">
 
 
-184
-185
-186</pre>
+194
+195
+196
+197</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/logstash/outputs/domo.rb', line 184</span>
+      <pre class="code"><span class="info file"># File 'lib/logstash/outputs/domo.rb', line 194</span>
 
-<span class='kw'>def</span> <span class='id identifier rubyid_queue_processed?'>queue_processed?</span>
-  <span class='ivar'>@queue</span><span class='period'>.</span><span class='id identifier rubyid_length'>length</span> <span class='op'>&lt;=</span> <span class='int'>0</span> <span class='kw'>and</span> <span class='lparen'>(</span><span class='ivar'>@queue</span><span class='period'>.</span><span class='id identifier rubyid_failures'>failures</span><span class='period'>.</span><span class='id identifier rubyid_nil?'>nil?</span> <span class='kw'>or</span> <span class='ivar'>@queue</span><span class='period'>.</span><span class='id identifier rubyid_failures'>failures</span><span class='period'>.</span><span class='id identifier rubyid_length'>length</span> <span class='op'>&lt;=</span> <span class='int'>0</span><span class='rparen'>)</span>
+<span class='kw'>def</span> <span class='id identifier rubyid_queue_processed?'>queue_processed?</span><span class='lparen'>(</span><span class='id identifier rubyid_include_pending'>include_pending</span><span class='op'>=</span><span class='kw'>false</span><span class='rparen'>)</span>
+  <span class='kw'>return</span> <span class='kw'>true</span> <span class='kw'>if</span> <span class='ivar'>@queue</span><span class='period'>.</span><span class='id identifier rubyid_nil?'>nil?</span>
+  <span class='ivar'>@queue</span><span class='period'>.</span><span class='id identifier rubyid_length'>length</span> <span class='op'>&lt;=</span> <span class='int'>0</span> <span class='kw'>and</span> <span class='ivar'>@queue</span><span class='period'>.</span><span class='id identifier rubyid_failures'>failures</span><span class='period'>.</span><span class='id identifier rubyid_length'>length</span> <span class='op'>&lt;=</span> <span class='int'>0</span> <span class='kw'>and</span> <span class='lparen'>(</span><span class='op'>!</span><span class='id identifier rubyid_include_pending'>include_pending</span> <span class='kw'>or</span> <span class='ivar'>@queue</span><span class='period'>.</span><span class='id identifier rubyid_pending_jobs'>pending_jobs</span><span class='period'>.</span><span class='id identifier rubyid_length'>length</span> <span class='op'>&lt;=</span> <span class='int'>0</span><span class='rparen'>)</span>
 <span class='kw'>end</span></pre>
     </td>
   </tr>
@@ -2111,18 +2227,18 @@ current version of redlock.</p>
       <pre class="lines">
 
 
-791
-792
-793
-794
-795
-796
-797
-798
-799</pre>
+859
+860
+861
+862
+863
+864
+865
+866
+867</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/logstash/outputs/domo.rb', line 791</span>
+      <pre class="code"><span class="info file"># File 'lib/logstash/outputs/domo.rb', line 859</span>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_redlock_retry_count'>redlock_retry_count</span><span class='lparen'>(</span><span class='id identifier rubyid_retry_delay'>retry_delay</span><span class='op'>=</span><span class='int'>200</span><span class='comma'>,</span> <span class='id identifier rubyid_minimum_retry_count'>minimum_retry_count</span><span class='op'>=</span><span class='int'>3</span><span class='rparen'>)</span>
   <span class='kw'>if</span> <span class='ivar'>@lock_timeout</span> <span class='op'>&lt;</span> <span class='int'>1000</span>
@@ -2153,17 +2269,6 @@ current version of redlock.</p>
       <pre class="lines">
 
 
-189
-190
-191
-192
-193
-194
-195
-196
-197
-198
-199
 200
 201
 202
@@ -2256,14 +2361,33 @@ current version of redlock.</p>
 289
 290
 291
-292</pre>
+292
+293
+294
+295
+296
+297
+298
+299
+300
+301
+302
+303
+304
+305
+306
+307</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/logstash/outputs/domo.rb', line 189</span>
+      <pre class="code"><span class="info file"># File 'lib/logstash/outputs/domo.rb', line 200</span>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_register'>register</span>
   <span class='comment'># @type [Domo::Client] A client connection to Domo&#39;s APIs.
 </span>  <span class='ivar'>@domo_client</span> <span class='op'>=</span> <span class='const'><span class='object_link'><a href="" title="LogStash::Outputs::Domo (class)">Domo</a></span></span><span class='op'>::</span><span class='const'>Client</span><span class='period'>.</span><span class='id identifier rubyid_new'>new</span><span class='lparen'>(</span><span class='ivar'>@client_id</span><span class='comma'>,</span> <span class='ivar'>@client_secret</span><span class='comma'>,</span> <span class='ivar'>@api_host</span><span class='comma'>,</span> <span class='ivar'>@api_ssl</span><span class='comma'>,</span> <span class='const'>Java</span><span class='op'>::</span><span class='const'>ComDomoSdkRequest</span><span class='op'>::</span><span class='const'>Scope</span><span class='op'>::</span><span class='const'>DATA</span><span class='rparen'>)</span>
+
+  <span class='kw'>if</span> <span class='ivar'>@upload_max_batch_size</span> <span class='op'>&gt;</span> <span class='int'>0</span> <span class='kw'>and</span> <span class='ivar'>@upload_min_batch_size</span> <span class='op'>&gt;</span> <span class='ivar'>@upload_max_batch_size</span>
+    <span class='id identifier rubyid_raise'>raise</span> <span class='const'>LogStash</span><span class='op'>::</span><span class='const'>ConfigurationError</span><span class='period'>.</span><span class='id identifier rubyid_new'>new</span><span class='lparen'>(</span><span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>upload_min_batch_size cannot be larger than upload_max_batch_size</span><span class='tstring_end'>&quot;</span></span><span class='rparen'>)</span>
+  <span class='kw'>end</span>
 
   <span class='comment'># Validate the Dataset and Stream
 </span>  <span class='kw'>begin</span>
@@ -2351,12 +2475,12 @@ current version of redlock.</p>
   <span class='kw'>end</span>
   <span class='comment'># Upload any jobs that are already in the queue.
 </span>  <span class='kw'>unless</span> <span class='id identifier rubyid_queue_processed?'>queue_processed?</span>
-    <span class='id identifier rubyid_send_to_domo'>send_to_domo</span> <span class='kw'>until</span> <span class='id identifier rubyid_queue_processed?'>queue_processed?</span>
+    <span class='id identifier rubyid_send_to_domo'>send_to_domo</span><span class='lparen'>(</span><span class='kw'>true</span><span class='rparen'>)</span> <span class='kw'>until</span> <span class='id identifier rubyid_queue_processed?'>queue_processed?</span><span class='lparen'>(</span><span class='kw'>true</span><span class='rparen'>)</span>
     <span class='comment'># Attempt a commit if there&#39;s an empty but active queue or start processing the queue if it already has jobs
 </span>    <span class='comment'># This is a failsafe in case all workers on all servers stopped without committing
 </span>    <span class='kw'>if</span> <span class='ivar'>@commit_thread</span><span class='period'>.</span><span class='id identifier rubyid_nil?'>nil?</span> <span class='kw'>or</span> <span class='op'>!</span><span class='ivar'>@commit_thread</span><span class='period'>.</span><span class='id identifier rubyid_status'>status</span>
       <span class='ivar'>@commit_thread</span> <span class='op'>=</span> <span class='const'>Thread</span><span class='period'>.</span><span class='id identifier rubyid_new'>new</span> <span class='lbrace'>{</span> <span class='id identifier rubyid_commit_stream'>commit_stream</span> <span class='rbrace'>}</span>
-      <span class='id identifier rubyid_commit_status'>commit_status</span> <span class='op'>=</span> <span class='ivar'>@commit_thread</span><span class='period'>.</span><span class='id identifier rubyid_value'>value</span> <span class='kw'>if</span> <span class='id identifier rubyid_commit_ready?'>commit_ready?</span>
+      <span class='id identifier rubyid_commit_status'>commit_status</span> <span class='op'>=</span> <span class='ivar'>@commit_thread</span><span class='op'>&amp;.</span><span class='id identifier rubyid_value'>value</span> <span class='kw'>if</span> <span class='id identifier rubyid_commit_ready?'>commit_ready?</span>
     <span class='kw'>elsif</span> <span class='ivar'>@commit_thread</span><span class='op'>&amp;.</span><span class='id identifier rubyid_status'>status</span> <span class='op'>==</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>sleep</span><span class='tstring_end'>&#39;</span></span> <span class='kw'>and</span> <span class='id identifier rubyid_commit_ready?'>commit_ready?</span>
       <span class='ivar'>@commit_thread</span><span class='period'>.</span><span class='id identifier rubyid_run'>run</span>
       <span class='id identifier rubyid_commit_status'>commit_status</span> <span class='op'>=</span> <span class='ivar'>@commit_thread</span><span class='period'>.</span><span class='id identifier rubyid_value'>value</span>
@@ -2451,53 +2575,53 @@ the corresponding Domo column.</p>
       <pre class="lines">
 
 
-807
-808
-809
-810
-811
-812
-813
-814
-815
-816
-817
-818
-819
-820
-821
-822
-823
-824
-825
-826
-827
-828
-829
-830
-831
-832
-833
-834
-835
-836
-837
-838
-839
-840
-841
-842
-843
-844
-845
-846
-847
-848
-849
-850</pre>
+875
+876
+877
+878
+879
+880
+881
+882
+883
+884
+885
+886
+887
+888
+889
+890
+891
+892
+893
+894
+895
+896
+897
+898
+899
+900
+901
+902
+903
+904
+905
+906
+907
+908
+909
+910
+911
+912
+913
+914
+915
+916
+917
+918</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/logstash/outputs/domo.rb', line 807</span>
+      <pre class="code"><span class="info file"># File 'lib/logstash/outputs/domo.rb', line 875</span>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_ruby_domo_type_match?'>ruby_domo_type_match?</span><span class='lparen'>(</span><span class='id identifier rubyid_val'>val</span><span class='comma'>,</span> <span class='id identifier rubyid_domo_column_type'>domo_column_type</span><span class='rparen'>)</span>
   <span class='kw'>case</span> <span class='id identifier rubyid_domo_column_type'>domo_column_type</span>
@@ -2551,7 +2675,7 @@ the corresponding Domo column.</p>
       <div class="method_details ">
   <h3 class="signature " id="send_to_domo-instance_method">
   
-    #<strong>send_to_domo</strong>  &#x21d2; <tt>Object</tt> 
+    #<strong>send_to_domo</strong>(force_pending = false)  &#x21d2; <tt>Object</tt> 
   
 
   
@@ -2566,7 +2690,29 @@ the corresponding Domo column.</p>
   </div>
 </div>
 <div class="tags">
+  <p class="tag_title">Parameters:</p>
+<ul class="param">
   
+    <li>
+      
+        <span class='name'>force_pending</span>
+      
+      
+        <span class='type'>(<tt>Boolean</tt>)</span>
+      
+      
+        <em class="default">(defaults to: <tt>false</tt>)</em>
+      
+      
+        &mdash;
+        <div class='inline'>
+<p>Force process all pending jobs.</p>
+</div>
+      
+    </li>
+  
+</ul>
+
 
 </div><table class="source_code">
   <tr>
@@ -2574,58 +2720,6 @@ the corresponding Domo column.</p>
       <pre class="lines">
 
 
-374
-375
-376
-377
-378
-379
-380
-381
-382
-383
-384
-385
-386
-387
-388
-389
-390
-391
-392
-393
-394
-395
-396
-397
-398
-399
-400
-401
-402
-403
-404
-405
-406
-407
-408
-409
-410
-411
-412
-413
-414
-415
-416
-417
-418
-419
-420
-421
-422
-423
-424
-425
 426
 427
 428
@@ -2739,18 +2833,94 @@ the corresponding Domo column.</p>
 536
 537
 538
-539</pre>
+539
+540
+541
+542
+543
+544
+545
+546
+547
+548
+549
+550
+551
+552
+553
+554
+555
+556
+557
+558
+559
+560
+561
+562
+563
+564
+565
+566
+567
+568
+569
+570
+571
+572
+573
+574
+575
+576
+577
+578
+579
+580
+581
+582
+583
+584
+585
+586
+587
+588
+589
+590
+591
+592
+593
+594
+595
+596</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/logstash/outputs/domo.rb', line 374</span>
+      <pre class="code"><span class="info file"># File 'lib/logstash/outputs/domo.rb', line 426</span>
 
-<span class='kw'>def</span> <span class='id identifier rubyid_send_to_domo'>send_to_domo</span>
+<span class='kw'>def</span> <span class='id identifier rubyid_send_to_domo'>send_to_domo</span><span class='lparen'>(</span><span class='id identifier rubyid_force_pending'>force_pending</span><span class='op'>=</span><span class='kw'>false</span><span class='rparen'>)</span>
   <span class='comment'># Block until failed jobs are done reprocessing back into the queue
 </span>  <span class='id identifier rubyid_sleep'>sleep</span><span class='lparen'>(</span><span class='float'>0.1</span><span class='rparen'>)</span> <span class='kw'>until</span> <span class='ivar'>@queue</span><span class='period'>.</span><span class='id identifier rubyid_failures'>failures</span><span class='period'>.</span><span class='id identifier rubyid_length'>length</span> <span class='op'>&lt;=</span> <span class='int'>0</span> <span class='kw'>or</span> <span class='ivar'>@queue</span><span class='period'>.</span><span class='id identifier rubyid_failures'>failures</span><span class='period'>.</span><span class='id identifier rubyid_processing_status'>processing_status</span> <span class='op'>!=</span> <span class='symbol'>:reprocessing</span>
   <span class='comment'># Process the queue
 </span>  <span class='id identifier rubyid_loop'>loop</span> <span class='kw'>do</span>
     <span class='comment'># Update on each pass in case another thread managed to change things in a thread unsafe way
 </span>    <span class='ivar'>@queue</span> <span class='op'>=</span> <span class='id identifier rubyid_get_queue'>get_queue</span>
+    <span class='comment'># Merge pending jobs into one job and add it to the main queue if we&#39;re force processing pending jobs.
+</span>    <span class='kw'>if</span> <span class='id identifier rubyid_force_pending'>force_pending</span> <span class='kw'>and</span> <span class='ivar'>@queue</span><span class='period'>.</span><span class='id identifier rubyid_pending_jobs'>pending_jobs</span><span class='period'>.</span><span class='id identifier rubyid_length'>length</span> <span class='op'>&gt;</span> <span class='int'>0</span>
+      <span class='id identifier rubyid_data'>data</span> <span class='op'>=</span> <span class='ivar'>@queue</span><span class='period'>.</span><span class='id identifier rubyid_pending_jobs'>pending_jobs</span><span class='period'>.</span><span class='id identifier rubyid_reduce'>reduce</span><span class='lparen'>(</span><span class='lbracket'>[</span><span class='rbracket'>]</span><span class='rparen'>)</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_memo'>memo</span><span class='comma'>,</span> <span class='id identifier rubyid_job'>job</span><span class='op'>|</span>
+        <span class='id identifier rubyid_memo'>memo</span> <span class='op'>+</span> <span class='id identifier rubyid_job'>job</span><span class='period'>.</span><span class='id identifier rubyid_data'>data</span>
+      <span class='kw'>end</span>
+      <span class='ivar'>@queue</span> <span class='op'>&lt;&lt;</span> <span class='const'><span class='object_link'><a href="" title="LogStash::Outputs::Domo (class)">Domo</a></span></span><span class='op'>::</span><span class='const'>Queue</span><span class='op'>::</span><span class='const'>Job</span><span class='period'>.</span><span class='id identifier rubyid_new'>new</span><span class='lparen'>(</span><span class='id identifier rubyid_data'>data</span><span class='comma'>,</span> <span class='int'>0</span><span class='rparen'>)</span>
+      <span class='ivar'>@queue</span><span class='period'>.</span><span class='id identifier rubyid_pending_jobs'>pending_jobs</span><span class='period'>.</span><span class='id identifier rubyid_clear'>clear</span>
+      <span class='comment'># Restart the loop, but make sure it only happens once to avoid potential infinite loops
+</span>      <span class='id identifier rubyid_force_pending'>force_pending</span> <span class='op'>=</span> <span class='kw'>false</span>
+      <span class='kw'>next</span>
+    <span class='kw'>end</span>
+    <span class='id identifier rubyid_data_part'>data_part</span> <span class='op'>=</span> <span class='kw'>nil</span>
+    <span class='comment'># If we have an active Stream Execution, use its most recent DataPart instead of making a new one (later on)
+</span>    <span class='kw'>if</span> <span class='ivar'>@queue</span><span class='period'>.</span><span class='id identifier rubyid_execution_id'>execution_id</span>
+      <span class='kw'>if</span> <span class='ivar'>@queue</span><span class='period'>.</span><span class='id identifier rubyid_data_parts'>data_parts</span><span class='period'>.</span><span class='id identifier rubyid_length'>length</span> <span class='op'>&gt;</span> <span class='int'>0</span>
+        <span class='id identifier rubyid_data_part'>data_part</span> <span class='op'>=</span> <span class='ivar'>@queue</span><span class='period'>.</span><span class='id identifier rubyid_data_parts'>data_parts</span><span class='lbracket'>[</span><span class='op'>-</span><span class='int'>1</span><span class='rbracket'>]</span>
+        <span class='id identifier rubyid_data_part'>data_part</span> <span class='op'>=</span> <span class='kw'>nil</span> <span class='kw'>if</span> <span class='id identifier rubyid_data_part'>data_part</span><span class='period'>.</span><span class='id identifier rubyid_status'>status</span> <span class='op'>!=</span> <span class='symbol'>:ready</span>
+      <span class='kw'>end</span>
+    <span class='kw'>end</span>
     <span class='comment'># Block the loop while commits are in progress
 </span>    <span class='id identifier rubyid_sleep'>sleep</span><span class='lparen'>(</span><span class='float'>0.1</span><span class='rparen'>)</span> <span class='kw'>until</span> <span class='ivar'>@queue</span><span class='period'>.</span><span class='id identifier rubyid_commit_status'>commit_status</span> <span class='op'>!=</span> <span class='symbol'>:running</span>
 
@@ -2765,7 +2935,6 @@ the corresponding Domo column.</p>
         <span class='comment'># Clear out or update the Job&#39;s Execution ID if its associated Stream Execution is no longer valid.
 </span>        <span class='ivar'>@lock_manager</span><span class='period'>.</span><span class='id identifier rubyid_lock'>lock</span><span class='lparen'>(</span><span class='id identifier rubyid_lock_key'>lock_key</span><span class='comma'>,</span> <span class='ivar'>@lock_timeout</span><span class='rparen'>)</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_locked'>locked</span><span class='op'>|</span>
           <span class='kw'>break</span> <span class='kw'>unless</span> <span class='id identifier rubyid_locked'>locked</span>
-          <span class='ivar'>@queue</span> <span class='op'>=</span> <span class='id identifier rubyid_get_queue'>get_queue</span>
           <span class='comment'># Validate the queue&#39;s StreamExecution
 </span>          <span class='kw'>unless</span> <span class='ivar'>@queue</span><span class='period'>.</span><span class='id identifier rubyid_execution_id'>execution_id</span><span class='period'>.</span><span class='id identifier rubyid_nil?'>nil?</span>
             <span class='id identifier rubyid_stream_execution'>stream_execution</span> <span class='op'>=</span> <span class='ivar'>@domo_client</span><span class='period'>.</span><span class='id identifier rubyid_stream_client'>stream_client</span><span class='period'>.</span><span class='id identifier rubyid_getExecution'>getExecution</span><span class='lparen'>(</span><span class='ivar'>@stream_id</span><span class='comma'>,</span> <span class='ivar'>@queue</span><span class='period'>.</span><span class='id identifier rubyid_execution_id'>execution_id</span><span class='rparen'>)</span>
@@ -2778,7 +2947,7 @@ the corresponding Domo column.</p>
           <span class='comment'># Block if a commit started during the validation
 </span>          <span class='id identifier rubyid_sleep'>sleep</span><span class='lparen'>(</span><span class='float'>0.1</span><span class='rparen'>)</span> <span class='kw'>until</span> <span class='ivar'>@queue</span><span class='period'>.</span><span class='id identifier rubyid_commit_status'>commit_status</span> <span class='op'>!=</span> <span class='symbol'>:running</span>
           <span class='comment'># Reprocess the failed jobs
-</span>          <span class='ivar'>@queue</span> <span class='op'>=</span> <span class='ivar'>@queue</span><span class='period'>.</span><span class='id identifier rubyid_failures'>failures</span><span class='period'>.</span><span class='id identifier rubyid_reprocess_jobs!'>reprocess_jobs!</span><span class='lparen'>(</span><span class='ivar'>@queue</span><span class='period'>.</span><span class='id identifier rubyid_execution_id'>execution_id</span><span class='rparen'>)</span>
+</span>          <span class='ivar'>@queue</span> <span class='op'>=</span> <span class='ivar'>@queue</span><span class='period'>.</span><span class='id identifier rubyid_failures'>failures</span><span class='period'>.</span><span class='id identifier rubyid_reprocess_jobs!'>reprocess_jobs!</span>
           <span class='comment'># Block if another thread is reprocessing the jobs
 </span>          <span class='id identifier rubyid_sleep'>sleep</span><span class='lparen'>(</span><span class='float'>0.1</span><span class='rparen'>)</span> <span class='kw'>until</span> <span class='ivar'>@queue</span><span class='period'>.</span><span class='id identifier rubyid_failures'>failures</span><span class='period'>.</span><span class='id identifier rubyid_processing_status'>processing_status</span> <span class='op'>!=</span> <span class='symbol'>:reprocessing</span>
         <span class='kw'>end</span>
@@ -2798,7 +2967,6 @@ the corresponding Domo column.</p>
 </span>      <span class='id identifier rubyid_sleep'>sleep</span><span class='lparen'>(</span><span class='float'>0.1</span><span class='rparen'>)</span> <span class='kw'>until</span> <span class='ivar'>@queue</span><span class='period'>.</span><span class='id identifier rubyid_commit_status'>commit_status</span> <span class='op'>!=</span> <span class='symbol'>:running</span>
       <span class='comment'># Get or create a Stream Execution
 </span>      <span class='ivar'>@lock_manager</span><span class='period'>.</span><span class='id identifier rubyid_lock'>lock</span><span class='lparen'>(</span><span class='id identifier rubyid_lock_key'>lock_key</span><span class='comma'>,</span> <span class='ivar'>@lock_timeout</span><span class='rparen'>)</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_locked'>locked</span><span class='op'>|</span>
-        <span class='ivar'>@queue</span> <span class='op'>=</span> <span class='id identifier rubyid_get_queue'>get_queue</span>
         <span class='kw'>if</span> <span class='id identifier rubyid_locked'>locked</span>
           <span class='id identifier rubyid_stream_execution'>stream_execution</span> <span class='op'>=</span> <span class='kw'>nil</span>
           <span class='comment'># Check if the Queue&#39;s existing Stream Execution is still valid.
@@ -2810,7 +2978,6 @@ the corresponding Domo column.</p>
                             <span class='symbol'>:execution_id</span>      <span class='op'>=&gt;</span> <span class='id identifier rubyid_stream_execution'>stream_execution</span><span class='period'>.</span><span class='id identifier rubyid_getId'>getId</span><span class='comma'>,</span>
                             <span class='symbol'>:queue_pipeline_id</span> <span class='op'>=&gt;</span> <span class='id identifier rubyid_pipeline_id'>pipeline_id</span><span class='comma'>,</span>
                             <span class='symbol'>:job</span>               <span class='op'>=&gt;</span> <span class='id identifier rubyid_job'>job</span><span class='period'>.</span><span class='id identifier rubyid_to_hash'>to_hash</span><span class='lparen'>(</span><span class='kw'>true</span><span class='rparen'>)</span><span class='comma'>,</span>
-                            <span class='symbol'>:event</span>             <span class='op'>=&gt;</span> <span class='id identifier rubyid_job'>job</span><span class='period'>.</span><span class='id identifier rubyid_event'>event</span><span class='period'>.</span><span class='id identifier rubyid_to_hash'>to_hash</span><span class='comma'>,</span>
                             <span class='symbol'>:data</span>              <span class='op'>=&gt;</span> <span class='id identifier rubyid_job'>job</span><span class='period'>.</span><span class='id identifier rubyid_data'>data</span><span class='rparen'>)</span>
               <span class='id identifier rubyid_stream_execution'>stream_execution</span> <span class='op'>=</span> <span class='kw'>nil</span>
             <span class='kw'>end</span>
@@ -2825,7 +2992,6 @@ the corresponding Domo column.</p>
             <span class='kw'>end</span>
             <span class='id identifier rubyid_stream_execution'>stream_execution</span> <span class='op'>=</span> <span class='ivar'>@domo_client</span><span class='period'>.</span><span class='id identifier rubyid_stream_client'>stream_client</span><span class='period'>.</span><span class='id identifier rubyid_createExecution'>createExecution</span><span class='lparen'>(</span><span class='ivar'>@stream_id</span><span class='rparen'>)</span>
             <span class='ivar'>@queue</span><span class='period'>.</span><span class='id identifier rubyid_execution_id'>execution_id</span> <span class='op'>=</span> <span class='id identifier rubyid_stream_execution'>stream_execution</span><span class='period'>.</span><span class='id identifier rubyid_getId'>getId</span>
-            <span class='ivar'>@queue</span><span class='period'>.</span><span class='id identifier rubyid_part_num'>part_num</span><span class='period'>.</span><span class='id identifier rubyid_set'>set</span><span class='lparen'>(</span><span class='int'>0</span><span class='rparen'>)</span>
             <span class='ivar'>@queue</span><span class='period'>.</span><span class='id identifier rubyid_commit_status'>commit_status</span> <span class='op'>=</span> <span class='symbol'>:open</span>
           <span class='kw'>end</span>
         <span class='kw'>end</span>
@@ -2833,28 +2999,22 @@ the corresponding Domo column.</p>
       <span class='comment'># If the queue is missing an Execution ID (e.g. another worker committed the execution before we got here),
 </span>      <span class='comment'># then it&#39;s time to defer this job to the next round of processing.
 </span>      <span class='kw'>if</span> <span class='ivar'>@queue</span><span class='period'>.</span><span class='id identifier rubyid_execution_id'>execution_id</span><span class='period'>.</span><span class='id identifier rubyid_nil?'>nil?</span>
-        <span class='id identifier rubyid_job'>job</span><span class='period'>.</span><span class='id identifier rubyid_execution_id'>execution_id</span> <span class='op'>=</span> <span class='kw'>nil</span>
-        <span class='id identifier rubyid_job'>job</span><span class='period'>.</span><span class='id identifier rubyid_part_num'>part_num</span> <span class='op'>=</span> <span class='kw'>nil</span>
+        <span class='id identifier rubyid_job'>job</span><span class='period'>.</span><span class='id identifier rubyid_data_part'>data_part</span> <span class='op'>=</span> <span class='kw'>nil</span>
         <span class='ivar'>@queue</span><span class='period'>.</span><span class='id identifier rubyid_unshift'>unshift</span><span class='lparen'>(</span><span class='id identifier rubyid_job'>job</span><span class='rparen'>)</span>
         <span class='kw'>next</span>
       <span class='kw'>end</span>
-      <span class='comment'># Ensure that the job has the right Execution ID and update its part number if we have to change the ID.
-</span>      <span class='kw'>if</span> <span class='id identifier rubyid_job'>job</span><span class='period'>.</span><span class='id identifier rubyid_execution_id'>execution_id</span> <span class='op'>!=</span> <span class='ivar'>@queue</span><span class='period'>.</span><span class='id identifier rubyid_execution_id'>execution_id</span>
-        <span class='id identifier rubyid_job'>job</span><span class='period'>.</span><span class='id identifier rubyid_execution_id'>execution_id</span> <span class='op'>=</span> <span class='ivar'>@queue</span><span class='period'>.</span><span class='id identifier rubyid_execution_id'>execution_id</span>
-        <span class='id identifier rubyid_job'>job</span><span class='period'>.</span><span class='id identifier rubyid_part_num'>part_num</span> <span class='op'>=</span> <span class='kw'>nil</span>
-      <span class='kw'>end</span>
-      <span class='kw'>if</span> <span class='id identifier rubyid_job'>job</span><span class='period'>.</span><span class='id identifier rubyid_part_num'>part_num</span><span class='period'>.</span><span class='id identifier rubyid_nil?'>nil?</span>
-        <span class='id identifier rubyid_job'>job</span><span class='period'>.</span><span class='id identifier rubyid_part_num'>part_num</span> <span class='op'>=</span> <span class='ivar'>@queue</span><span class='period'>.</span><span class='id identifier rubyid_part_num'>part_num</span><span class='period'>.</span><span class='id identifier rubyid_incr'>incr</span>
-      <span class='kw'>end</span>
+      <span class='comment'># Increment the data part if need be
+</span>      <span class='id identifier rubyid_data_part'>data_part</span> <span class='op'>=</span> <span class='ivar'>@queue</span><span class='period'>.</span><span class='id identifier rubyid_incr_data_part'>incr_data_part</span> <span class='kw'>if</span> <span class='id identifier rubyid_data_part'>data_part</span><span class='period'>.</span><span class='id identifier rubyid_nil?'>nil?</span> <span class='kw'>or</span> <span class='id identifier rubyid_data_part'>data_part</span><span class='period'>.</span><span class='id identifier rubyid_execution_id'>execution_id</span> <span class='op'>!=</span> <span class='ivar'>@queue</span><span class='period'>.</span><span class='id identifier rubyid_execution_id'>execution_id</span>
+      <span class='id identifier rubyid_job'>job</span><span class='period'>.</span><span class='id identifier rubyid_data_part'>data_part</span> <span class='op'>=</span> <span class='id identifier rubyid_data_part'>data_part</span>
       <span class='comment'># Add a little jitter so Domo&#39;s API doesn&#39;t shit itself
 </span>      <span class='id identifier rubyid_sleep'>sleep</span><span class='lparen'>(</span><span class='const'>Random</span><span class='period'>.</span><span class='id identifier rubyid_new'>new</span><span class='period'>.</span><span class='id identifier rubyid_rand'>rand</span><span class='lparen'>(</span><span class='float'>0.15</span><span class='rparen'>)</span><span class='rparen'>)</span>
       <span class='comment'># Prevent a race condition when a long running commit is underway
-</span>      <span class='kw'>if</span> <span class='ivar'>@queue</span><span class='period'>.</span><span class='id identifier rubyid_commit_status'>commit_status</span> <span class='op'>!=</span> <span class='symbol'>:wait</span> <span class='kw'>and</span> <span class='ivar'>@queue</span><span class='period'>.</span><span class='id identifier rubyid_commit_status'>commit_status</span> <span class='op'>!=</span> <span class='symbol'>:open</span>
+</span>      <span class='kw'>unless</span> <span class='ivar'>@queue</span><span class='period'>.</span><span class='id identifier rubyid_commit_status'>commit_status</span> <span class='op'>==</span> <span class='symbol'>:open</span>
         <span class='ivar'>@queue</span><span class='period'>.</span><span class='id identifier rubyid_failures'>failures</span> <span class='op'>&lt;&lt;</span> <span class='id identifier rubyid_job'>job</span>
         <span class='kw'>next</span>
       <span class='kw'>end</span>
       <span class='comment'># Upload the job&#39;s data to Domo.
-</span>      <span class='ivar'>@domo_client</span><span class='period'>.</span><span class='id identifier rubyid_stream_client'>stream_client</span><span class='period'>.</span><span class='id identifier rubyid_uploadDataPart'>uploadDataPart</span><span class='lparen'>(</span><span class='ivar'>@stream_id</span><span class='comma'>,</span> <span class='id identifier rubyid_job'>job</span><span class='period'>.</span><span class='id identifier rubyid_execution_id'>execution_id</span><span class='comma'>,</span> <span class='id identifier rubyid_job'>job</span><span class='period'>.</span><span class='id identifier rubyid_part_num'>part_num</span><span class='comma'>,</span> <span class='id identifier rubyid_job'>job</span><span class='period'>.</span><span class='id identifier rubyid_data'>data</span><span class='rparen'>)</span>
+</span>      <span class='ivar'>@domo_client</span><span class='period'>.</span><span class='id identifier rubyid_stream_client'>stream_client</span><span class='period'>.</span><span class='id identifier rubyid_uploadDataPart'>uploadDataPart</span><span class='lparen'>(</span><span class='ivar'>@stream_id</span><span class='comma'>,</span> <span class='id identifier rubyid_job'>job</span><span class='period'>.</span><span class='id identifier rubyid_execution_id'>execution_id</span><span class='comma'>,</span> <span class='id identifier rubyid_job'>job</span><span class='period'>.</span><span class='id identifier rubyid_data_part'>data_part</span><span class='period'>.</span><span class='id identifier rubyid_part_id'>part_id</span><span class='comma'>,</span> <span class='id identifier rubyid_job'>job</span><span class='period'>.</span><span class='id identifier rubyid_upload_data'>upload_data</span><span class='rparen'>)</span>
       <span class='comment'># Debug log output
 </span>      <span class='id identifier rubyid_execution_id'>execution_id</span> <span class='op'>=</span> <span class='ivar'>@queue</span><span class='period'>.</span><span class='id identifier rubyid_nil?'>nil?</span> <span class='op'>?</span> <span class='id identifier rubyid_job'>job</span><span class='period'>.</span><span class='id identifier rubyid_execution_id'>execution_id</span> <span class='op'>:</span> <span class='ivar'>@queue</span><span class='period'>.</span><span class='id identifier rubyid_execution_id'>execution_id</span>
       <span class='id identifier rubyid_queue_pipeline_id'>queue_pipeline_id</span> <span class='op'>=</span> <span class='ivar'>@queue</span><span class='period'>.</span><span class='id identifier rubyid_nil?'>nil?</span> <span class='op'>?</span> <span class='id identifier rubyid_pipeline_id'>pipeline_id</span> <span class='op'>:</span> <span class='ivar'>@queue</span><span class='period'>.</span><span class='id identifier rubyid_pipeline_id'>pipeline_id</span>
@@ -2862,9 +3022,7 @@ the corresponding Domo column.</p>
                     <span class='symbol'>:stream_id</span>         <span class='op'>=&gt;</span> <span class='ivar'>@stream_id</span><span class='comma'>,</span>
                     <span class='symbol'>:execution_id</span>      <span class='op'>=&gt;</span> <span class='id identifier rubyid_execution_id'>execution_id</span><span class='comma'>,</span>
                     <span class='symbol'>:queue_pipeline_id</span> <span class='op'>=&gt;</span> <span class='id identifier rubyid_queue_pipeline_id'>queue_pipeline_id</span><span class='comma'>,</span>
-                    <span class='symbol'>:job</span>               <span class='op'>=&gt;</span> <span class='id identifier rubyid_job'>job</span><span class='period'>.</span><span class='id identifier rubyid_to_hash'>to_hash</span><span class='lparen'>(</span><span class='kw'>true</span><span class='rparen'>)</span><span class='comma'>,</span>
-                    <span class='symbol'>:event</span>             <span class='op'>=&gt;</span> <span class='id identifier rubyid_job'>job</span><span class='period'>.</span><span class='id identifier rubyid_event'>event</span><span class='period'>.</span><span class='id identifier rubyid_to_hash'>to_hash</span><span class='comma'>,</span>
-                    <span class='symbol'>:data</span>              <span class='op'>=&gt;</span> <span class='id identifier rubyid_job'>job</span><span class='period'>.</span><span class='id identifier rubyid_data'>data</span><span class='rparen'>)</span>
+                    <span class='symbol'>:job</span>               <span class='op'>=&gt;</span> <span class='id identifier rubyid_job'>job</span><span class='period'>.</span><span class='id identifier rubyid_to_hash'>to_hash</span><span class='lparen'>(</span><span class='kw'>true</span><span class='rparen'>)</span><span class='rparen'>)</span>
     <span class='kw'>rescue</span> <span class='const'>Java</span><span class='op'>::</span><span class='const'>ComDomoSdkRequest</span><span class='op'>::</span><span class='const'>RequestException</span> <span class='op'>=&gt;</span> <span class='id identifier rubyid_e'>e</span>
       <span class='id identifier rubyid_status_code'>status_code</span> <span class='op'>=</span> <span class='const'><span class='object_link'><a href="" title="LogStash::Outputs::Domo (class)">Domo</a></span></span><span class='op'>::</span><span class='const'>Client</span><span class='period'>.</span><span class='id identifier rubyid_request_error_status_code'>request_error_status_code</span><span class='lparen'>(</span><span class='id identifier rubyid_e'>e</span><span class='rparen'>)</span>
       <span class='kw'>if</span> <span class='id identifier rubyid_status_code'>status_code</span><span class='period'>.</span><span class='id identifier rubyid_nil?'>nil?</span> <span class='kw'>or</span> <span class='id identifier rubyid_status_code'>status_code</span> <span class='op'>==</span> <span class='op'>-</span><span class='int'>1</span>
@@ -2883,7 +3041,6 @@ the corresponding Domo column.</p>
                        <span class='symbol'>:stream_id</span>         <span class='op'>=&gt;</span> <span class='ivar'>@stream_id</span><span class='comma'>,</span>
                        <span class='symbol'>:execution_id</span>      <span class='op'>=&gt;</span> <span class='id identifier rubyid_job'>job</span><span class='period'>.</span><span class='id identifier rubyid_execution_id'>execution_id</span><span class='comma'>,</span>
                        <span class='symbol'>:job</span>               <span class='op'>=&gt;</span> <span class='id identifier rubyid_job'>job</span><span class='period'>.</span><span class='id identifier rubyid_to_hash'>to_hash</span><span class='lparen'>(</span><span class='kw'>true</span><span class='rparen'>)</span><span class='comma'>,</span>
-                       <span class='symbol'>:event</span>             <span class='op'>=&gt;</span> <span class='id identifier rubyid_job'>job</span><span class='period'>.</span><span class='id identifier rubyid_event'>event</span><span class='period'>.</span><span class='id identifier rubyid_to_hash'>to_hash</span><span class='comma'>,</span>
                        <span class='symbol'>:data</span>              <span class='op'>=&gt;</span> <span class='id identifier rubyid_job'>job</span><span class='period'>.</span><span class='id identifier rubyid_data'>data</span><span class='rparen'>)</span>
           <span class='ivar'>@queue</span><span class='period'>.</span><span class='id identifier rubyid_failures'>failures</span> <span class='op'>&lt;&lt;</span> <span class='id identifier rubyid_job'>job</span>
           <span class='ivar'>@logger</span><span class='period'>.</span><span class='id identifier rubyid_warn'>warn</span><span class='lparen'>(</span><span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Will sleep for </span><span class='embexpr_beg'>#{</span><span class='ivar'>@retry_delay</span><span class='embexpr_end'>}</span><span class='tstring_content'> seconds before retrying requests.</span><span class='tstring_end'>&quot;</span></span><span class='rparen'>)</span>
@@ -2893,19 +3050,18 @@ the corresponding Domo column.</p>
                         <span class='symbol'>:code</span> <span class='op'>=&gt;</span> <span class='id identifier rubyid_e'>e</span><span class='period'>.</span><span class='id identifier rubyid_getStatusCode'>getStatusCode</span><span class='comma'>,</span>
                         <span class='symbol'>:exception</span>  <span class='op'>=&gt;</span> <span class='id identifier rubyid_e'>e</span><span class='comma'>,</span>
                         <span class='symbol'>:job</span>        <span class='op'>=&gt;</span> <span class='id identifier rubyid_job'>job</span><span class='period'>.</span><span class='id identifier rubyid_to_hash'>to_hash</span><span class='lparen'>(</span><span class='kw'>true</span><span class='rparen'>)</span><span class='comma'>,</span>
-                        <span class='symbol'>:event</span>      <span class='op'>=&gt;</span> <span class='id identifier rubyid_job'>job</span><span class='period'>.</span><span class='id identifier rubyid_event'>event</span><span class='period'>.</span><span class='id identifier rubyid_to_hash'>to_hash</span><span class='comma'>,</span>
                         <span class='symbol'>:data</span>       <span class='op'>=&gt;</span> <span class='id identifier rubyid_job'>job</span><span class='period'>.</span><span class='id identifier rubyid_data'>data</span><span class='rparen'>)</span>
         <span class='kw'>end</span>
-      <span class='comment'># Something really ain&#39;t right so let&#39;s give up and optionally write the event to the DLQ.
+      <span class='comment'># Something really ain&#39;t right.
+</span>      <span class='comment'># We used to write to the DLQ in this scenario, but,
+</span>      <span class='comment'># since we&#39;re batch processing now, we&#39;ll have to just add it to the failures queue and pray.
 </span>      <span class='kw'>else</span>
         <span class='id identifier rubyid_log_message'>log_message</span> <span class='op'>=</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>Encountered a fatal error interacting with the DOMO Streams API.</span><span class='tstring_end'>&quot;</span></span>
         <span class='ivar'>@logger</span><span class='period'>.</span><span class='id identifier rubyid_error'>error</span><span class='lparen'>(</span><span class='id identifier rubyid_log_message'>log_message</span><span class='comma'>,</span>
                       <span class='symbol'>:code</span>       <span class='op'>=&gt;</span> <span class='id identifier rubyid_e'>e</span><span class='period'>.</span><span class='id identifier rubyid_getStatusCode'>getStatusCode</span><span class='comma'>,</span>
                       <span class='symbol'>:exception</span>  <span class='op'>=&gt;</span> <span class='id identifier rubyid_e'>e</span><span class='comma'>,</span>
-                      <span class='symbol'>:job</span>        <span class='op'>=&gt;</span> <span class='id identifier rubyid_job'>job</span><span class='period'>.</span><span class='id identifier rubyid_to_hash'>to_hash</span><span class='lparen'>(</span><span class='kw'>true</span><span class='rparen'>)</span><span class='comma'>,</span>
-                      <span class='symbol'>:event</span>      <span class='op'>=&gt;</span> <span class='id identifier rubyid_job'>job</span><span class='period'>.</span><span class='id identifier rubyid_event'>event</span><span class='period'>.</span><span class='id identifier rubyid_to_hash'>to_hash</span><span class='comma'>,</span>
-                      <span class='symbol'>:data</span>       <span class='op'>=&gt;</span> <span class='id identifier rubyid_job'>job</span><span class='period'>.</span><span class='id identifier rubyid_data'>data</span><span class='rparen'>)</span>
-        <span class='ivar'>@dlq_writer</span><span class='period'>.</span><span class='id identifier rubyid_write'>write</span><span class='lparen'>(</span><span class='id identifier rubyid_job'>job</span><span class='period'>.</span><span class='id identifier rubyid_event'>event</span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_log_message'>log_message</span><span class='embexpr_end'>}</span><span class='tstring_content'> Exception: </span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_e'>e</span><span class='embexpr_end'>}</span><span class='tstring_end'>&quot;</span></span><span class='rparen'>)</span> <span class='kw'>unless</span> <span class='ivar'>@dlq_writer</span><span class='period'>.</span><span class='id identifier rubyid_nil?'>nil?</span>
+                      <span class='symbol'>:job</span>        <span class='op'>=&gt;</span> <span class='id identifier rubyid_job'>job</span><span class='period'>.</span><span class='id identifier rubyid_to_hash'>to_hash</span><span class='lparen'>(</span><span class='kw'>true</span><span class='rparen'>)</span><span class='rparen'>)</span>
+        <span class='ivar'>@queue</span><span class='period'>.</span><span class='id identifier rubyid_failures'>failures</span> <span class='op'>&lt;&lt;</span> <span class='id identifier rubyid_job'>job</span> <span class='kw'>unless</span> <span class='ivar'>@queue</span><span class='period'>.</span><span class='id identifier rubyid_nil?'>nil?</span>
       <span class='kw'>end</span>
     <span class='kw'>end</span>
   <span class='kw'>end</span>
@@ -2970,20 +3126,20 @@ them keys, but redis-rb wants symbols.</p>
       <pre class="lines">
 
 
-873
-874
-875
-876
-877
-878
-879
-880
-881
-882
-883</pre>
+941
+942
+943
+944
+945
+946
+947
+948
+949
+950
+951</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/logstash/outputs/domo.rb', line 873</span>
+      <pre class="code"><span class="info file"># File 'lib/logstash/outputs/domo.rb', line 941</span>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_symbolize_redis_client_args'>symbolize_redis_client_args</span><span class='lparen'>(</span><span class='id identifier rubyid_redis_client_args'>redis_client_args</span><span class='rparen'>)</span>
   <span class='id identifier rubyid_redis_client_args'>redis_client_args</span> <span class='op'>=</span> <span class='id identifier rubyid_redis_client_args'>redis_client_args</span><span class='period'>.</span><span class='id identifier rubyid_inject'>inject</span><span class='lparen'>(</span><span class='lbrace'>{</span><span class='rbrace'>}</span><span class='rparen'>)</span> <span class='lbrace'>{</span><span class='op'>|</span><span class='id identifier rubyid_memo'>memo</span><span class='comma'>,</span> <span class='lparen'>(</span><span class='id identifier rubyid_k'>k</span><span class='comma'>,</span> <span class='id identifier rubyid_v'>v</span><span class='rparen'>)</span><span class='op'>|</span> <span class='id identifier rubyid_memo'>memo</span><span class='lbracket'>[</span><span class='id identifier rubyid_k'>k</span><span class='period'>.</span><span class='id identifier rubyid_to_sym'>to_sym</span><span class='rbracket'>]</span> <span class='op'>=</span> <span class='id identifier rubyid_v'>v</span><span class='semicolon'>;</span> <span class='id identifier rubyid_memo'>memo</span><span class='rbrace'>}</span>
@@ -3006,9 +3162,9 @@ them keys, but redis-rb wants symbols.</p>
 </div>
 
       <div id="footer">
-  Generated on Mon Mar  4 19:17:40 2019 by
+  Generated on Mon Apr  1 16:46:18 2019 by
   <a href="http://yardoc.org" title="Yay! A Ruby Documentation Tool" target="_parent">yard</a>
-  0.9.16 (ruby-2.3.3).
+  0.9.18 (ruby-2.3.3).
 </div>
 
     </div>

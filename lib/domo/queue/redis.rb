@@ -5,12 +5,13 @@ require "domo/queue"
 
 module Domo
   module Queue
+    # Enumerable object that houses {RedisDataPart} objects in redis.
+    # The objects are stored in a Sorted Set using the Stream Execution ID as their score.
     class DataPartArray
       include Enumerable
 
-      #
-      # @param client [Redis]
-      # @param key_name [String]
+      # @param client [Redis] The Redis client.
+      # @param key_name [String] The name of the sorted set's redis key.
       def initialize(client, key_name)
         # @type [Redis]
         @client = client
@@ -18,19 +19,24 @@ module Domo
         @key_name = key_name
       end
 
+      # @return [Boolean] Whether or not the set is empty.
       def empty?
         length <= 0
       end
 
+      # Checks if the provided {RedisDataPart} exists in the set
+      #
+      # @param data_part [RedisDataPart]
+      # @return [Boolean]
       def include?(data_part)
         score = @client.zrank(@key_name, data_part.to_json)
         return score.nil? if data_part.execution_id.nil?
         score == data_part.execution_id
       end
 
+      # Add the provided {RedisDataPart} to the set.
       #
-      #
-      # @param [RedisPartNumber] data_part
+      # @param data_part [RedisDataPart]
       def push(data_part)
         return if data_part.nil?
         execution_id = data_part.execution_id
@@ -41,27 +47,37 @@ module Domo
       alias_method :<<, :push
       alias_method :add, :push
 
+      # Loop through the set and yield its jobs to the provided block.
+      #
+      # @param execution_id [Integer, nil] If provided, only items in the set whose score matches the execution_id will be yielded.
       def each(execution_id=nil)
         return to_enum(:each, execution_id) unless block_given?
 
         @client.zscan_each(@key_name) do |d, score|
           next unless execution_id.nil? or execution_id == score
-          data_part = RedisPartNumber.from_json!(d)
+          data_part = RedisDataPart.from_json!(d)
           Proc.new.call(data_part)
         end
       end
 
+      # Loop through the set and yield is jobs and scores (index) to the provided block.
+      #
+      # @param execution_id [Integer, nil] If provided, only items in the set whose score matches the execution_id will be yielded.
       def each_with_index(execution_id=nil)
         fail 'a block is required' unless block_given?
         index = 0
         @client.zscan_each(@key_name) do |d, score|
           next unless execution_id.nil? or execution_id == score
-          data_part = RedisPartNumber.from_json!(d)
+          data_part = RedisDataPart.from_json!(d)
           Proc.new.call([data_part, index])
           index += 1
         end
       end
 
+      # Implements a basic version of Enumerable#reduce using our redis sorted set.
+      #
+      # @param accumulator [Object, nil] The starting value. Will be set to the first element in the set if nil.
+      # @return [Object] The accumulator as modified by the provided block.
       def reduce(accumulator=nil)
         fail 'a block is required' unless block_given?
         if accumulator.nil?
@@ -80,6 +96,9 @@ module Domo
         accumulator
       end
 
+      # Clear the entire set or clear all items with a score matching the provided execution_id
+      #
+      # @param execution_id [Integer, nil] If nil, the entire set will be cleared.
       def clear(execution_id=nil)
         unless execution_id.nil?
           return @client.zremrangebyscore(@key_name, execution_id.to_s, execution_id.to_s)
@@ -87,6 +106,10 @@ module Domo
         @client.del(@key_name)
       end
 
+      # The length of the sorted set or a count of the number of items that have a score matching the provided execution_id.
+      #
+      # @param execution_id [Integer, nil]
+      # @return [Integer]
       def length(execution_id=nil)
         return @client.zcard(@key_name) if execution_id.nil?
         @client.zcount(@key_name, execution_id.to_s, execution_id.to_s)
@@ -94,18 +117,25 @@ module Domo
 
       alias_method :size, :length
 
+      # Get a specific element at the provided index
+      #
+      # @param index [Integer]
+      # @return [RedisDataPart, nil] Returns nil if no matching element was found.
       def [](index)
         return if index + 1 > length
         data_parts = @client.zrange(@key_name, index.to_s, index.to_s)
         return if data_parts.length != 1
-        RedisPartNumber.from_json!(data_parts[0])
+        RedisDataPart.from_json!(data_parts[0])
       end
     end
 
-    # A redis-based implementation of #{PartNumber}
-    class RedisPartNumber
+    # An object stored in Redis that allows us to track state on a DataPart associated with a Stream Execution
+    class RedisDataPart
+      # @return [Symbol] The DataPart's success or failure status.
       attr_accessor :status
+      # @return [Integer] The Stream Execution ID associated with this DataPart
       attr_accessor :execution_id
+      # @return [Integer] The Part ID.
       attr_reader :part_id
 
       # Constructor
@@ -123,6 +153,9 @@ module Domo
         @status = status
       end
 
+      # Convert the object to a JSON string for storage in Redis.
+      #
+      # @return [String]
       def to_json
         h = {
             :status       => @status,
@@ -132,6 +165,10 @@ module Domo
         JSON.generate(h)
       end
 
+      # Construct the object from a JSON string pulled out of Redis.
+      #
+      # @param json_str [String] The JSON string.
+      # @return [RedisDataPart]
       def self.from_json!(json_str)
         h = JSON.parse(json_str, {:symbolize_names => true})
         self.new(h[:part_id], h[:execution_id], h[:status])
@@ -158,13 +195,10 @@ module Domo
       attr_reader :pipeline_id
       # @return [Redis] An initialized redis client
       attr_reader :client
-      # @return [Domo::Models::Stream] The Domo Stream
-      attr_accessor :stream
       # @return [String] The redis key for the part number.
       attr_reader :part_num_key
-
+      # @return [DataPartArray] All {RedisDataPart} objects associated with the Queue.
       attr_accessor :data_parts
-      attr_accessor :database_client
 
       # @!attribute [r] commit_status
       # The status of the commit operation.
@@ -180,15 +214,26 @@ module Domo
         @client.hset("#{redis_key_prefix}#{KEY_SUFFIXES[:ACTIVE_EXECUTION]}", "commit_status", status.to_s)
       end
 
+      # Calculate how long to delay a commit
+      #
+      # @param delay [Integer] The amount of time that must elapse between commits.
+      # @return [Integer] The amount of time to wait until the next commit.
       def commit_delay(delay)
         (last_commit + delay) - Time.now.utc
       end
 
+      # The next Time at which a commit is acceptable.
+      #
+      # @param delay [Integer] The amount of time that must elapse between commits.
+      # @return [Time]
       def next_commit(delay)
         return Time.now.utc if last_commit.nil?
         last_commit + commit_delay(delay)
       end
 
+      # @!attribute [r] last_commit
+      # The last time a commit was fired. Will be nil if we've never committed before.
+      # @return [Time]
       def last_commit
         last_commit = @client.get("#{redis_key_prefix}:last_commit")
         return if last_commit.nil?
@@ -203,17 +248,21 @@ module Domo
         last_commit
       end
 
+      # @!attribute [w] last_commit
       def last_commit=(timestamp)
         set_last_commit(timestamp)
       end
 
+      # @!attribute [r] execution_id
+      # The execution_id associated with the Queue. Should be overridden in the subclass if you actually need it.
+      # @return [Integer, nil]
       def execution_id
         nil
       end
 
       # Update the last_commit timestamp
       #
-      # @param timestamp [DateTime, Time, Date, String]
+      # @param timestamp [DateTime, Time, Date, String] Really anything that can be parsed into a Time object.
       def set_last_commit(timestamp=nil)
         if timestamp.nil?
           timestamp = Time.now.utc
@@ -260,10 +309,11 @@ module Domo
         # @type [String]
         @pipeline_id = pipeline_id
 
-        # @type [String]
         if execution_id.nil?
+          # @type [String]
           @part_num_key ="#{redis_key_prefix}#{KEY_SUFFIXES[:PART_NUM]}"
         else
+          # @type [String]
           @part_num_key = "#{redis_key_prefix}:#{execution_id}#{KEY_SUFFIXES[:PART_NUM]}"
         end
 
@@ -284,9 +334,7 @@ module Domo
         !any?
       end
 
-      # Clear the queue. You should probably lock something if you do this.
-      #
-      # @return [nil]
+      # Clear the queue. Should be implemented in your subclass. You should also probably lock something if you do this.
       def clear
         raise NotImplementedError.new("#clear must be implemented.")
       end
@@ -300,11 +348,12 @@ module Domo
         Job.from_json!(job)
       end
 
-      # Push a DomoQueueJob to the queue
+      # Push a Job to the queue
       #
       # @param job [Job] The job to be added.
       def push(job)
         @client.rpush(@queue_name, job.to_json)
+        # If the Job has a {RedisDataPart} associated with it already, then add it to our {DataPartArray}
         unless job.data_part.nil? or execution_id.nil?
           @data_parts << job.data_part
         end
@@ -339,6 +388,10 @@ module Domo
         @client.llen(@queue_name)
       end
 
+      # Return the Job located at the provided index.
+      #
+      # @param index [Integer]
+      # @return [Job]
       def [](index)
         return if index + 1 > length
         job = @client.lindex(@queue_name, index)
@@ -365,6 +418,10 @@ module Domo
         end
       end
 
+      # Iterate over all the jobs in the queue and yield the Job and index to the provided block
+      # Unlike #each, the #pop method is *NOT* used so the jobs will not be removed from the queue
+      #
+      # @return [Array<Job, Integer>]
       def each_with_index
         fail 'a block is required' unless block_given?
         index = 0
@@ -376,6 +433,10 @@ module Domo
         end
       end
 
+      # Implements a basic version of Enumerable#reduce except using our Queue and the Jobs in it.
+      #
+      # @param accumulator [Object, nil] The starting value for the memo. Will be set to the first Job in the queue if nil.
+      # @return [Object] The accumulator as modified by the provided block.
       def reduce(accumulator=nil)
         fail 'a block is required' unless block_given?
         if accumulator.nil?
@@ -394,6 +455,7 @@ module Domo
         accumulator
       end
 
+      # Specifies whether or not a {RedisDataPart} is valid for the Queue. Needs to be implemented by subclasses.
       def data_part_valid?(*args)
         raise NotImplementedError.new
       end
@@ -406,7 +468,7 @@ module Domo
         # @param dataset_id [String]
         # @param stream_id [Integer]
         # @param execution_id [Integer, nil]
-        # @param pipeline_id [String, nil]
+        # @param pipeline_id [String]
         def initialize(redis_client, dataset_id, stream_id, execution_id=nil, pipeline_id='main')
           super(redis_client, dataset_id, stream_id, pipeline_id)
           # @type [String]
@@ -414,11 +476,24 @@ module Domo
           set_execution_id(execution_id) unless execution_id.nil?
         end
 
+        # Gets the queue associated with an active Stream Execution if it exists. Otherwise a new JobQueue is returned.
+        #
+        # @param redis_client [Redis]
+        # @param dataset_id [String]
+        # @param stream_id [Integer]
+        # @param pipeline_id [String]
+        # @return [JobQueue]
         def self.active_queue(redis_client, dataset_id, stream_id, pipeline_id='main')
           execution_id = self.active_execution(redis_client, dataset_id, stream_id)
           self.new(redis_client, dataset_id, stream_id, execution_id, pipeline_id)
         end
 
+        # Gets the active Stream Execution ID. Returns nil if there isn't one.
+        #
+        # @param redis_client [Redis]
+        # @param dataset_id [String]
+        # @param stream_id [Integer]
+        # @return [Integer, nil]
         def self.active_execution(redis_client, dataset_id, stream_id)
           key = KEY_PREFIX_FORMAT % {:dataset_id => dataset_id, :stream_id => stream_id}
           key += "#{KEY_SUFFIXES[:ACTIVE_EXECUTION]}"
@@ -434,10 +509,14 @@ module Domo
           id.to_i == 0 ? nil : id.to_i
         end
 
+        # @!attribute [w] execution_id
         def execution_id=(execution_id)
           set_execution_id(execution_id)
         end
 
+        # Sets the active Stream Execution ID. The associated redis key will instead be deleted if nil is provided.
+        #
+        # @param execution_id [Integer, nil]
         def set_execution_id(execution_id)
           old_id = self.execution_id
           if execution_id.nil?
@@ -445,19 +524,27 @@ module Domo
           else
             @client.hset("#{redis_key_prefix}#{KEY_SUFFIXES[:ACTIVE_EXECUTION]}", "id", execution_id.to_s)
           end
+          # Blow away all of our (now invalid) DataParts if the Execution ID actually changed.
           unless old_id.nil? or old_id == self.execution_id
             @client.hdel("#{redis_key_prefix}#{KEY_SUFFIXES[:ACTIVE_EXECUTION]}", "part_id")
             @data_parts.clear
           end
         end
 
+        # Increments the DataPart part_id, creates a new {RedisDataPart} associated with the part_id, adds it to our @data_parts, and returns it.
+        #
+        # @return [RedisDataPart]
         def incr_data_part
           part_id = @client.hincrby("#{redis_key_prefix}#{KEY_SUFFIXES[:ACTIVE_EXECUTION]}", "part_id", 1)
-          data_part = RedisPartNumber.new(part_id, execution_id)
+          data_part = RedisDataPart.new(part_id, execution_id)
           @data_parts << data_part
           data_part
         end
 
+        # Indicates if the provided {RedisDataPart} is valid for this queue.
+        #
+        # @param data_part [RedisDataPart]
+        # @return [Boolean]
         def data_part_valid?(data_part)
           return false if data_part.nil?
           return false unless @data_parts.include?(data_part)
@@ -474,10 +561,13 @@ module Domo
         end
 
         # The {FailureQueue} associated with this queue.
+        # @return [FailureQueue]
         def failures
           FailureQueue.new(@client, @dataset_id, @stream_id, @pipeline_id)
         end
 
+        # The {PendingJobQueue} associated with this queue.
+        # @return [PendingJobQueue]
         def pending_jobs
           PendingJobQueue.new(@client, @dataset_id, @stream_id, @pipeline_id)
         end
@@ -492,6 +582,8 @@ module Domo
         end
       end
 
+      # Redis-based Queue for pending jobs.
+      # Pending jobs = Jobs whose number of rows is less than their minimum size
       class PendingJobQueue < RedisQueue
         # @param redis_client [Redis]
         # @param dataset_id [String]
@@ -503,11 +595,17 @@ module Domo
           @queue_name = "#{redis_key_prefix}#{KEY_SUFFIXES[:PENDING]}"
         end
 
+        # Clear the queue
         def clear
           @client.del(@queue_name)
         end
 
+        # Indicates that the provided {RedisDataPart} is valid
+        #
+        # @param data_part [RedisDataPart]
+        # @return [Boolean]
         def data_part_valid?(data_part)
+          # All RedisDataPart objects are valid for this queue.
           true
         end
       end
@@ -527,12 +625,20 @@ module Domo
           end
         end
 
+        # Add a job to the queue
+        #
+        # @param job [Job]
         def <<(job)
           @client.set("#{@queue_name}_processing_status", :processing.to_s)
           job.data_part.status = :failed
           push(job)
         end
 
+        # Indicates whether or not a {RedisDataPart} is valid for this queue.
+        #
+        # @param data_part [RedisDataPart]
+        # @param job_queue [JobQueue, nil] Validate against an existing {JobQueue}
+        # @return [Boolean]
         def data_part_valid?(data_part, job_queue=nil)
           return false if data_part.nil?
           return false if data_part.execution_id.nil?
@@ -568,7 +674,7 @@ module Domo
         end
 
         # Pop all of the jobs out of the queue and add them back to the regular job queue so they can be processed again
-        # If a stream_execution_id is provided, then the jobs will have their Execution ID updated and their part numbers reset (if necessary).
+        # If a Stream Execution ID is provided, then the jobs will have their Execution ID updated and their part numbers reset (if necessary).
         #
         # @return [JobQueue]
         def reprocess_jobs!

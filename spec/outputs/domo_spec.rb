@@ -171,7 +171,7 @@ RSpec.shared_examples "LogStash::Outputs::Domo" do
         allow(subject.instance_variable_get(:@logger)).to receive(:debug)
 
         queue = subject.instance_variable_get(:@queue)
-        queue.set_last_commit(Time.now.utc - 1)
+        queue.set_last_commit(Time.now.utc)
         subject.instance_variable_set(:@queue, queue)
 
         subject.multi_receive(events)
@@ -515,12 +515,8 @@ describe LogStash::Outputs::Domo do
       data = subject.encode_event_data(failed_event)
       redis_client = subject.instance_variable_get(:@redis_client)
 
-      data_part = Domo::Queue::RedisPartNumber.new(1, 12131, :failed)
+      data_part = Domo::Queue::RedisDataPart.new(1, 12131, :failed)
       failed_job = Domo::Queue::Job.new([data], 0, data_part)
-      # failed_job = Domo::Queue::Job.new(failed_event, data, part_num, 10000)
-      # expect(failed_job.part_num).to eq(part_num)
-      # expect(failed_job.execution_id).to eq(10000)
-      #
       failures = Domo::Queue::Redis::FailureQueue.new(redis_client, dataset_id, stream_id)
       failures << failed_job
       expect(failures.size).to eq(1)

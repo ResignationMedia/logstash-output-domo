@@ -80,48 +80,55 @@
 
 <h3 id="plugin-developement-and-testing">1. Plugin Developement and Testing</h3>
 
+<h4 id="prerequisites">Prerequisites</h4>
+<ul>
+  <li><a href="https://www.domo.com/">A Domo Account</a></li>
+  <li>A ClientID and Client Secret associated with <a href="https://developer.domo.com/docs/authentication/overview-4#Creating%20a%20client">a Domo App that has Data scope</a></li>
+  <li>Docker</li>
+  <li>JRuby 9.1.13.0</li>
+  <li>Version 1.17.2 of the Bundler gem</li>
+  <li>make</li>
+</ul>
+
 <h4 id="code">Code</h4>
 <ul>
-  <li>
-    <p>To get started, you’ll need JRuby with the Bundler gem installed.</p>
-  </li>
-  <li>
-    <p>Create a new plugin or clone and existing from the GitHub <a href="https://github.com/logstash-plugins">logstash-plugins</a> organization. We also provide <a href="https://github.com/logstash-plugins?query=example">example plugins</a>.</p>
-  </li>
-  <li>
-    <p>Install dependencies
+  <li>Install dependencies and build the Docker images
 <code>sh
-bundle install
-</code></p>
-  </li>
+make libbuild
+make build
+</code></li>
 </ul>
 
 <h4 id="test">Test</h4>
+<p>Before testing for the first time copy <code>testing/rspec_settings.yaml.example</code> to <code>testing/rspec_settings.yaml</code> and populate it with your Client ID and Client Secret.</p>
 
-<ul>
-  <li>Update your dependencies</li>
-</ul>
-
+<h5 id="basic-testing">Basic Testing</h5>
 <p><code>sh
-bundle install
+make test
 </code></p>
 
-<ul>
-  <li>Run tests</li>
-</ul>
+<h5 id="advanced-testing">Advanced Testing</h5>
+<p>###### Rspec tags
+The Makefile can dynamically pass arguments to <code>rspec</code> in the Docker container based on the following environment variables:
+- <code>RSPEC_TAGS</code> - A space separated list of tags to pass via the <code>--tag</code> <code>rspec</code> switch.
+- <code>RSPEC_ARGS</code> - A space separated list of arbitrary arguments to pass to <code>rspec</code>. <code>--</code> should be <strong>excluded</strong> from the args.
+- <code>KEEP_FAILED_DATASETS</code> - If this environment variable exists at all, then Datasets on failing tests will <strong>NOT</strong> be deleted.</p>
 
-<p><code>sh
-bundle exec rspec
-</code></p>
+<p>Any combination of the above variables can be exported before running <code>make test</code>. If not, then all <code>rspec</code> tests will be run with default arguments.</p>
+
+<p>If you’re really curious/adventurous feel free to review the <code>Makefile</code></p>
 
 <h3 id="running-your-unpublished-plugin-in-logstash">2. Running your unpublished Plugin in Logstash</h3>
+<p>#### 2.1 Prerequisites
+- You’ll need at least one Redis instance to connect to for the queue.
+- You’ll want to review the various configuration options for the plugin.</p>
 
-<h4 id="run-in-a-local-logstash-clone">2.1 Run in a local Logstash clone</h4>
+<h4 id="run-in-a-local-logstash-clone">2.2 Run in a local Logstash clone</h4>
 
 <ul>
   <li>Edit Logstash <code>Gemfile</code> and add the local plugin path, for example:
 <code>ruby
-gem "logstash-filter-awesome", :path =&gt; "/your/local/logstash-filter-awesome"
+gem "logstash-output-domo", :path =&gt; "/your/local/logstash-output-domo"
 </code></li>
   <li>Install plugin
 <code>sh
@@ -129,42 +136,40 @@ bin/logstash-plugin install --no-verify
 </code></li>
   <li>Run Logstash with your plugin
 <code>sh
-bin/logstash -e 'filter {awesome {}}'
+bin/logstash -e 'output {domo {}}'
 </code>
 At this point any modifications to the plugin code will be applied to this local Logstash setup. After modifying the plugin, simply rerun Logstash.</li>
 </ul>
 
 <h4 id="run-in-an-installed-logstash">2.2 Run in an installed Logstash</h4>
 
-<p>You can use the same <strong>2.1</strong> method to run your plugin in an installed Logstash by editing its <code>Gemfile</code> and pointing the <code>:path</code> to your local plugin development directory or you can build the gem and install it using:</p>
+<p>You can use the same <strong>2.2</strong> method to run your plugin in an installed Logstash by editing its <code>Gemfile</code> and pointing the <code>:path</code> to your local plugin development directory or you can build the gem and install it using:</p>
 
 <ul>
   <li>Build your plugin gem
 <code>sh
-gem build logstash-filter-awesome.gemspec
+gem build logstash-output-domo.gemspec
 </code></li>
   <li>Install the plugin from the Logstash home
 <code>sh
-bin/logstash-plugin install /your/local/plugin/logstash-filter-awesome.gem
+bin/logstash-plugin install /your/local/plugin/logstash-output-domo.gem
 </code></li>
   <li>Start Logstash and proceed to test the plugin</li>
 </ul>
 
 <h2 id="contributing">Contributing</h2>
 
-<p>All contributions are welcome: ideas, patches, documentation, bug reports, complaints, and even something you drew up on a napkin.</p>
+<p>Pull requests are more than welcome. Just follow the standard pull request procedure (clone, branch, and request). <strong>ALL</strong> unit tests must pass for a pull request to be considered for review.</p>
 
-<p>Programming is not a required skill. Whatever you’ve seen about open source and maintainers or community members  saying “send patches or die” - you will not see that here.</p>
+<p>Do note that this plugin was developed first and foremost for <a href="https://atmosphere.tv/">our company’s</a> internal usage. We chose to make this open source to keep with the spirit of Elastic’s open source model, not so we could spend a lot of time providing support to plugin users. As such, we cannot provide any guarantees on how long it will take to approve pull requests or review bugs.</p>
 
-<p>It is more important to the community that you are able to contribute.</p>
-
-<p>For more information about contributing, see the <a href="https://github.com/elastic/logstash/blob/master/CONTRIBUTING.md">CONTRIBUTING</a> file.</p>
+<p>Do <strong>NOT</strong> reach out to our company’s support regarding issues with this plugin. Please instead create an Issue on Github.</p>
 </div></div>
 
       <div id="footer">
-  Generated on Mon Mar  4 19:17:36 2019 by
+  Generated on Mon Apr  1 16:46:13 2019 by
   <a href="http://yardoc.org" title="Yay! A Ruby Documentation Tool" target="_parent">yard</a>
-  0.9.16 (ruby-2.3.3).
+  0.9.18 (ruby-2.3.3).
 </div>
 
     </div>

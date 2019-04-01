@@ -187,7 +187,9 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
   end
 
   public
-  # Establishes whether or not the queue is empty and that there are no failed jobs.
+  # Establishes whether or not the queue is empty and that there are no failed jobs and (optionally) no pending jobs.
+  #
+  # @param include_pending [Boolean] Check that there are no pending jobs as well.
   # @return [Boolean]
   def queue_processed?(include_pending=false)
     return true if @queue.nil?
@@ -326,6 +328,8 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
     # LogStash::SHUTDOWN events will set this to true
     plugin_closing = false
 
+    # Add the events to a pending job if there are any
+    # Otherwise just set data to a new Array
     if @queue.pending_jobs.length <= 0
       data = Array.new
       pending_job = nil
@@ -333,13 +337,15 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
       pending_job = @queue.pending_jobs.pop
       data = pending_job.nil? ? Array.new : pending_job.data
     end
+    # When using upload_max_batch_size we keep track of the number of batches generated from the provided events
     num_batches = 1
+    # Loop through the incoming events, encode them, add the encoded data to the data Array, and parcel out jobs.
     events.each_with_index do |event, i|
       if event == LogStash::SHUTDOWN
         plugin_closing = true
         break
       end
-      # Encode the Event data and add a job to the queue
+      # Encode the Event data
       begin
         encoded_event = encode_event_data(event)
         data << encoded_event
@@ -353,6 +359,7 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
                       :event       => event.to_hash,
                       :exception   => e)
       end
+      # Carve out Job batches if we have a maximum batch size.
       if @upload_max_batch_size > 0 and i + 1 >= @upload_max_batch_size * num_batches
         if pending_job.nil?
           job = Domo::Queue::Job.new(data, @upload_min_batch_size)
@@ -373,9 +380,11 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
       else
         job = pending_job
         job.data = data
+        # Reset the Job's minimum_size in case the Job was still pending prior to a configuration change that adjusted the minimum batch size.
         job.minimum_size = @upload_min_batch_size
       end
 
+      # Incomplete jobs that aren't super old need to go in the pending queue
       if job.status == :incomplete and (@commit_delay <= 0 or job.timestamp + @commit_delay*2 > Time.now.utc)
         @queue.pending_jobs << job
         @logger.debug("Putting Job in pending queue",
@@ -383,6 +392,7 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
                       :execution_id      => @queue.execution_id,
                       :queue_pipeline_id => pipeline_id,
                       :job               => job.to_hash(true))
+      # Everybody else goes to the main queue
       else
         @queue << job
       end
@@ -411,6 +421,8 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
   
   public
   # Send Event data using the DOMO Streams API.
+  #
+  # @param force_pending [Boolean] Force process all pending jobs.
   def send_to_domo(force_pending=false)
     # Block until failed jobs are done reprocessing back into the queue
     sleep(0.1) until @queue.failures.length <= 0 or @queue.failures.processing_status != :reprocessing
@@ -418,6 +430,7 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
     loop do
       # Update on each pass in case another thread managed to change things in a thread unsafe way
       @queue = get_queue
+      # Merge pending jobs into one job and add it to the main queue if we're force processing pending jobs.
       if force_pending and @queue.pending_jobs.length > 0
         data = @queue.pending_jobs.reduce([]) do |memo, job|
           memo + job.data
@@ -429,6 +442,7 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
         next
       end
       data_part = nil
+      # If we have an active Stream Execution, use its most recent DataPart instead of making a new one (later on)
       if @queue.execution_id
         if @queue.data_parts.length > 0
           data_part = @queue.data_parts[-1]
@@ -519,7 +533,6 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
         end
         # Increment the data part if need be
         data_part = @queue.incr_data_part if data_part.nil? or data_part.execution_id != @queue.execution_id
-        # Ensure that the job has the right Execution ID and update its part number if we have to change the ID.
         job.data_part = data_part
         # Add a little jitter so Domo's API doesn't shit itself
         sleep(Random.new.rand(0.15))
@@ -567,7 +580,9 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
                           :job        => job.to_hash(true),
                           :data       => job.data)
           end
-        # Something really ain't right so let's give up and optionally write the event to the DLQ.
+        # Something really ain't right.
+        # We used to write to the DLQ in this scenario, but,
+        # since we're batch processing now, we'll have to just add it to the failures queue and pray.
         else
           log_message = "Encountered a fatal error interacting with the DOMO Streams API."
           @logger.error(log_message,
@@ -626,7 +641,6 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
         # TODO: Hurry up and commit when there's a distributed lock.
         # Somebody else *should* grab the lock, but testing went poorly.
         send_to_domo(plugin_closing) until queue_processed?(plugin_closing)
-        # sleep(0.1) until queue_processed?
         # Acquire a lock on the key used for the non-commit API calls so nobody goes and creates a new Stream Execution in the middle of this.
         api_lock = @lock_manager.lock(lock_key, @lock_timeout)
         break unless api_lock
@@ -746,8 +760,8 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
         @queue.execution_id = nil unless @queue.commit_status == :success
         break
       end
+    # Make sure to unlock all the locks
     ensure
-      # Unlock all the locks
       @lock_manager.unlock(api_lock) if api_lock
       if @commit_lock
         @commit_thread = nil
@@ -760,6 +774,7 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
 
   public
   def close
+    # It seems like this is called from a Thread that was not aware of #register so we need to reset the @queue variable.
     @queue = get_queue
     send_to_domo(true) unless queue_processed?(true)
     # Wake up the sleeping commit Thread, or make a new one to force fire off the commit
