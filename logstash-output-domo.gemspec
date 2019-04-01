@@ -1,6 +1,6 @@
 Gem::Specification.new do |s|
   s.name          = 'logstash-output-domo'
-  s.version       = '5.0.0-alpha.1'
+  s.version       = '5.0.0-beta.2'
   s.licenses      = ['Apache-2.0']
   s.summary       = 'Output events to the DOMO Streams API.'
   s.homepage      = 'https://github.com/ResignationMedia/logstash-output-domo'

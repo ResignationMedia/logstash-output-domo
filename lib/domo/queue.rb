@@ -66,28 +66,30 @@ module Domo
         @id = id.nil? ? SecureRandom.uuid : id
         # Parse the timestamp from a string into a date, if possible.
         unless timestamp.nil?
-          case timestamp.class
+          case timestamp
           when DateTime
             timestamp = timestamp.to_time
           when Date
             timestamp = timestamp.to_time
           when Float
             timestamp = Time.at(timestamp)
+          when Fixnum
+            timestamp = Time.at(timestamp.to_i)
           when Integer
             timestamp = Time.at(timestamp)
           when String
             begin
               timestamp = DateTime.parse(timestamp).to_time
             rescue ArgumentError
-              timestamp = nil
+              timestamp = timestamp.to_i
+              timestamp = timestamp == 0 ? nil : Time.at(timestamp)
             end
           else
             timestamp = timestamp
           end
-
         end
         # Either generate or set the timestamp
-        @timestamp = timestamp.nil? ? Time.now.utc : timestamp
+        @timestamp = timestamp.nil? ? Time.now.utc : timestamp.utc
       end
 
       # Construct the class from a JSON string.
@@ -112,7 +114,7 @@ module Domo
       def to_json
         json_hash = {
             :id           => @id,
-            :timestamp    => @timestamp.to_s,
+            :timestamp    => @timestamp.to_i,
             :data         => @data,
             :data_part    => @data_part&.to_json,
             :minimum_size => @minimum_size,
@@ -132,9 +134,10 @@ module Domo
             :timestamp    => @timestamp,
             :data         => @data,
             :row_count    => row_count,
-            :data_part    => @data_part,
             :execution_id => execution_id,
             :minimum_size => @minimum_size,
+            :status       => status,
+            :data_part    => @data_part,
         }
         if exclude_data
           _ = job.delete(:data)

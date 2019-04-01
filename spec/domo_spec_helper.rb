@@ -41,7 +41,7 @@ module DomoHelper
   def wait_for_commit(subject, expect_thread=false)
     commit_status = subject.instance_variable_get(:@queue).commit_status
     unless expect_thread
-      return if commit_status == :open and subject.queue_processed?
+      return if commit_status != :running and subject.queue_processed?
     end
     until commit_status == :success or commit_status == :failed
       commit_status = subject.instance_variable_get(:@queue).commit_status

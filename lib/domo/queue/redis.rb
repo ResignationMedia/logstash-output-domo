@@ -62,6 +62,24 @@ module Domo
         end
       end
 
+      def reduce(accumulator=nil)
+        fail 'a block is required' unless block_given?
+        if accumulator.nil?
+          skip_first = true
+        else
+          skip_first = false
+        end
+
+        each_with_index do |d, index|
+          if index == 0 and skip_first
+            accumulator = d
+          else
+            accumulator = Proc.new.call(accumulator, d)
+          end
+        end
+        accumulator
+      end
+
       def clear(execution_id=nil)
         unless execution_id.nil?
           return @client.zremrangebyscore(@key_name, execution_id.to_s, execution_id.to_s)
@@ -177,7 +195,7 @@ module Domo
         # Convert last_commit into a Time object
         begin
           last_commit = Integer(last_commit)
-          last_commit = Time.at(last_commit)
+          last_commit = Time.at(last_commit).utc
         # Or clear garbage data out of redis and set it to nil
         rescue TypeError => e
           last_commit = nil
@@ -200,13 +218,15 @@ module Domo
         if timestamp.nil?
           timestamp = Time.now.utc
         else
-          case timestamp.class
+          case timestamp
           when DateTime
             timestamp = timestamp.to_time
           when Date
             timestamp = timestamp.to_time
           when String
             timestamp = DateTime.parse(timestamp).to_time
+          when Fixnum
+            timestamp = Time.at(timestamp.to_i)
           when Integer
             timestamp = Time.at(timestamp)
           when Float
@@ -321,7 +341,8 @@ module Domo
 
       def [](index)
         return if index + 1 > length
-        @client.lindex(@queue_name, index)
+        job = @client.lindex(@queue_name, index)
+        Job.from_json!(job)
       end
 
       # Alias of #length
@@ -347,12 +368,30 @@ module Domo
       def each_with_index
         fail 'a block is required' unless block_given?
         index = 0
-        until index + 1 >= length
+        until index + 1 > length
           val = @client.lindex(@queue_name, index)
           job = Job.from_json!(val)
           Proc.new.call([job, index])
           index += 1
         end
+      end
+
+      def reduce(accumulator=nil)
+        fail 'a block is required' unless block_given?
+        if accumulator.nil?
+          skip_first = true
+        else
+          skip_first = false
+        end
+
+        each_with_index do |job, index|
+          if index == 0 and skip_first
+            accumulator = job.data
+          else
+            accumulator = Proc.new.call(accumulator, job)
+          end
+        end
+        accumulator
       end
 
       def data_part_valid?(*args)
