@@ -579,7 +579,7 @@ module Domo
         def data_part_valid?(data_part)
           return false if data_part.nil?
           return false unless @data_parts.include?(data_part)
-          return false unless data_part.status.nil? or data.status == :ready
+          return false unless data_part.status.nil? or data_part.status == :ready
 
           true
         end

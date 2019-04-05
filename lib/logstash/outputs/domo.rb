@@ -394,6 +394,9 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
         num_batches += 1
       end
     end
+    # If the queue is empty, we're not ready to commit, and we have no data to add, give up
+    return if data.length <= 0 and !commit_ready? and queue_processed?(plugin_closing)
+    # Only make a job if we have data
     unless data.length <= 0
       job = Domo::Queue::Job.new(data, @upload_min_batch_size, nil, nil, pending_timestamp)
       # Incomplete jobs that aren't super old need to go in the pending queue
@@ -421,17 +424,17 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
       # The amount of time to sleep before committing.
       sleep_time = @queue.commit_delay(@commit_delay)
       if sleep_time > 0
-        @logger.info("The API is not ready for committing yet. Will sleep for %0.2f seconds." % [sleep_time],
-                     :stream_id    => @stream_id,
-                     :pipeline_id  => pipeline_id,
-                     :dataset_id   => @dataset_id,
-                     :execution_id => @queue.execution_id,
-                     :commit_delay => @commit_delay,
-                     :sleep_time   => sleep_time,
-                     :last_commit  => @queue.last_commit,
-                     :next_commit  => @queue.next_commit(@commit_delay))
         @queue.commit_status = :open
         if @commit_task.nil? or @commit_task.complete?
+          @logger.info("The API is not ready for committing yet. Will sleep for %0.2f seconds." % [sleep_time],
+                       :stream_id    => @stream_id,
+                       :pipeline_id  => pipeline_id,
+                       :dataset_id   => @dataset_id,
+                       :execution_id => @queue.execution_id,
+                       :commit_delay => @commit_delay,
+                       :sleep_time   => sleep_time,
+                       :last_commit  => @queue.last_commit,
+                       :next_commit  => @queue.next_commit(@commit_delay))
           @commit_task = Concurrent::ScheduledTask.execute(sleep_time) { commit_stream(plugin_closing) }
         elsif @commit_task.pending?
           @commit_task.reschedule(sleep_time)
@@ -879,6 +882,7 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
   #
   # @return [Boolean]
   def commit_ready?
+    return false unless @queue&.execution_id
     if queue_processed? and @queue.commit_status != :running
       return true if @commit_delay <= 0 or @queue.last_commit.nil?
       return true if @queue.next_commit(@commit_delay) <= Time.now.utc
