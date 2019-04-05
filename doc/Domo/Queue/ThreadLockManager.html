@@ -353,14 +353,14 @@ for locking instead of redis instances.</p>
       <pre class="lines">
 
 
-42
-43
-44
-45
-46</pre>
+15
+16
+17
+18
+19</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/domo/queue/thread.rb', line 42</span>
+      <pre class="code"><span class="info file"># File 'lib/domo/queue/thread.rb', line 15</span>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_initialize'>initialize</span><span class='lparen'>(</span><span class='id identifier rubyid_locks'>locks</span><span class='op'>=</span><span class='kw'>nil</span><span class='rparen'>)</span>
   <span class='comment'># Hash of our various Mutex locks.
@@ -416,12 +416,12 @@ for locking instead of redis instances.</p>
       <pre class="lines">
 
 
-39
-40
-41</pre>
+12
+13
+14</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/domo/queue/thread.rb', line 39</span>
+      <pre class="code"><span class="info file"># File 'lib/domo/queue/thread.rb', line 12</span>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_locks'>locks</span>
   <span class='ivar'>@locks</span>
@@ -518,28 +518,28 @@ for locking instead of redis instances.</p>
       <pre class="lines">
 
 
-53
-54
-55
-56
-57
-58
-59
-60
-61
-62
-63
-64
-65
-66
-67
-68
-69
-70
-71</pre>
+26
+27
+28
+29
+30
+31
+32
+33
+34
+35
+36
+37
+38
+39
+40
+41
+42
+43
+44</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/domo/queue/thread.rb', line 53</span>
+      <pre class="code"><span class="info file"># File 'lib/domo/queue/thread.rb', line 26</span>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_lock'>lock</span><span class='lparen'>(</span><span class='id identifier rubyid_resource'>resource</span><span class='comma'>,</span> <span class='op'>*</span><span class='id identifier rubyid_args'>args</span><span class='comma'>,</span> <span class='label'>extend_life:</span> <span class='kw'>false</span><span class='comma'>,</span> <span class='op'>**</span><span class='id identifier rubyid_kwargs'>kwargs</span><span class='rparen'>)</span>
   <span class='comment'># Get or create the Mutex
@@ -609,17 +609,17 @@ for locking instead of redis instances.</p>
       <pre class="lines">
 
 
-100
-101
-102
-103
-104
-105
-106
-107</pre>
+73
+74
+75
+76
+77
+78
+79
+80</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/domo/queue/thread.rb', line 100</span>
+      <pre class="code"><span class="info file"># File 'lib/domo/queue/thread.rb', line 73</span>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_lock!'>lock!</span><span class='lparen'>(</span><span class='op'>*</span><span class='id identifier rubyid_args'>args</span><span class='rparen'>)</span>
   <span class='id identifier rubyid_fail'>fail</span> <span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>No block passed</span><span class='tstring_end'>&#39;</span></span> <span class='kw'>unless</span> <span class='id identifier rubyid_block_given?'>block_given?</span>
@@ -713,26 +713,26 @@ need this for Redlock compatibility.</p>
       <pre class="lines">
 
 
-79
-80
-81
-82
-83
-84
-85
-86
-87
-88
-89
-90
-91
-92
-93
-94
-95</pre>
+52
+53
+54
+55
+56
+57
+58
+59
+60
+61
+62
+63
+64
+65
+66
+67
+68</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/domo/queue/thread.rb', line 79</span>
+      <pre class="code"><span class="info file"># File 'lib/domo/queue/thread.rb', line 52</span>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_lock_info'>lock_info</span><span class='lparen'>(</span><span class='id identifier rubyid_lock'>lock</span><span class='comma'>,</span> <span class='id identifier rubyid_resource'>resource</span><span class='comma'>,</span> <span class='label'>extend_life:</span> <span class='kw'>false</span><span class='rparen'>)</span>
   <span class='kw'>if</span> <span class='id identifier rubyid_lock'>lock</span><span class='op'>&amp;.</span><span class='id identifier rubyid_locked?'>locked?</span> <span class='kw'>and</span> <span class='kw'>not</span> <span class='id identifier rubyid_extend_life'>extend_life</span>
@@ -818,14 +818,14 @@ the lock doesn&#39;t exist, this returns true.</p>
       <pre class="lines">
 
 
-115
-116
-117
-118
-119</pre>
+88
+89
+90
+91
+92</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/domo/queue/thread.rb', line 115</span>
+      <pre class="code"><span class="info file"># File 'lib/domo/queue/thread.rb', line 88</span>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_try_lock'>try_lock</span><span class='lparen'>(</span><span class='id identifier rubyid_resource'>resource</span><span class='rparen'>)</span>
   <span class='id identifier rubyid_lock'>lock</span> <span class='op'>=</span> <span class='ivar'>@locks</span><span class='period'>.</span><span class='id identifier rubyid_fetch'>fetch</span><span class='lparen'>(</span><span class='id identifier rubyid_resource'>resource</span><span class='comma'>,</span> <span class='kw'>nil</span><span class='rparen'>)</span>
@@ -883,20 +883,20 @@ the lock doesn&#39;t exist, this returns true.</p>
       <pre class="lines">
 
 
-124
-125
-126
-127
-128
-129
-130
-131
-132
-133
-134</pre>
+97
+98
+99
+100
+101
+102
+103
+104
+105
+106
+107</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/domo/queue/thread.rb', line 124</span>
+      <pre class="code"><span class="info file"># File 'lib/domo/queue/thread.rb', line 97</span>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_unlock'>unlock</span><span class='lparen'>(</span><span class='id identifier rubyid_lock_info'>lock_info</span><span class='comma'>,</span> <span class='op'>*</span><span class='id identifier rubyid_args'>args</span><span class='rparen'>)</span>
   <span class='kw'>return</span> <span class='kw'>unless</span> <span class='id identifier rubyid_lock_info'>lock_info</span>
@@ -919,7 +919,7 @@ the lock doesn&#39;t exist, this returns true.</p>
 </div>
 
       <div id="footer">
-  Generated on Mon Apr  1 16:46:16 2019 by
+  Generated on Thu Apr  4 22:10:29 2019 by
   <a href="http://yardoc.org" title="Yay! A Ruby Documentation Tool" target="_parent">yard</a>
   0.9.18 (ruby-2.3.3).
 </div>

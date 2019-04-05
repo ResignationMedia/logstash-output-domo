@@ -114,7 +114,7 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
   # -----------------------
   config :lock_hosts, :validate => :array
 
-  # A hash with connection information for the redis client for cached data
+  # A hash with connection information for the redis client for the Queue
   # The hash can contain any arguments accepted by the constructor for the Redis class in the redis-rb gem
   #
   # *There is ONE notable exception.* Redis sentinel related information must be defined in the redis_sentinels parameter.
@@ -132,7 +132,7 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
   #
   # The documentation for the Redis class's constructor can be found at the following URL:
   # https://www.rubydoc.info/gems/redis/Redis#initialize-instance_method
-  config :redis_client, :validate => :hash
+  config :redis_client, :validate => :hash, :required => true
 
   # Optional redis sentinels to associate with redis_client.
   # Use host:port syntax
@@ -242,25 +242,20 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
         raise LogStash::ConfigurationError.new("The Partition Field named #{@partition_field} is not present in the Dataset's schema.")
       end
     end
+    # Instantiate the redis client for the queue.
+    @redis_client = symbolize_redis_client_args(@redis_client)
+    unless @redis_sentinels.nil?
+      @redis_client[:sentinels] = @redis_sentinels.map do |s|
+        host, port = s.split(":")
+        {
+            :host => host,
+            :port => port,
+        }
+      end
+    end
+    @redis_client = Redis.new(@redis_client)
     # Distributed lock requires a redis queuing mechanism, among other things.
     if @distributed_lock
-      if @redis_client.nil?
-        raise LogStash::ConfigurationError.new("The redis_client parameter is required when using distributed_lock")
-      else
-        # Instantiate the redis client for the queue.
-        @redis_client = symbolize_redis_client_args(@redis_client)
-        unless @redis_sentinels.nil?
-          @redis_client[:sentinels] = @redis_sentinels.map do |s|
-            host, port = s.split(":")
-            {
-                :host => host,
-                :port => port,
-            }
-          end
-        end
-        @redis_client = Redis.new(@redis_client)
-      end
-
       if @lock_hosts.nil? or @lock_hosts.length <= 0
         raise LogStash::ConfigurationError.new("The lock_servers parameter is required when using distributed_lock")
       end
@@ -318,19 +313,12 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
     end
   end # def register
 
-  # Sets up the appropriate queue based on our desired queue type (redis vs multi-threaded)
+  # Get the active queue
   #
-  # @return [Domo::Queue::Threaded::JobQueue, Domo::Queue::Redis::JobQueue] The appropriate queue.
+  # @return [Domo::Queue::Redis::JobQueue]
   def get_queue
     return @queue unless @queue.nil?
-    # Simple multi-threaded queue.
-    if @redis_client.nil?
-      queue = Domo::Queue::Threaded::JobQueue.new(@dataset_id, @stream_id, nil, pipeline_id)
-    # Redis based queue.
-    else
-      queue = Domo::Queue::Redis::JobQueue.active_queue(@redis_client, @dataset_id, @stream_id)
-    end
-    queue
+    Domo::Queue::Redis::JobQueue.active_queue(@redis_client, @dataset_id, @stream_id)
   end
 
   public
