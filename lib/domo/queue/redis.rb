@@ -215,6 +215,7 @@ module Domo
         elsif commit_status != status and status == :running
           set_commit_start_time(Time.now.utc)
         end
+        set_execution_id(nil) if status == :failure
         @client.hset("#{redis_key_prefix}#{KEY_SUFFIXES[:ACTIVE_EXECUTION]}", "commit_status", status.to_s)
       end
 
@@ -253,6 +254,7 @@ module Domo
       # @param delay [Integer] The amount of time that must elapse between commits.
       # @return [Integer] The amount of time to wait until the next commit.
       def commit_delay(delay)
+        return 0 if last_commit.nil?
         (last_commit + delay) - Time.now.utc
       end
 
@@ -382,10 +384,6 @@ module Domo
       # @param job [Job] The job to be added.
       def push(job)
         @client.rpush(@queue_name, job.to_json)
-        # If the Job has a {RedisDataPart} associated with it already, then add it to our {DataPartArray}
-        unless job.data_part.nil? or execution_id.nil?
-          @data_parts << job.data_part
-        end
       end
 
       # Prepend a job to the queue. Useful for quick retries
@@ -664,7 +662,6 @@ module Domo
         # @param job [Job]
         def <<(job)
           @client.set("#{@queue_name}_processing_status", :processing.to_s)
-          job.data_part.status = :failed unless job.data_part.nil?
           push(job)
         end
 

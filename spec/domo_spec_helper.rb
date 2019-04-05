@@ -38,12 +38,12 @@ module DomoHelper
   # Wait until the subject's commit thread is done executing (if it exists).
   #
   # @param subject [LogStash::Outputs::Domo]
-  def wait_for_commit(subject, expect_thread=false)
+  def wait_for_commit(subject, expect_thread=false, commit_timeout=5)
     queue = subject.get_queue
     unless expect_thread
       return if queue.commit_status != :running and subject.queue_processed?
     end
-    until queue.commit_status == :success or queue.commit_status == :failed or queue.stuck?(5)
+    until queue.commit_status == :success or queue.commit_status == :failed or queue.stuck?(commit_timeout)
       sleep(0.1)
       queue = subject.get_queue
     end
@@ -327,7 +327,7 @@ RSpec.configure do |config|
   config.include DomoHelper
 
   config.around(:each) do |example|
-    timeout = example.metadata.has_key?(:slow) ? 30 : 15
+    timeout = example.metadata.has_key?(:slow) ? 35 : 15
     Timeout::timeout(timeout) {
       example.run
     }
