@@ -204,14 +204,48 @@ module Domo
       # The status of the commit operation.
       # @return [Symbol]
       def commit_status
-        commit_status = @client.hget("#{redis_key_prefix}#{KEY_SUFFIXES[:ACTIVE_EXECUTION]}", "commit_status")
-        return commit_status.to_sym if commit_status
-        :open
+        status = @client.hget("#{redis_key_prefix}#{KEY_SUFFIXES[:ACTIVE_EXECUTION]}", "commit_status")
+        status.nil? ? :open : status.to_sym
       end
 
       # @!attribute [w] commit_status
       def commit_status=(status)
+        if [:success, :failure].include?(status)
+          set_commit_start_time(nil)
+        elsif commit_status != status and status == :running
+          set_commit_start_time(Time.now.utc)
+        end
         @client.hset("#{redis_key_prefix}#{KEY_SUFFIXES[:ACTIVE_EXECUTION]}", "commit_status", status.to_s)
+      end
+
+      # @!attribute [r] commit_start_time
+      # The time at which the current commit operation began
+      # @return [Time, nil]
+      def commit_start_time
+        start_time = @client.hget("#{redis_key_prefix}#{KEY_SUFFIXES[:ACTIVE_EXECUTION]}", "commit_start_time")
+        start_time.to_i == 0 ? nil : Time.at(start_time.to_i).utc
+      end
+
+      # Set the commit_start_time
+      #
+      # @param timestamp [Time, nil]
+      def set_commit_start_time(timestamp=nil)
+        if timestamp.nil?
+          @client.hdel("#{redis_key_prefix}#{KEY_SUFFIXES[:ACTIVE_EXECUTION]}", "commit_start_time")
+        else
+          @client.hset("#{redis_key_prefix}#{KEY_SUFFIXES[:ACTIVE_EXECUTION]}", "commit_start_time", timestamp.to_i)
+        end
+      end
+
+      # Indicates whether or not the queue is likely stuck waiting for a non-existent commit to finish
+      #
+      # @param commit_timeout [Integer] The number of seconds a commit can run before being considered stuck.
+      # @return [Boolean]
+      def stuck?(commit_timeout=3600)
+        start_time = commit_start_time
+        return false unless commit_status == :running
+        return false if start_time.nil?
+        start_time + commit_timeout >= Time.now.utc
       end
 
       # Calculate how long to delay a commit
@@ -309,14 +343,9 @@ module Domo
         # @type [String]
         @pipeline_id = pipeline_id
 
-        if execution_id.nil?
-          # @type [String]
-          @part_num_key ="#{redis_key_prefix}#{KEY_SUFFIXES[:PART_NUM]}"
-        else
-          # @type [String]
-          @part_num_key = "#{redis_key_prefix}:#{execution_id}#{KEY_SUFFIXES[:PART_NUM]}"
-        end
-
+        # @type [String]
+        @part_num_key ="#{redis_key_prefix}#{KEY_SUFFIXES[:PART_NUM]}"
+        # @type [DataPartArray]
         @data_parts = DataPartArray.new(@client, @part_num_key)
       end
 
@@ -436,8 +465,9 @@ module Domo
       # Implements a basic version of Enumerable#reduce except using our Queue and the Jobs in it.
       #
       # @param accumulator [Object, nil] The starting value for the memo. Will be set to the first Job in the queue if nil.
+      # @param clear_jobs [Boolean] Whether or not to remove the job from the queue after running our block
       # @return [Object] The accumulator as modified by the provided block.
-      def reduce(accumulator=nil)
+      def reduce(accumulator=nil, clear_jobs=false)
         fail 'a block is required' unless block_given?
         if accumulator.nil?
           skip_first = true
@@ -451,6 +481,7 @@ module Domo
           else
             accumulator = Proc.new.call(accumulator, job)
           end
+          @client.lrem(@queue_name, 1, job.to_json) if clear_jobs
         end
         accumulator
       end
@@ -520,9 +551,11 @@ module Domo
         def set_execution_id(execution_id)
           old_id = self.execution_id
           if execution_id.nil?
+            set_commit_start_time(nil)
             @client.hdel("#{redis_key_prefix}#{KEY_SUFFIXES[:ACTIVE_EXECUTION]}", "id")
           else
             @client.hset("#{redis_key_prefix}#{KEY_SUFFIXES[:ACTIVE_EXECUTION]}", "id", execution_id.to_s)
+            set_commit_start_time(nil) if old_id != execution_id
           end
           # Blow away all of our (now invalid) DataParts if the Execution ID actually changed.
           unless old_id.nil? or old_id == self.execution_id
@@ -579,6 +612,7 @@ module Domo
           timestamp = Time.now.utc if timestamp.nil?
           set_execution_id(nil)
           set_last_commit(timestamp)
+          self.commit_status = :success
         end
       end
 
@@ -630,7 +664,7 @@ module Domo
         # @param job [Job]
         def <<(job)
           @client.set("#{@queue_name}_processing_status", :processing.to_s)
-          job.data_part.status = :failed
+          job.data_part.status = :failed unless job.data_part.nil?
           push(job)
         end
 
