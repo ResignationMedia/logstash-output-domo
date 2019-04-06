@@ -86,6 +86,7 @@ RSpec.shared_examples "LogStash::Outputs::Domo" do
     let(:config) do
       global_config
     end
+
     it "sends the events to DOMO" do
       subject.multi_receive(events)
 
@@ -141,7 +142,7 @@ RSpec.shared_examples "LogStash::Outputs::Domo" do
       sleep(2)
 
       queue = subject.get_queue
-      subject.close
+      subject.multi_receive([LogStash::SHUTDOWN])
       expect_thread = (subject.commit_ready? and !subject.queue_processed?(true))
       # Sleep for 2 seconds to give Domo's API time to catch up
       sleep(2)
@@ -163,6 +164,7 @@ RSpec.shared_examples "LogStash::Outputs::Domo" do
             }
         )
       end
+
       it "honors the delay", slow: true, skip_close: true do
         allow(subject.instance_variable_get(:@logger)).to receive(:info)
 
@@ -184,36 +186,32 @@ RSpec.shared_examples "LogStash::Outputs::Domo" do
         wait_for_commit(subject, true, 10)
         expect(subject.instance_variable_get(:@logger)).to have_received(:info).with(/The API is not ready for committing yet/, anything).twice
 
-        subject.close
+        subject.multi_receive([LogStash::SHUTDOWN])
         wait_for_commit(subject, true)
         expect(dataset_data_match?(domo_client, dataset_id, expected_domo_data)).to be(true)
       end
 
-      it "interrupts sleeping commits on close", skip_close: true do
-        expected_domo_data = events.map { |event| event_to_domo_hash(event) }
-        expected_domo_data += expected_domo_data
-
+      it "does not commit on #close unless ready", skip_close: true do
         allow(subject.instance_variable_get(:@logger)).to receive(:info)
 
-        queue = subject.instance_variable_get(:@queue)
-        queue.set_last_commit(Time.now.utc)
-        subject.instance_variable_set(:@queue, queue)
+        queue = subject.get_queue
 
         subject.multi_receive(events)
-        wait_for_commit(subject, true)
+        subject.multi_receive(events)
         expect(subject.instance_variable_get(:@logger)).to have_received(:info).with(/The API is not ready for committing yet/, anything).once
 
-        queue = subject.instance_variable_get(:@queue)
-        queue.set_last_commit(Time.now.utc)
+        last_commit = queue.last_commit
 
-        subject.multi_receive(events)
-        commit_task = nil
-        commit_task = subject.instance_variable_get(:@commit_task) until commit_task
-        sleep(0.1) until commit_task.pending?
         subject.close
-        sleep(0.1) while commit_task.pending? or commit_task.processing?
 
-        expect(dataset_data_match?(domo_client, dataset_id, expected_domo_data)).to be(true)
+        expect(queue.length > 0)
+        expect(queue.last_commit).to eq(last_commit)
+
+        queue.last_commit = last_commit - 20
+        subject.close
+
+        expect(queue.length).to eq(0)
+        expect(queue.execution_id).to be_nil
       end
     end
 
@@ -239,8 +237,9 @@ RSpec.shared_examples "LogStash::Outputs::Domo" do
 
         queue = subject.get_queue
         queue.last_commit = Time.now.utc
-        subject.multi_receive(batch_events)
+        subject.multi_receive(batch_events.slice(0..20))
         expect(queue.data_parts.length).to eq(2)
+        subject.multi_receive(batch_events.slice(21..-1))
 
         wait_for_commit(subject, true)
         expect(dataset_data_match?(domo_client, dataset_id, expected_domo_data)).to be(true)
@@ -288,7 +287,7 @@ RSpec.shared_examples "LogStash::Outputs::Domo" do
         expect(dataset_data_match?(domo_client, dataset_id, expected_domo_data)).to be(true)
       end
 
-      it "processes the pending queue on #close", skip_close: true, upload_batch: true do
+      it "processes the pending queue when Logstash stops", skip_close: true, upload_batch: true do
         batch_events = (1..75).map do |i|
           LogStash::Event.new("Event Name"      => i.to_s,
                               "Count"           => i,
@@ -306,7 +305,7 @@ RSpec.shared_examples "LogStash::Outputs::Domo" do
         subject.multi_receive(batch_events.slice(50..-1))
         expect(queue.pending_jobs.length).to eq(1)
 
-        subject.close
+        subject.multi_receive([LogStash::SHUTDOWN])
         wait_for_commit(subject, true)
         expect(dataset_data_match?(domo_client, dataset_id, expected_domo_data)).to be(true)
       end

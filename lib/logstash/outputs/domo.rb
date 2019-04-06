@@ -292,21 +292,24 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
         end
       end
     end
-    # Upload any jobs that are already in the queue.
-    unless queue_processed?(true)
-      send_to_domo(true) until queue_processed?(true)
-      # Attempt a commit if there's an empty but active queue or start processing the queue if it already has jobs
-      # This is a failsafe in case all workers on all servers stopped without committing
-      if @commit_task.nil?
-        commit_status = commit_stream
-      elsif @commit_task.pending? or @commit_task.unscheduled?
-        @commit_task.reschedule(0)
-        sleep(1)
-        sleep(0.1) while @commit_task&.processing?
-        commit_status = @commit_task&.value
-      else
-        commit_status = commit_stream
-        @commit_task = nil
+    # Start processing the queue if it already has jobs
+    # This is a failsafe in case all workers on all servers stopped without committing
+    unless queue_processed?
+      # Upload any jobs that are already in the queue.
+      send_to_domo until queue_processed?
+        # Commit if we're ready
+        if commit_ready?
+          if @commit_task.nil?
+            commit_status = commit_stream
+          elsif @commit_task.pending? or @commit_task.unscheduled?
+            @commit_task.reschedule(0)
+            sleep(1)
+            sleep(0.1) while @commit_task&.processing?
+            commit_status = @commit_task&.value
+          else
+            commit_status = commit_stream
+            @commit_task = nil
+          end
       end
     end
   end # def register
@@ -324,7 +327,7 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
     # Get the current queue
     @queue = get_queue
     # LogStash::SHUTDOWN events will set this to true
-    plugin_closing = false
+    shutdown = false
 
     data = Array.new
     # If there are pending jobs, this will get set to the timestamp of the oldest job
@@ -337,9 +340,8 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
           next unless locked
           # We want the pending queue to clear jobs as we grab the data
           data = @queue.pending_jobs.reduce(data, true) do |memo, job|
-            if job.timestamp and pending_timestamp and job.timestamp < pending_timestamp
-              pending_timestamp = job.timestamp
-            end
+            pending_timestamp = job.timestamp if pending_timestamp.nil?
+            pending_timestamp = job.timestamp unless job.timestamp.nil? or job.timestamp > pending_timestamp
             memo + job.data
           end
         end
@@ -370,7 +372,7 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
     # Loop through the incoming events, encode them, add the encoded data to the data Array, and parcel out jobs.
     events.each_with_index do |event, i|
       if event == LogStash::SHUTDOWN
-        plugin_closing = true
+        shutdown = true
         break
       end
       # Encode the Event data
@@ -394,8 +396,8 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
         num_batches += 1
       end
     end
-    # If the queue is empty, we're not ready to commit, and we have no data to add, give up
-    return if data.length <= 0 and !commit_ready? and queue_processed?(plugin_closing)
+    # If the queue is empty, we're not shutting down, we're not ready to commit, and we have no data to add, give up
+    return if !shutdown and data.length <= 0 and !commit_ready? and queue_processed?(shutdown)
     # Only make a job if we have data
     unless data.length <= 0
       job = Domo::Queue::Job.new(data, @upload_min_batch_size, nil, nil, pending_timestamp)
@@ -409,17 +411,22 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
                       :job               => job.to_hash(true))
       # Everybody else goes to the main queue
       else
+        @queue.commit_status = :open if @queue.commit_complete?
         @queue << job
       end
     end
     # Process the queue
-    send_to_domo(plugin_closing) until queue_processed?(plugin_closing)
+    send_to_domo(shutdown) until queue_processed?(shutdown)
     # Commit if we're ready
     if commit_ready?
-      commit_stream(plugin_closing)
-    elsif plugin_closing
-      @commit_task.cancel if @commit_task&.pending?
-      commit_stream(plugin_closing)
+      commit_stream(shutdown)
+    elsif shutdown
+      if @commit_task&.processing?
+        sleep(0.1) while @commit_task&.processing?
+      else
+        @commit_task.cancel unless @commit_task.nil? or @commit_task.complete?
+        commit_stream(shutdown)
+      end
     else
       # The amount of time to sleep before committing.
       sleep_time = @queue.commit_delay(@commit_delay)
@@ -435,12 +442,12 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
                        :sleep_time   => sleep_time,
                        :last_commit  => @queue.last_commit,
                        :next_commit  => @queue.next_commit(@commit_delay))
-          @commit_task = Concurrent::ScheduledTask.execute(sleep_time) { commit_stream(plugin_closing) }
+          @commit_task = Concurrent::ScheduledTask.execute(sleep_time) { commit_stream(shutdown) }
         elsif @commit_task.pending?
           @commit_task.reschedule(sleep_time)
         end
       else
-        commit_stream(plugin_closing)
+        commit_stream(shutdown)
       end
     end
   end
@@ -542,6 +549,8 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
       begin
         # Block during commits
         sleep(0.1) until force_run or @queue.commit_status != :running or @queue.stuck?(3600)
+        # Prevent unnecessary executions
+        return if queue_processed? and @queue.commit_complete?
         # Get or create a Stream Execution
         @lock_manager.lock(lock_key, @lock_timeout) do |locked|
           if locked
@@ -651,11 +660,11 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
   public
   # Commit the active Stream Execution, and (re)set all the appropriate attributes on the queue.
   #
-  # @param plugin_closing [Boolean] Indicates that Logstash is shutting down which may trigger an override of commit_delay
+  # @param shutdown [Boolean] Indicates that Logstash is shutting down which will force processing all jobs and commit
   # @return [Symbol] The status of the commit operation.
-  def commit_stream(plugin_closing=false)
-    # No point in continuing if the execution doesn't exist or stopped being valid (i.e. another worker handled the commit)
-    return :wait unless @queue.execution_id
+  def commit_stream(shutdown=false)
+    # No point in continuing if we're not ready
+    return :wait unless commit_ready? or shutdown
     # Convert commit_delay to ms
     lock_ttl = @commit_delay * 1000
     lock_ttl = @lock_timeout if lock_ttl < @lock_timeout
@@ -682,7 +691,7 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
         end
         break unless commit_lock
         # Clear out the queue
-        send_to_domo(plugin_closing, true) until queue_processed?(plugin_closing)
+        send_to_domo(shutdown, true) until queue_processed?(shutdown)
         # Acquire a lock on the key used for the non-commit API calls so nobody goes and creates a new Stream Execution in the middle of this.
         api_lock = @lock_manager.lock(lock_key, @lock_timeout)
         break unless api_lock and commit_lock
@@ -813,18 +822,21 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
   public
   def close
     @queue = get_queue
-    send_to_domo(true) until queue_processed?(true)
-    # Wake up the sleeping commit Thread, or make a new one to force fire off the commit
-    if @commit_task.nil? or @commit_task.complete?
-      commit_status = commit_stream(true)
-      return
+    send_to_domo until queue_processed?
+    # Commit if we're ready
+    if commit_ready?
+      if @commit_task.nil? or @commit_task.complete?
+        commit_status = commit_stream(true)
+        return
+      end
+      unless @commit_task&.processing?
+        @commit_task.cancel
+        commit_status = commit_stream(true)
+        return
+      end
+      sleep(0.1) while @commit_task&.processing?
+      commit_status = @commit_task&.value
     end
-    unless @commit_task&.processing?
-      @commit_task.cancel
-      @commit_task = Concurrent::ScheduledTask.execute(0) { commit_stream(true) }
-    end
-    sleep(0.1) while @commit_task&.processing?
-    commit_status = @commit_task&.value
   end
 
   public

@@ -208,6 +208,14 @@ module Domo
         status.nil? ? :open : status.to_sym
       end
 
+      def commit_complete?
+        [:success, :failure].include?(self.commit_status)
+      end
+
+      def commit_incomplete?
+        !self.commit_complete?
+      end
+
       # @!attribute [w] commit_status
       def commit_status=(status)
         if [:success, :failure].include?(status)
