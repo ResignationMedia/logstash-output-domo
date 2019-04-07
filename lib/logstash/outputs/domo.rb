@@ -194,16 +194,6 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
   end
 
   public
-  # Establishes whether or not the queue is empty and that there are no failed jobs and (optionally) no pending jobs.
-  #
-  # @param include_pending [Boolean] Check that there are no pending jobs as well.
-  # @return [Boolean]
-  def queue_processed?(include_pending=false)
-    return true if @queue.nil?
-    @queue.length <= 0 and @queue.failures.length <= 0 and (!include_pending or @queue.pending_jobs.length <= 0)
-  end
-
-  public
   def register
     # @type [Domo::Client] A client connection to Domo's APIs.
     @domo_client = Domo::Client.new(@client_id, @client_secret, @api_host, @api_ssl, Java::ComDomoSdkRequest::Scope::DATA)
@@ -294,9 +284,9 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
     end
     # Start processing the queue if it already has jobs
     # This is a failsafe in case all workers on all servers stopped without committing
-    unless queue_processed?
+    unless @queue.processed?
       # Upload any jobs that are already in the queue.
-      send_to_domo until queue_processed?
+      send_to_domo until @queue.processed?
         # Commit if we're ready
         if commit_ready?
           if @commit_task.nil?
@@ -397,7 +387,7 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
       end
     end
     # If the queue is empty, we're not shutting down, we're not ready to commit, and we have no data to add, give up
-    return if !shutdown and data.length <= 0 and !commit_ready? and queue_processed?(shutdown)
+    return if !shutdown and data.length <= 0 and !commit_ready? and @queue.processed?(shutdown)
     # Only make a job if we have data
     unless data.length <= 0
       job = Domo::Queue::Job.new(data, @upload_min_batch_size, nil, nil, pending_timestamp)
@@ -416,35 +406,63 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
       end
     end
     # Process the queue
-    send_to_domo(shutdown) until queue_processed?(shutdown)
+    send_to_domo(shutdown) until @queue.processed?(shutdown)
     # Commit if we're ready
     if commit_ready?
-      commit_stream(shutdown)
+      commit_stream(shutdown) unless @queue.commit_scheduled?
+      if @queue.commit_stalled?(@commit_delay) and @queue.commit_scheduled?
+        @commit_task.cancel if @commit_task&.pending?
+        commit_stream(shutdown)
+      end
     elsif shutdown
       if @commit_task&.processing?
         sleep(0.1) while @commit_task&.processing?
       else
         @commit_task.cancel unless @commit_task.nil? or @commit_task.complete?
-        commit_stream(shutdown)
       end
+      commit_stream(shutdown)
     else
       # The amount of time to sleep before committing.
       sleep_time = @queue.commit_delay(@commit_delay)
       if sleep_time > 0
         @queue.commit_status = :open
-        if @commit_task.nil? or @commit_task.complete?
-          @logger.info("The API is not ready for committing yet. Will sleep for %0.2f seconds." % [sleep_time],
-                       :stream_id    => @stream_id,
-                       :pipeline_id  => pipeline_id,
-                       :dataset_id   => @dataset_id,
-                       :execution_id => @queue.execution_id,
-                       :commit_delay => @commit_delay,
-                       :sleep_time   => sleep_time,
-                       :last_commit  => @queue.last_commit,
-                       :next_commit  => @queue.next_commit(@commit_delay))
-          @commit_task = Concurrent::ScheduledTask.execute(sleep_time) { commit_stream(shutdown) }
-        elsif @commit_task.pending?
+        if @queue.commit_stalled?(@commit_delay)
+          if @commit_task.nil?
+            @commit_task = Concurrent::ScheduledTask.execute(0) { commit_stream(shutdown) }
+          elsif @commit_task.pending?
+            @commit_task.reschedule(sleep_time)
+            @queue.schedule
+          elsif @commit_task.incomplete?
+            @commit_task.cancel
+            @commit_task = Concurrent::ScheduledTask.execute(sleep_time) { commit_stream(shutdown) }
+          end
+        end
+        if @queue.commit_unscheduled? and @commit_task&.pending?
+          @queue.schedule(Time.at(@commit_task.schedule_time - @commit_delay).utc)
+        end
+        if @queue.commit_unscheduled?
+          begin
+            @lock_manager.lock(commit_lock_key, @lock_timeout) do |locked|
+              if locked
+                @logger.info("The API is not ready for committing yet. Will sleep for %0.2f seconds." % [sleep_time],
+                             :stream_id    => @stream_id,
+                             :pipeline_id  => pipeline_id,
+                             :dataset_id   => @dataset_id,
+                             :execution_id => @queue.execution_id,
+                             :commit_delay => @commit_delay,
+                             :sleep_time   => sleep_time,
+                             :last_commit  => @queue.last_commit,
+                             :next_commit  => @queue.next_commit(@commit_delay))
+                @queue.schedule
+                @commit_task = Concurrent::ScheduledTask.execute(sleep_time) { commit_stream(shutdown) }
+              end
+            end
+          rescue Redis::BaseConnectionError
+            # Once redlock-rb does a release with this pull request we can drop this rescue block https://github.com/leandromoreira/redlock-rb/pull/75
+          end
+        elsif @commit_task&.pending?
           @commit_task.reschedule(sleep_time)
+          @queue.schedule
         end
       else
         commit_stream(shutdown)
@@ -493,7 +511,7 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
         break if @queue.execution_id.nil?
       end
 
-      break if queue_processed?
+      break if @queue.processed?
       # Get the job from the queue
       job = @queue.pop
       # Skup the job if it has no data for some reason
@@ -536,7 +554,7 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
             sleep(0.1) until @queue.failures.processing_status != :reprocessing
           end
 
-          break if queue_processed?
+          break if @queue.processed?
         # Not retrying failures? I don't know why you aren't, but ok.
         else
           commit_stream
@@ -550,7 +568,7 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
         # Block during commits
         sleep(0.1) until force_run or @queue.commit_status != :running or @queue.stuck?(3600)
         # Prevent unnecessary executions
-        return if queue_processed? and @queue.commit_complete?
+        return if @queue.processed? and @queue.commit_complete?
         # Get or create a Stream Execution
         @lock_manager.lock(lock_key, @lock_timeout) do |locked|
           if locked
@@ -663,6 +681,7 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
   # @param shutdown [Boolean] Indicates that Logstash is shutting down which will force processing all jobs and commit
   # @return [Symbol] The status of the commit operation.
   def commit_stream(shutdown=false)
+    @queue.run # Notify other workers that the commit queue is open for business again
     # No point in continuing if we're not ready
     return :wait unless commit_ready? or shutdown
     # Convert commit_delay to ms
@@ -691,7 +710,7 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
         end
         break unless commit_lock
         # Clear out the queue
-        send_to_domo(shutdown, true) until queue_processed?(shutdown)
+        send_to_domo(shutdown, true) until @queue.processed?(shutdown)
         # Acquire a lock on the key used for the non-commit API calls so nobody goes and creates a new Stream Execution in the middle of this.
         api_lock = @lock_manager.lock(lock_key, @lock_timeout)
         break unless api_lock and commit_lock
@@ -822,9 +841,9 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
   public
   def close
     @queue = get_queue
-    send_to_domo until queue_processed?
+    send_to_domo until @queue.processed?
     # Commit if we're ready
-    if commit_ready?
+    if commit_ready? and (@queue.commit_unscheduled? or @queue.commit_stalled?(@commit_delay))
       if @commit_task.nil? or @commit_task.complete?
         commit_status = commit_stream(true)
         return
@@ -895,7 +914,7 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
   # @return [Boolean]
   def commit_ready?
     return false unless @queue&.execution_id
-    if queue_processed? and @queue.commit_status != :running
+    if @queue.processed? and @queue.commit_status != :running
       return true if @commit_delay <= 0 or @queue.last_commit.nil?
       return true if @queue.next_commit(@commit_delay) <= Time.now.utc
     end

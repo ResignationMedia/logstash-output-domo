@@ -30,7 +30,7 @@ RSpec.shared_examples "LogStash::Outputs::Domo" do
 
     it "automatically sets the upload timestamp" do
       subject.multi_receive(events)
-      sleep(0.1) until subject.queue_processed?
+      sleep(0.1) until subject.get_queue.processed?
       wait_for_commit(subject)
 
       expected_domo_data = events.map do |event|
@@ -143,14 +143,8 @@ RSpec.shared_examples "LogStash::Outputs::Domo" do
 
       queue = subject.get_queue
       subject.multi_receive([LogStash::SHUTDOWN])
-      expect_thread = (subject.commit_ready? and !subject.queue_processed?(true))
-      # Sleep for 2 seconds to give Domo's API time to catch up
-      sleep(2)
-      wait_for_commit(subject, expect_thread)
-
-      close_task = subject.instance_variable_get(:@commit_task)
-      close_task.reschedule(0) if close_task&.pending? or close_task&.unscheduled?
-      sleep(0.1) while close_task&.processing? or close_task&.pending?
+      sleep(0.1) until queue.all_empty?
+      sleep(0.1) until queue.commit_unscheduled? and queue.execution_id.nil?
 
       sleep(2) # Let's sleep yet AGAIN because there seems to be a lag in data making it to Domo's Datset Export API
       expect(dataset_data_match?(domo_client, dataset_id, expected_domo_data)).to be(true)
@@ -176,22 +170,25 @@ RSpec.shared_examples "LogStash::Outputs::Domo" do
         expected_domo_data += expected_domo_data
 
         subject.multi_receive(events)
-        wait_for_commit(subject, true, 10)
-        expect(subject.instance_variable_get(:@logger)).to have_received(:info).with(/The API is not ready for committing yet/, anything).once
+        sleep(0.1) until queue.commit_scheduled?
 
-        commit_task = subject.instance_variable_get(:@commit_task)
-        sleep(0.1) while commit_task&.processing? or commit_task&.pending?
+        expect(subject.instance_variable_get(:@logger)).to have_received(:info).with(/The API is not ready for committing yet/, anything).once
+        sleep(0.1) until queue.all_empty?
+        sleep(0.1) until queue.commit_unscheduled? and queue.execution_id.nil?
 
         subject.multi_receive(events)
-        wait_for_commit(subject, true, 10)
+        sleep(0.1) until queue.commit_scheduled?
         expect(subject.instance_variable_get(:@logger)).to have_received(:info).with(/The API is not ready for committing yet/, anything).twice
 
         subject.multi_receive([LogStash::SHUTDOWN])
-        wait_for_commit(subject, true)
+        sleep(0.1) until queue.all_empty?
+        sleep(0.1) until queue.commit_unscheduled? and queue.execution_id.nil?
         expect(dataset_data_match?(domo_client, dataset_id, expected_domo_data)).to be(true)
       end
 
       it "does not commit on #close unless ready", skip_close: true do
+        expected_domo_data = events.map { |e| event_to_domo_hash(e) }
+        expected_domo_data += expected_domo_data
         allow(subject.instance_variable_get(:@logger)).to receive(:info)
 
         queue = subject.get_queue
@@ -210,8 +207,10 @@ RSpec.shared_examples "LogStash::Outputs::Domo" do
         queue.last_commit = last_commit - 20
         subject.close
 
+        wait_for_commit(subject, true)
         expect(queue.length).to eq(0)
         expect(queue.execution_id).to be_nil
+        expect(dataset_data_match?(domo_client, dataset_id, expected_domo_data)).to be(true)
       end
     end
 

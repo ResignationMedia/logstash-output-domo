@@ -41,7 +41,7 @@ module DomoHelper
   def wait_for_commit(subject, expect_thread=false, commit_timeout=5)
     queue = subject.get_queue
     unless expect_thread
-      return if queue.commit_status != :running and subject.queue_processed?
+      return if queue.commit_status != :running and queue.processed?
     end
     until queue.commit_status == :success or queue.commit_status == :failed or queue.stuck?(commit_timeout)
       sleep(0.1)

@@ -200,103 +200,6 @@ module Domo
       # @return [DataPartArray] All {RedisDataPart} objects associated with the Queue.
       attr_accessor :data_parts
 
-      # @!attribute [r] commit_status
-      # The status of the commit operation.
-      # @return [Symbol]
-      def commit_status
-        status = @client.hget("#{redis_key_prefix}#{KEY_SUFFIXES[:ACTIVE_EXECUTION]}", "commit_status")
-        status.nil? ? :open : status.to_sym
-      end
-
-      def commit_complete?
-        [:success, :failure].include?(self.commit_status)
-      end
-
-      def commit_incomplete?
-        !self.commit_complete?
-      end
-
-      # @!attribute [w] commit_status
-      def commit_status=(status)
-        if [:success, :failure].include?(status)
-          set_commit_start_time(nil)
-        elsif commit_status != status and status == :running
-          set_commit_start_time(Time.now.utc)
-        end
-        set_execution_id(nil) if status == :failure
-        @client.hset("#{redis_key_prefix}#{KEY_SUFFIXES[:ACTIVE_EXECUTION]}", "commit_status", status.to_s)
-      end
-
-      # @!attribute [r] commit_start_time
-      # The time at which the current commit operation began
-      # @return [Time, nil]
-      def commit_start_time
-        start_time = @client.hget("#{redis_key_prefix}#{KEY_SUFFIXES[:ACTIVE_EXECUTION]}", "commit_start_time")
-        start_time.to_i == 0 ? nil : Time.at(start_time.to_i).utc
-      end
-
-      # Set the commit_start_time
-      #
-      # @param timestamp [Time, nil]
-      def set_commit_start_time(timestamp=nil)
-        if timestamp.nil?
-          @client.hdel("#{redis_key_prefix}#{KEY_SUFFIXES[:ACTIVE_EXECUTION]}", "commit_start_time")
-        else
-          @client.hset("#{redis_key_prefix}#{KEY_SUFFIXES[:ACTIVE_EXECUTION]}", "commit_start_time", timestamp.to_i)
-        end
-      end
-
-      # Indicates whether or not the queue is likely stuck waiting for a non-existent commit to finish
-      #
-      # @param commit_timeout [Integer] The number of seconds a commit can run before being considered stuck.
-      # @return [Boolean]
-      def stuck?(commit_timeout=3600)
-        start_time = commit_start_time
-        return false unless commit_status == :running
-        return false if start_time.nil?
-        start_time + commit_timeout >= Time.now.utc
-      end
-
-      # Calculate how long to delay a commit
-      #
-      # @param delay [Integer] The amount of time that must elapse between commits.
-      # @return [Integer] The amount of time to wait until the next commit.
-      def commit_delay(delay)
-        return 0 if last_commit.nil?
-        (last_commit + delay) - Time.now.utc
-      end
-
-      # The next Time at which a commit is acceptable.
-      #
-      # @param delay [Integer] The amount of time that must elapse between commits.
-      # @return [Time]
-      def next_commit(delay)
-        return Time.now.utc if last_commit.nil?
-        last_commit + commit_delay(delay)
-      end
-
-      # @!attribute [r] last_commit
-      # The last time a commit was fired. Will be nil if we've never committed before.
-      # @return [Time]
-      def last_commit
-        last_commit = @client.get("#{redis_key_prefix}:last_commit")
-        return if last_commit.nil?
-        # Convert last_commit into a Time object
-        begin
-          last_commit = Integer(last_commit)
-          last_commit = Time.at(last_commit).utc
-        # Or clear garbage data out of redis and set it to nil
-        rescue TypeError => e
-          last_commit = nil
-        end
-        last_commit
-      end
-
-      # @!attribute [w] last_commit
-      def last_commit=(timestamp)
-        set_last_commit(timestamp)
-      end
-
       # @!attribute [r] execution_id
       # The execution_id associated with the Queue. Should be overridden in the subclass if you actually need it.
       # @return [Integer, nil]
@@ -611,6 +514,181 @@ module Domo
           PendingJobQueue.new(@client, @dataset_id, @stream_id, @pipeline_id)
         end
 
+        # Checks that all {PendingJobQueue}s and {FailureQueue}s related to this queue are empty.
+        #
+        # @return [Boolean]
+        def all_empty?
+          self.empty? and self.pending_jobs.empty? and self.failures.empty?
+        end
+
+        # Establishes whether or not the queue is empty and that there are no failed jobs and (optionally) no pending jobs.
+        #
+        # @param include_pending [Boolean] Check that there are no pending jobs as well.
+        # @return [Boolean]
+        def processed?(include_pending=false)
+          return self.all_empty? if include_pending
+          self.empty? and self.failures.empty?
+        end
+
+        # @!attribute [r] commit_status
+        # The status of the commit operation.
+        # @return [Symbol]
+        def commit_status
+          status = @client.hget("#{redis_key_prefix}#{KEY_SUFFIXES[:ACTIVE_EXECUTION]}", "commit_status")
+          status.nil? ? :open : status.to_sym
+        end
+
+        # Indicates if a commit is complete (i.e. it succeeded or failed)
+        #
+        # @return [Boolean]
+        def commit_complete?
+          [:success, :failure].include?(self.commit_status)
+        end
+
+        # Indicates if a commit is incomplete (e.g. status is :open)
+        #
+        # @return [Boolean]
+        def commit_incomplete?
+          !self.commit_complete?
+        end
+
+        # Indicates if a commit has been scheduled.
+        #
+        # @return [Boolean]
+        def commit_scheduled?
+          !self.commit_unscheduled?
+        end
+
+        # Indicates if a commit has not been scheduled.
+        #
+        # @return [Boolean]
+        def commit_unscheduled?
+          self.commit_schedule_time.nil?
+        end
+
+        # Determines if a scheduled commit has stalled out or not.
+        #
+        # @param commit_delay [Integer] The number of seconds we delay between commits.
+        # @return [Boolean]
+        def commit_stalled?(commit_delay)
+          next_commit_time = self.next_commit(commit_delay)
+
+          return false unless self.commit_scheduled?
+          return false unless next_commit_time
+          return true if self.commit_schedule_time and self.commit_schedule_time > next_commit_time + 10
+          false
+        end
+
+        # @!attribute [r] commit_schedule_time
+        # The time at which a commit was scheduled. Returns nil if there isn't a scheduled commit.
+        #
+        # @return [Time, nil]
+        def commit_schedule_time
+          scheduled_time = @client.hget("#{redis_key_prefix}#{KEY_SUFFIXES[:ACTIVE_EXECUTION]}",
+                                        "commit_schedule_time")
+          return if scheduled_time.nil?
+          # Convert scheduled_time into a Time object
+          begin
+            scheduled_time = Integer(scheduled_time)
+            scheduled_time = Time.at(scheduled_time).utc
+              # Or clear garbage data out of redis and set it to nil
+          rescue TypeError => e
+            scheduled_time = nil
+          end
+          scheduled_time
+        end
+
+        # @!attribute [w] commit_scheduled_time
+        def commit_schedule_time=(scheduled_time)
+          if scheduled_time.nil?
+            @client.hdel("#{redis_key_prefix}#{KEY_SUFFIXES[:ACTIVE_EXECUTION]}", "commit_schedule_time")
+          else
+            @client.hset("#{redis_key_prefix}#{KEY_SUFFIXES[:ACTIVE_EXECUTION]}", "commit_schedule_time",
+                         scheduled_time.to_i)
+          end
+        end
+
+        # @!attribute [w] commit_status
+        def commit_status=(status)
+          if [:success, :failure].include?(status)
+            set_commit_start_time(nil)
+          elsif commit_status != status and status == :running
+            set_commit_start_time(Time.now.utc)
+          end
+          set_execution_id(nil) if status == :failure
+          @client.hset("#{redis_key_prefix}#{KEY_SUFFIXES[:ACTIVE_EXECUTION]}", "commit_status", status.to_s)
+        end
+
+        # @!attribute [r] commit_start_time
+        # The time at which the current commit operation began
+        # @return [Time, nil]
+        def commit_start_time
+          start_time = @client.hget("#{redis_key_prefix}#{KEY_SUFFIXES[:ACTIVE_EXECUTION]}", "commit_start_time")
+          start_time.to_i == 0 ? nil : Time.at(start_time.to_i).utc
+        end
+
+        # Set the commit_start_time
+        #
+        # @param timestamp [Time, nil]
+        def set_commit_start_time(timestamp=nil)
+          if timestamp.nil?
+            @client.hdel("#{redis_key_prefix}#{KEY_SUFFIXES[:ACTIVE_EXECUTION]}", "commit_start_time")
+          else
+            @client.hset("#{redis_key_prefix}#{KEY_SUFFIXES[:ACTIVE_EXECUTION]}", "commit_start_time", timestamp.to_i)
+          end
+        end
+
+        # Indicates whether or not the queue is likely stuck waiting for a non-existent commit to finish
+        #
+        # @param commit_timeout [Integer] The number of seconds a commit can run before being considered stuck.
+        # @return [Boolean]
+        def stuck?(commit_timeout=3600)
+          start_time = commit_start_time
+          return false unless commit_status == :running
+          return false if start_time.nil?
+          start_time + commit_timeout >= Time.now.utc
+        end
+
+        # Calculate how long to delay a commit
+        #
+        # @param delay [Integer] The amount of time that must elapse between commits.
+        # @return [Integer] The amount of time to wait until the next commit.
+        def commit_delay(delay)
+          return 0 if last_commit.nil?
+          (last_commit + delay) - Time.now.utc
+        end
+
+        # The next Time at which a commit is acceptable.
+        #
+        # @param delay [Integer] The amount of time that must elapse between commits.
+        # @return [Time]
+        def next_commit(delay)
+          return Time.now.utc if last_commit.nil?
+          last_commit + commit_delay(delay)
+        end
+
+        # @!attribute [r] last_commit
+        # The last time a commit was fired. Will be nil if we've never committed before.
+        # @return [Time]
+        def last_commit
+          last_commit = @client.get("#{redis_key_prefix}:last_commit")
+          return if last_commit.nil?
+          # Convert last_commit into a Time object
+          begin
+            last_commit = Integer(last_commit)
+            last_commit = Time.at(last_commit).utc
+              # Or clear garbage data out of redis and set it to nil
+          rescue TypeError => e
+            last_commit = nil
+          end
+          last_commit
+        end
+
+        # @!attribute [w] last_commit
+        def last_commit=(timestamp)
+          set_last_commit(timestamp)
+        end
+
         # Clear the queue's execution_id and update the last commit timestamp.
         #
         # @param timestamp [Time, nil]
@@ -619,6 +697,22 @@ module Domo
           set_execution_id(nil)
           set_last_commit(timestamp)
           self.commit_status = :success
+          self.commit_schedule_time = nil
+        end
+
+        # Notify the queue that a commit has been scheduled.
+        #
+        # @param timestamp [Time] The time at which the commit was scheduled.
+        def schedule(timestamp=nil)
+          timestamp ||= Time.now.utc
+          self.commit_schedule_time = timestamp
+        end
+
+        # Notify the queue that the scheduled commit is in progress.
+        #
+        # @return [Boolean]
+        def run
+          self.commit_schedule_time = nil
         end
       end
 
