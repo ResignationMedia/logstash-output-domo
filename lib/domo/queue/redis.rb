@@ -574,8 +574,9 @@ module Domo
           next_commit_time = self.next_commit(commit_delay)
 
           return false unless self.commit_scheduled?
-          return false unless next_commit_time
-          return true if self.commit_schedule_time and self.commit_schedule_time > next_commit_time + 10
+          schedule_time = self.commit_schedule_time
+          return false if next_commit_time.nil?
+          return true unless schedule_time.nil? or schedule_time < next_commit_time + 10
           false
         end
 

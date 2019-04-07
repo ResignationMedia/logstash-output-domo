@@ -408,7 +408,7 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
     # Process the queue
     send_to_domo(shutdown) until @queue.processed?(shutdown)
     # Commit if we're ready
-    if commit_ready?
+    if commit_ready? and @queue.execution_id
       commit_stream(shutdown) unless @queue.commit_scheduled?
       if @queue.commit_stalled?(@commit_delay) and @queue.commit_scheduled?
         @commit_task.cancel if @commit_task&.pending?
@@ -420,27 +420,30 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
       else
         @commit_task.cancel unless @commit_task.nil? or @commit_task.complete?
       end
-      commit_stream(shutdown)
+      commit_stream(shutdown) unless @queue.processed?(true) and @queue.execution_id.nil?
     else
       # The amount of time to sleep before committing.
       sleep_time = @queue.commit_delay(@commit_delay)
       if sleep_time > 0
         @queue.commit_status = :open
         if @queue.commit_stalled?(@commit_delay)
-          if @commit_task.nil?
+          if @commit_task.nil? and @queue.execution_id
             @commit_task = Concurrent::ScheduledTask.execute(0) { commit_stream(shutdown) }
-          elsif @commit_task.pending?
+          elsif @commit_task&.pending?
             @commit_task.reschedule(sleep_time)
             @queue.schedule
-          elsif @commit_task.incomplete?
+          end
+          sleep(0.1) until @commit_task.complete? if @commit_task&.processing?
+          if @commit_task&.incomplete? and @queue.execution_id
             @commit_task.cancel
             @commit_task = Concurrent::ScheduledTask.execute(sleep_time) { commit_stream(shutdown) }
           end
         end
         if @queue.commit_unscheduled? and @commit_task&.pending?
-          @queue.schedule(Time.at(@commit_task.schedule_time - @commit_delay).utc)
+          scheduled_time = Time.at(@commit_task.schedule_time).utc
+          @queue.schedule(scheduled_time - @commit_delay)
         end
-        if @queue.commit_unscheduled?
+        if @queue.commit_unscheduled? and @queue.execution_id
           begin
             @lock_manager.lock(commit_lock_key, @lock_timeout) do |locked|
               if locked
