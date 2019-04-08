@@ -386,8 +386,6 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
         num_batches += 1
       end
     end
-    # If the queue is empty, we're not shutting down, we're not ready to commit, and we have no data to add, give up
-    return if !shutdown and data.length <= 0 and !commit_ready? and @queue.processed?(shutdown)
     # Only make a job if we have data
     unless data.length <= 0
       job = Domo::Queue::Job.new(data, @upload_min_batch_size, nil, nil, pending_timestamp)
@@ -404,6 +402,10 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
         @queue.commit_status = :open if @queue.commit_complete?
         @queue << job
       end
+    end
+    # If the queue is empty, we're not shutting down, we're not ready to commit, and we have no data to add, give up
+    if data.length <= 0
+      return unless shutdown or @queue.unprocessed?(shutdown)
     end
     # Process the queue
     send_to_domo(shutdown) until @queue.processed?(shutdown)
@@ -479,6 +481,8 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
   # @param force_pending [Boolean] Force process all pending jobs.
   # @param force_run [Boolean] Ignore the commit status of the queue.
   def send_to_domo(force_pending=false, force_run=false)
+    @queue = get_queue
+    return if @queue.processed?(force_pending) and !force_run
     # Block until failed jobs are done reprocessing back into the queue
     sleep(0.1) until @queue.failures.length <= 0 or @queue.failures.processing_status != :reprocessing
     # Process the queue
@@ -610,24 +614,25 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
         end
         # If the queue is missing an Execution ID (e.g. another worker committed the execution before we got here),
         # then it's time to defer this job to the next round of processing.
-        if @queue.execution_id.nil?
+        if @queue.execution_id.nil? or @queue.commit_status == :running
           job.data_part = nil
           @queue.unshift(job)
           next
         end
         # Block until failed jobs are done reprocessing back into the queue
-        sleep(0.1) until @queue.failures.processing_status != :reprocessing
+        sleep(0.1) until @queue.failures.processing_status != :reprocessing and @queue.execution_id and @queue.commit_status == :open
         # Reset and/or increment the job's data part if need be
         job.data_part = @queue.incr_data_part if job.data_part.nil? or job.data_part.execution_id != @queue.execution_id
-        # Add a little jitter so Domo's API doesn't shit itself
-        sleep(Random.new.rand(0.15))
         # Prevent a race condition when a long running commit is underway
-        unless @queue.commit_status == :open
+        unless @queue.commit_status == :open and @queue.execution_id
           @queue.failures << job
           next
         end
         # Upload the job's data to Domo.
         @domo_client.stream_client.uploadDataPart(@stream_id, job.data_part.execution_id, job.data_part.part_id, job.upload_data)
+        @queue.add_commit_rows(job.row_count)
+        # puts @queue.commit_rows
+        # puts job.to_hash(true)
         # Debug log output
         execution_id = @queue.nil? ? job.execution_id : @queue.execution_id
         queue_pipeline_id = @queue.nil? ? pipeline_id : @queue.pipeline_id
@@ -635,6 +640,7 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
                       :stream_id         => @stream_id,
                       :execution_id      => execution_id,
                       :queue_pipeline_id => queue_pipeline_id,
+                      :commit_rows       => @queue&.commit_rows,
                       :job               => job.to_hash(true))
       rescue Java::ComDomoSdkRequest::RequestException => e
         status_code = Domo::Client.request_error_status_code(e)
@@ -684,6 +690,7 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
   # @param shutdown [Boolean] Indicates that Logstash is shutting down which will force processing all jobs and commit
   # @return [Symbol] The status of the commit operation.
   def commit_stream(shutdown=false)
+    @queue = get_queue
     @queue.run # Notify other workers that the commit queue is open for business again
     # No point in continuing if we're not ready
     return :wait unless commit_ready? or shutdown
@@ -768,6 +775,7 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
                         :pipeline_id  => pipeline_id,
                         :dataset_id   => @dataset_id,
                         :execution_id => execution_id,
+                        :commit_rows  => @queue.commit_rows,
                         :execution    => stream_execution.to_s)
           stream_execution = Concurrent::Future.execute { @domo_client.stream_client.commitExecution(@stream_id, execution_id) }
           until stream_execution.complete?
@@ -811,18 +819,21 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
           # Pause for API lag to condition race prevent :p
           sleep(0.5)
           # Mark the queue as successfully committed.
+          commit_rows = @queue.commit_rows
           @queue.commit
           @logger.info("Committed Execution ID for #{execution_id} for Stream ID #{@stream_id}.",
                         :stream_id        => @stream_id,
                         :pipeline_id      => pipeline_id,
                         :dataset_id       => @dataset_id,
                         :execution_id     => execution_id,
+                        :commit_rows      => commit_rows,
                         :execution        => stream_execution.to_s)
         else
           @logger.warn("Stream Execution ID #{stream_execution.getId} for Stream ID #{@stream_id} could not be committed or aborted because its state is #{stream_execution.currentState}",
                        :stream_id        => @stream_id,
                        :pipeline_id      => pipeline_id,
                        :dataset_id       => @dataset_id,
+                       :commit_rows      => @queue.commit_rows,
                        :execution_id     => stream_execution.getId,
                        :execution_state  => stream_execution.currentState,
                        :execution        => stream_execution.to_s)
@@ -916,10 +927,11 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
   #
   # @return [Boolean]
   def commit_ready?
-    return false unless @queue&.execution_id
-    if @queue.processed? and @queue.commit_status != :running
-      return true if @commit_delay <= 0 or @queue.last_commit.nil?
-      return true if @queue.next_commit(@commit_delay) <= Time.now.utc
+    queue = get_queue
+    return false unless queue&.execution_id and queue.commit_rows > 0
+    if queue.processed? and queue.commit_status != :running
+      return true if @commit_delay <= 0 or queue.last_commit.nil?
+      return true if queue.next_commit(@commit_delay) <= Time.now.utc
     end
     false
   end

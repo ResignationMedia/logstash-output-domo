@@ -384,13 +384,25 @@ module Domo
           skip_first = false
         end
 
-        each_with_index do |job, index|
-          if index == 0 and skip_first
-            accumulator = job.data
-          else
-            accumulator = Proc.new.call(accumulator, job)
+        if clear_jobs
+          i = 0
+          each do |job|
+            break if job.nil?
+            if i == 0 and skip_first
+              accumulator = job.data
+              i += 1
+            else
+              accumulator = Proc.new.call(accumulator, job)
+            end
           end
-          @client.lrem(@queue_name, 1, job.to_json) if clear_jobs
+        else
+          each_with_index do |job, index|
+            if index == 0 and skip_first
+              accumulator = job.data
+            else
+              accumulator = Proc.new.call(accumulator, job)
+            end
+          end
         end
         accumulator
       end
@@ -470,6 +482,7 @@ module Domo
           unless old_id.nil? or old_id == self.execution_id
             @client.hdel("#{redis_key_prefix}#{KEY_SUFFIXES[:ACTIVE_EXECUTION]}", "part_id")
             @data_parts.clear
+            self.commit_rows = 0
           end
         end
 
@@ -530,12 +543,40 @@ module Domo
           self.empty? and self.failures.empty?
         end
 
+        # Indicates that the queue is unprocessed (i.e. has jobs). Pending jobs can be taken out of consideration.
+        #
+        # @param include_pending [Boolean]
+        # @return [Boolean]
+        def unprocessed?(include_pending=false)
+          !self.processed?(include_pending)
+        end
+
         # @!attribute [r] commit_status
         # The status of the commit operation.
         # @return [Symbol]
         def commit_status
           status = @client.hget("#{redis_key_prefix}#{KEY_SUFFIXES[:ACTIVE_EXECUTION]}", "commit_status")
           status.nil? ? :open : status.to_sym
+        end
+
+        # @!attribute [r] commit_rows
+        # The number of rows scheduled for this commit
+        # @return [Integer]
+        def commit_rows
+          rows = @client.hget("#{redis_key_prefix}#{KEY_SUFFIXES[:ACTIVE_EXECUTION]}", "commit_rows")
+          rows.to_i
+        end
+
+        # Add the provided num of rows to {commit_rows}
+        #
+        # @param count [Integer]
+        def add_commit_rows(count)
+          @client.hincrby("#{redis_key_prefix}#{KEY_SUFFIXES[:ACTIVE_EXECUTION]}", "commit_rows", count)
+        end
+
+        # @!attribute [w] commit_rows
+        def commit_rows=(count)
+          @client.hset("#{redis_key_prefix}#{KEY_SUFFIXES[:ACTIVE_EXECUTION]}", "commit_rows", count.to_s)
         end
 
         # Indicates if a commit is complete (i.e. it succeeded or failed)
@@ -563,7 +604,7 @@ module Domo
         #
         # @return [Boolean]
         def commit_unscheduled?
-          self.commit_schedule_time.nil?
+          self.commit_schedule_time.nil? and self.commit_status != :running
         end
 
         # Determines if a scheduled commit has stalled out or not.
@@ -571,6 +612,7 @@ module Domo
         # @param commit_delay [Integer] The number of seconds we delay between commits.
         # @return [Boolean]
         def commit_stalled?(commit_delay)
+          return self.stuck?(commit_delay) if self.commit_status == :running
           next_commit_time = self.next_commit(commit_delay)
 
           return false unless self.commit_scheduled?
@@ -613,6 +655,7 @@ module Domo
         def commit_status=(status)
           if [:success, :failure].include?(status)
             set_commit_start_time(nil)
+            self.commit_rows = 0
           elsif commit_status != status and status == :running
             set_commit_start_time(Time.now.utc)
           end
@@ -699,6 +742,7 @@ module Domo
           set_last_commit(timestamp)
           self.commit_status = :success
           self.commit_schedule_time = nil
+          self.commit_rows = 0
         end
 
         # Notify the queue that a commit has been scheduled.

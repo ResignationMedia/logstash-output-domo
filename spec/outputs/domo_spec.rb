@@ -140,11 +140,10 @@ RSpec.shared_examples "LogStash::Outputs::Domo" do
       spam_threads << Thread.new { subject.multi_receive(spam_events.slice(75..99)) }
       spam_threads.each(&:join)
 
-      queue = subject.get_queue
-      sleep(0.1) until queue.commit_unscheduled? and queue.commit_status == :success
+      wait_for_commit(subject, true)
 
       subject.multi_receive([LogStash::SHUTDOWN])
-      sleep(0.1) until queue.commit_unscheduled? and queue.commit_status == :success and queue.all_empty?
+      wait_for_shutdown(subject)
 
       sleep(2) # Let's sleep yet AGAIN because there seems to be a lag in data making it to Domo's Datset Export API
       expect(dataset_data_match?(domo_client, dataset_id, expected_domo_data)).to be(true)

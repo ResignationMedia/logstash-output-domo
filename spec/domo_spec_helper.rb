@@ -43,7 +43,15 @@ module DomoHelper
     unless expect_thread
       return if queue.commit_status != :running and queue.processed?
     end
-    until queue.commit_status == :success or queue.commit_status == :failed or queue.stuck?(commit_timeout)
+    until queue.commit_unscheduled? and queue.commit_status == :success and queue.processed?
+      sleep(0.1)
+      queue = subject.get_queue
+    end
+  end
+
+  def wait_for_shutdown(subject)
+    queue = subject.get_queue
+    until queue.commit_unscheduled? and queue.commit_status == :success and queue.all_empty?
       sleep(0.1)
       queue = subject.get_queue
     end
@@ -327,7 +335,7 @@ RSpec.configure do |config|
   config.include DomoHelper
 
   config.around(:each) do |example|
-    timeout = example.metadata.has_key?(:slow) ? 35 : 15
+    timeout = example.metadata.has_key?(:slow) ? 40 : 20
     Timeout::timeout(timeout) {
       example.run
     }
