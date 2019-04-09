@@ -45,7 +45,6 @@ module DomoHelper
     end
     until queue.commit_unscheduled? and queue.commit_status == :success and queue.processed?
       sleep(0.1)
-      queue = subject.get_queue
     end
   end
 
@@ -53,7 +52,6 @@ module DomoHelper
     queue = subject.get_queue
     until queue.commit_unscheduled? and queue.commit_status == :success and queue.all_empty?
       sleep(0.1)
-      queue = subject.get_queue
     end
   end
 

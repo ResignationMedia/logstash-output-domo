@@ -365,25 +365,45 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
         shutdown = true
         break
       end
-      # Encode the Event data
-      begin
-        encoded_event = encode_event_data(event)
-        data << encoded_event
-      # Reject the invalid event and send it to the DLQ if it's enabled.
-      rescue ColumnTypeError => e
-        @dlq_writer.write(event, e.log_entry) unless @dlq_writer.nil?
-        @logger.error(e.log_entry,
-                      :value       => e.val,
-                      :column_name => e.col_name,
-                      :event       => event.to_hash,
-                      :exception   => e)
-      end
-      # Carve out Job batches if we have a maximum batch size.
-      if @upload_max_batch_size > 0 and i + 1 >= @upload_max_batch_size * num_batches
-        job = Domo::Queue::Job.new(data, @upload_min_batch_size)
-        @queue << job
-        data.clear
-        num_batches += 1
+      if event.is_a? LogStash::Event
+        # Encode the Event data
+        begin
+          encoded_event = encode_event_data(event)
+          data << encoded_event
+        # Reject the invalid event and send it to the DLQ if it's enabled.
+        rescue ColumnTypeError => e
+          @dlq_writer.write(event, e.log_entry) unless @dlq_writer.nil?
+          @logger.error(e.log_entry,
+                        :value       => e.val,
+                        :column_name => e.col_name,
+                        :event       => event.to_hash,
+                        :exception   => e)
+        end
+        # Carve out Job batches if we have a maximum batch size.
+        if @upload_max_batch_size > 0 and i + 1 >= @upload_max_batch_size * num_batches
+          job = Domo::Queue::Job.new(data, @upload_min_batch_size)
+          @queue << job
+          data.clear
+          num_batches += 1
+        end
+      # Spamming events seems to get us to this point during/after restarts (on dev at least)
+      elsif event.is_a? Array
+        data = event.map do |e|
+          if e.is_a? LogStash::Event
+            begin
+              encode_event_data(e)
+            rescue ColumnTypeError => ex
+              @dlq_writer.write(e, ex.log_entry) unless @dlq_writer.nil?
+              @logger.error(ex.log_entry,
+                            :value       => ex.val,
+                            :column_name => ex.col_name,
+                            :event       => e.to_hash,
+                            :exception   => ex)
+            end
+          elsif e.is_a? String
+            e if e.split(',').length == @dataset_columns.length
+          end
+        end
       end
     end
     # Only make a job if we have data
@@ -399,7 +419,7 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
                       :job               => job.to_hash(true))
       # Everybody else goes to the main queue
       else
-        @queue.commit_status = :open if @queue.commit_complete?
+        # @queue.commit_status = :open if @queue.commit_complete?
         @queue << job
       end
     end
@@ -426,7 +446,7 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
     else
       # The amount of time to sleep before committing.
       sleep_time = @queue.commit_delay(@commit_delay)
-      if sleep_time > 0
+      if sleep_time > 0 and @queue.commit_status != :running
         @queue.commit_status = :open
         if @queue.commit_stalled?(@commit_delay)
           if @commit_task.nil? and @queue.execution_id
@@ -515,10 +535,11 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
       # But also timeout after an hour to keep things moving during a likely failure
       until force_run or @queue.commit_status != :running or @queue.stuck?(3600)
         sleep(0.1)
-        break if @queue.execution_id.nil?
+        next unless @queue.execution_id
+
       end
 
-      break if @queue.processed?
+      break if @queue.processed?(force_pending)
       # Get the job from the queue
       job = @queue.pop
       # Skup the job if it has no data for some reason
@@ -624,15 +645,14 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
         # Reset and/or increment the job's data part if need be
         job.data_part = @queue.incr_data_part if job.data_part.nil? or job.data_part.execution_id != @queue.execution_id
         # Prevent a race condition when a long running commit is underway
-        unless @queue.commit_status == :open and @queue.execution_id
-          @queue.failures << job
+        unless @queue.commit_status == :open
+          job.data_part = job.data_part&.execution_id == @queue.execution_id ? job.data_part : nil
+          @queue.unshift(job)
           next
         end
         # Upload the job's data to Domo.
         @domo_client.stream_client.uploadDataPart(@stream_id, job.data_part.execution_id, job.data_part.part_id, job.upload_data)
         @queue.add_commit_rows(job.row_count)
-        # puts @queue.commit_rows
-        # puts job.to_hash(true)
         # Debug log output
         execution_id = @queue.nil? ? job.execution_id : @queue.execution_id
         queue_pipeline_id = @queue.nil? ? pipeline_id : @queue.pipeline_id
@@ -680,6 +700,9 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
                         :job        => job.to_hash(true))
           @queue.failures << job unless @queue.nil?
         end
+      ensure
+        @queue = get_queue if @queue.nil?
+        @queue.processing_status = :open
       end
     end
   end
@@ -769,6 +792,9 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
         # Commit!
         elsif stream_execution.currentState == "ACTIVE"
           execution_id = stream_execution.getId
+          # Block everybody from uploading again
+          @queue.commit_status = :running
+          sleep(0.5) # Race conditions are a PITA
           # Start the commit
           @logger.info("Beginning commit of Stream Execution #{execution_id} for Stream ID #{@stream_id}.",
                         :stream_id    => @stream_id,

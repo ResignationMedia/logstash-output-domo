@@ -141,6 +141,7 @@ RSpec.shared_examples "LogStash::Outputs::Domo" do
       spam_threads.each(&:join)
 
       wait_for_commit(subject, true)
+      sleep(0.5)
 
       subject.multi_receive([LogStash::SHUTDOWN])
       wait_for_shutdown(subject)

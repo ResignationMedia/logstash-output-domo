@@ -428,6 +428,24 @@ module Domo
           set_execution_id(execution_id) unless execution_id.nil?
         end
 
+        # Pop the first job off the queue. Return nil if there are no jobs in the queue.
+        #
+        # @return [Job, nil]
+        def pop
+          job = @client.lpop(@queue_name)
+          return if job.nil?
+          self.processing_status = :processing
+          Job.from_json!(job)
+        end
+
+        # Prepend a job to the queue. Useful for quick retries
+        #
+        # @param job [Job] The job to be added.
+        def unshift(job)
+          @client.lpush(@queue_name, job.to_json)
+          self.processing_status = :open
+        end
+
         # Gets the queue associated with an active Stream Execution if it exists. Otherwise a new JobQueue is returned.
         #
         # @param redis_client [Redis]
@@ -508,6 +526,27 @@ module Domo
           true
         end
 
+        # @!attribute [r] processing_status
+        # The status of the queue's job processing
+        # It should be :processing whenever we've popped a job from the queue but haven't uploaded it yet.
+        # The processing status is reset to :open or nil if a job uploads, fails to upload, or is associated with an invalid Stream Execution.
+        #
+        # @return [Symbol]
+        def processing_status
+          status = @client.hget("#{redis_key_prefix}#{KEY_SUFFIXES[:ACTIVE_EXECUTION]}", "processing_status")
+          return if status.nil?
+          status.to_sym
+        end
+
+        # @!attribute [w] processing_status
+        def processing_status=(status)
+          if status.nil?
+            @client.hdel("#{redis_key_prefix}#{KEY_SUFFIXES[:ACTIVE_EXECUTION]}", "processing_status")
+          else
+            @client.hset("#{redis_key_prefix}#{KEY_SUFFIXES[:ACTIVE_EXECUTION]}", "processing_status", status.to_s)
+          end
+        end
+
         # Clear the queue. You should probably lock something if you do this.
         def clear
           @data_parts.clear(execution_id)
@@ -531,7 +570,7 @@ module Domo
         #
         # @return [Boolean]
         def all_empty?
-          self.empty? and self.pending_jobs.empty? and self.failures.empty?
+          self.empty? and self.pending_jobs.empty? and self.failures.empty? and self.processing_status != :processing
         end
 
         # Establishes whether or not the queue is empty and that there are no failed jobs and (optionally) no pending jobs.
@@ -540,7 +579,7 @@ module Domo
         # @return [Boolean]
         def processed?(include_pending=false)
           return self.all_empty? if include_pending
-          self.empty? and self.failures.empty?
+          self.empty? and self.failures.empty? and self.processing_status != :processing
         end
 
         # Indicates that the queue is unprocessed (i.e. has jobs). Pending jobs can be taken out of consideration.
@@ -618,7 +657,7 @@ module Domo
           return false unless self.commit_scheduled?
           schedule_time = self.commit_schedule_time
           return false if next_commit_time.nil?
-          return true unless schedule_time.nil? or schedule_time < next_commit_time + 10
+          return true unless schedule_time.nil? or schedule_time <= next_commit_time + 10
           false
         end
 
@@ -690,7 +729,7 @@ module Domo
           start_time = commit_start_time
           return false unless commit_status == :running
           return false if start_time.nil?
-          start_time + commit_timeout >= Time.now.utc
+          start_time + commit_timeout <= Time.now.utc
         end
 
         # Calculate how long to delay a commit
@@ -804,12 +843,18 @@ module Domo
           end
         end
 
+        def get_job_queue
+          JobQueue.active_queue(@client, @dataset_id, @stream_id, @pipeline_id)
+        end
+
         # Add a job to the queue
         #
         # @param job [Job]
         def <<(job)
+          job_queue = get_job_queue
           @client.set("#{@queue_name}_processing_status", :processing.to_s)
           push(job)
+          job_queue.processing_status = :open
         end
 
         # Indicates whether or not a {RedisDataPart} is valid for this queue.
@@ -863,8 +908,6 @@ module Domo
             job.data_part.status = :ready unless job.data_part.nil?
             queue.add(job)
           end
-          # Clear this queue out and return the new queue
-          clear
           queue
         end
       end
