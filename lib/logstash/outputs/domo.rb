@@ -468,7 +468,8 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
         if @queue.commit_unscheduled? and @queue.execution_id
           begin
             @lock_manager.lock(commit_lock_key, @lock_timeout) do |locked|
-              if locked
+              if locked and @queue.commit_unscheduled?
+                @queue.schedule
                 @logger.info("The API is not ready for committing yet. Will sleep for %0.2f seconds." % [sleep_time],
                              :stream_id    => @stream_id,
                              :pipeline_id  => pipeline_id,
@@ -478,7 +479,6 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
                              :sleep_time   => sleep_time,
                              :last_commit  => @queue.last_commit,
                              :next_commit  => @queue.next_commit(@commit_delay))
-                @queue.schedule
                 @commit_task = Concurrent::ScheduledTask.execute(sleep_time) { commit_stream(shutdown) }
               end
             end
