@@ -278,6 +278,7 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
             raise e
           end
         ensure
+          @queue.processing_status = :open if @queue.execution_id.nil?
           @queue.commit_status = :open
         end
       end

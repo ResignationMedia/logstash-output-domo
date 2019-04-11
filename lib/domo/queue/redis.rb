@@ -782,6 +782,7 @@ module Domo
           self.commit_status = :success
           self.commit_schedule_time = nil
           self.commit_rows = 0
+          self.processing_status = :open
         end
 
         # Notify the queue that a commit has been scheduled.
