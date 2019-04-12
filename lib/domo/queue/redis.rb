@@ -566,6 +566,27 @@ module Domo
           PendingJobQueue.new(@client, @dataset_id, @stream_id, @pipeline_id)
         end
 
+        def pending_rows
+          count = @client.get("#{redis_key_prefix}:pending_rows")
+          count.to_i
+        end
+
+        def pending_rows=(count)
+          if count.to_i <= 0
+            @client.del("#{redis_key_prefix}:pending_rows")
+          else
+            _ = @client.getset("#{redis_key_prefix}:pending_rows", count.to_s)
+          end
+        end
+
+        def remove_pending_rows(count)
+          @client.decrby("#{redis_key_prefix}:pending_rows", count)
+        end
+
+        def add_pending_rows(count)
+          @client.incrby("#{redis_key_prefix}:pending_rows", count)
+        end
+
         # Checks that all {PendingJobQueue}s and {FailureQueue}s related to this queue are empty.
         #
         # @return [Boolean]
@@ -782,6 +803,7 @@ module Domo
           self.commit_status = :success
           self.commit_schedule_time = nil
           self.commit_rows = 0
+          self.pending_rows = 0
           self.processing_status = :open
         end
 

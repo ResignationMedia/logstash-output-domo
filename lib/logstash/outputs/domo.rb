@@ -291,14 +291,13 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
         # Commit if we're ready
         if commit_ready?
           if @commit_task.nil?
-            commit_status = commit_stream
+            commit_stream
           elsif @commit_task.pending? or @commit_task.unscheduled?
             @commit_task.reschedule(0)
             sleep(1)
             sleep(0.1) while @commit_task&.processing?
-            commit_status = @commit_task&.value
           else
-            commit_status = commit_stream
+            commit_stream
             @commit_task = nil
           end
       end
@@ -321,43 +320,6 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
     shutdown = false
 
     data = Array.new
-    # If there are pending jobs, this will get set to the timestamp of the oldest job
-    pending_timestamp = nil
-    # Merge pending job data
-    while @queue.pending_jobs.length > 0
-      # Grab a lock so other workers don't fight over grabbing these jobs
-      begin
-        @lock_manager.lock(pending_lock_key, @lock_timeout) do |locked|
-          next unless locked
-          # We want the pending queue to clear jobs as we grab the data
-          data = @queue.pending_jobs.reduce(data, true) do |memo, job|
-            pending_timestamp = job.timestamp if pending_timestamp.nil?
-            pending_timestamp = job.timestamp unless job.timestamp.nil? or job.timestamp > pending_timestamp
-            memo + job.data
-          end
-        end
-      rescue Redis::BaseConnectionError
-        next
-      end
-    end
-    # Make sure the merged data doesn't violate the upload_max_batch_size if set.
-    if @upload_max_batch_size > 0 and data.length > @upload_max_batch_size
-      while data.length > @upload_max_batch_size
-        new_data = Array.new
-        until new_data.length >= @upload_max_batch_size
-          row = data.pop
-          break if row.nil?
-          new_data << row
-        end
-        job = Domo::Queue::Job.new(new_data, @upload_min_batch_size)
-        if job.status == :incomplete and (@commit_delay <= 0 or job.timestamp + @commit_delay*2 > Time.now.utc)
-          @queue.pending_jobs << job
-        else
-          @queue << job
-        end
-      end
-    end
-
     # When using upload_max_batch_size we keep track of the number of batches generated from the provided events
     num_batches = 1
     # Loop through the incoming events, encode them, add the encoded data to the data Array, and parcel out jobs.
@@ -409,19 +371,61 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
     end
     # Only make a job if we have data
     unless data.length <= 0
-      job = Domo::Queue::Job.new(data, @upload_min_batch_size, nil, nil, pending_timestamp)
+      job = Domo::Queue::Job.new(data, @upload_min_batch_size)
       # Incomplete jobs that aren't super old need to go in the pending queue
-      if job.status == :incomplete and (@commit_delay <= 0 or job.timestamp + @commit_delay*2 > Time.now.utc)
+      if job.status == :incomplete
         @queue.pending_jobs << job
+        @queue.add_pending_rows(job.data.length)
         @logger.debug("Putting Job in pending queue",
                       :stream_id         => @stream_id,
                       :execution_id      => @queue.execution_id,
+                      :pending_rows      => @queue.pending_rows,
                       :pipeline_id       => pipeline_id,
                       :job               => job.to_hash(true))
       # Everybody else goes to the main queue
       else
-        # @queue.commit_status = :open if @queue.commit_complete?
         @queue << job
+      end
+    end
+    # If there are pending jobs, this will get set to the timestamp of the oldest job
+    pending_timestamp = nil
+    # Merge pending job data
+    if @queue.pending_rows > @upload_min_batch_size or shutdown
+      # Grab a lock so other workers don't fight over grabbing these jobs
+      begin
+        @lock_manager.lock(pending_lock_key, @lock_timeout) do |locked|
+          if locked
+            # We want the pending queue to clear jobs as we grab the data
+            data = @queue.pending_jobs.reduce(data, true) do |memo, job|
+              pending_timestamp = job.timestamp if pending_timestamp.nil?
+              pending_timestamp = job.timestamp unless job.timestamp.nil? or job.timestamp > pending_timestamp
+              @queue.remove_pending_rows(job.data.length)
+              memo + job.data
+            end
+            # Make sure the merged data doesn't violate the upload_max_batch_size if set.
+            if @upload_max_batch_size > 0 and data.length > @upload_max_batch_size
+              while data.length > @upload_max_batch_size
+                new_data = Array.new
+                until new_data.length >= @upload_max_batch_size
+                  row = data.pop
+                  break if row.nil?
+                  new_data << row
+                end
+                job = Domo::Queue::Job.new(new_data, @upload_min_batch_size, timestamp: pending_timestamp)
+                if job.status == :incomplete and !shutdown
+                  @queue.pending_jobs << job
+                  @queue.add_pending_rows(job.data.length)
+                else
+                  @queue << job
+                end
+              end
+            else
+              @queue << Domo::Queue::Job.new(data, 0)
+            end
+          end
+        end
+      rescue Redis::BaseConnectionError
+        # Just catching this because there's a bug fix in redlock-rb that hasn't been released yet
       end
     end
     # If the queue is empty, we're not shutting down, we're not ready to commit, and we have no data to add, give up
@@ -511,13 +515,14 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
       # Update on each pass in case another thread managed to change things in a thread unsafe way
       @queue = get_queue
       # Merge pending jobs into one job and add it to the main queue if we're force processing pending jobs.
-      if force_pending and @queue.pending_jobs.length > 0
+      if (force_pending and @queue.pending_jobs.length > 0) or @queue.pending_rows > @upload_min_batch_size
         data = Array.new
         begin
           @lock_manager.lock(pending_lock_key, @lock_timeout) do |locked|
             next unless locked
             # Merge the data together and clear the jobs as we go
             data = @queue.pending_jobs.reduce(data, true) do |memo, job|
+              @queue.remove_pending_rows(job.data.length)
               memo + job.data
             end
 
@@ -622,7 +627,7 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
                 @queue.failures << job
                 return
               end
-              until @queue.commit_status != :wait and @queue.commit_status != :running
+              until @queue.commit_status != :running
                 sleep(0.5)
                 if locked.is_a? Hash and locked[:validity] < 1000
                   locked = @lock_manager.lock(lock_key, @lock_timeout, extend: locked, extend_life: true)
@@ -661,6 +666,7 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
                       :stream_id         => @stream_id,
                       :execution_id      => execution_id,
                       :queue_pipeline_id => queue_pipeline_id,
+                      :pending_rows      => @queue&.pending_rows,
                       :commit_rows       => @queue&.commit_rows,
                       :job               => job.to_hash(true))
       rescue Java::ComDomoSdkRequest::RequestException => e
@@ -717,7 +723,7 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
     @queue = get_queue
     @queue.run # Notify other workers that the commit queue is open for business again
     # No point in continuing if we're not ready
-    return :wait unless commit_ready? or shutdown
+    return unless commit_ready? or shutdown
     # Convert commit_delay to ms
     lock_ttl = @commit_delay * 1000
     lock_ttl = @lock_timeout if lock_ttl < @lock_timeout
@@ -727,11 +733,11 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
     begin
       commit_lock = @lock_manager.lock(commit_lock_key, lock_ttl)
     rescue Redis::BaseConnectionError
-      return :wait
+      return
     end
     # We'll be locking API later on
     api_lock = false
-    return :wait unless commit_lock
+    return unless commit_lock
     begin
       # Block everybody from uploading now
       @queue.commit_status = :running
@@ -773,7 +779,7 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
             @queue.commit_status = :open
             @lock_manager.unlock(api_lock) if api_lock
             @lock_manager.unlock(commit_lock) if commit_lock
-            return :open
+            return
           else
             @lock_manager.unlock(api_lock) if api_lock
             @lock_manager.unlock(commit_lock) if commit_lock
@@ -820,7 +826,7 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
             # Attempt to grab the lock again if we lost it
             commit_lock = @lock_manager.lock(commit_lock_key, lock_ttl) unless commit_lock
             # Give up if we still can't get it
-            return :wait unless commit_lock
+            return unless commit_lock
             # Keep the locks active
             commit_lock = @lock_manager.lock(commit_lock_key, lock_ttl, extend: commit_lock, extend_life: true) if commit_lock[:validity] <= 1000
             api_lock = @lock_manager.lock(lock_key, @lock_timeout, extend: api_lock, extend_life: true) if api_lock and api_lock[:validity] <= 1000
@@ -875,8 +881,6 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
       # Open the queue back up if the execution failed
       @queue.commit_status = :open if @queue.commit_status == :running
     end
-    # Return the status of the commit.
-    @queue.commit_status
   end
 
   public
@@ -886,16 +890,15 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
     # Commit if we're ready
     if commit_ready? and (@queue.commit_unscheduled? or @queue.commit_stalled?(@commit_delay))
       if @commit_task.nil? or @commit_task.complete?
-        commit_status = commit_stream(true)
+        commit_stream(true)
         return
       end
       unless @commit_task&.processing?
         @commit_task.cancel
-        commit_status = commit_stream(true)
+        commit_stream(true)
         return
       end
       sleep(0.1) while @commit_task&.processing?
-      commit_status = @commit_task&.value
     end
   end
 
