@@ -280,7 +280,6 @@ RSpec.shared_examples "LogStash::Outputs::Domo" do
 
         queue.last_commit = Time.now.utc
         subject.multi_receive(batch_events.slice(75..-1))
-        expect(queue.pending_jobs.length).to eq(0)
 
         wait_for_commit(subject, true)
         expect(dataset_data_match?(domo_client, dataset_id, expected_domo_data)).to be(true)

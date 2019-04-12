@@ -319,45 +319,10 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
     @queue = get_queue
     # LogStash::SHUTDOWN events will set this to true
     shutdown = false
-
+    # The Array of CSV strings to associate with upload job data.
     data = Array.new
     # If there are pending jobs, this will get set to the timestamp of the oldest job
     pending_timestamp = nil
-    # Merge pending job data
-    while @queue.pending_jobs.length > 0
-      # Grab a lock so other workers don't fight over grabbing these jobs
-      begin
-        @lock_manager.lock(pending_lock_key, @lock_timeout) do |locked|
-          next unless locked
-          # We want the pending queue to clear jobs as we grab the data
-          data = @queue.pending_jobs.reduce(data, true) do |memo, job|
-            pending_timestamp = job.timestamp if pending_timestamp.nil?
-            pending_timestamp = job.timestamp unless job.timestamp.nil? or job.timestamp > pending_timestamp
-            memo + job.data
-          end
-        end
-      rescue Redis::BaseConnectionError
-        next
-      end
-    end
-    # Make sure the merged data doesn't violate the upload_max_batch_size if set.
-    if @upload_max_batch_size > 0 and data.length > @upload_max_batch_size
-      while data.length > @upload_max_batch_size
-        new_data = Array.new
-        until new_data.length >= @upload_max_batch_size
-          row = data.pop
-          break if row.nil?
-          new_data << row
-        end
-        job = Domo::Queue::Job.new(new_data, @upload_min_batch_size)
-        if job.status == :incomplete and (@commit_delay <= 0 or job.timestamp + @commit_delay*2 > Time.now.utc)
-          @queue.pending_jobs << job
-        else
-          @queue << job
-        end
-      end
-    end
-
     # When using upload_max_batch_size we keep track of the number of batches generated from the provided events
     num_batches = 1
     # Loop through the incoming events, encode them, add the encoded data to the data Array, and parcel out jobs.
@@ -380,16 +345,9 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
                         :event       => event.to_hash,
                         :exception   => e)
         end
-        # Carve out Job batches if we have a maximum batch size.
-        if @upload_max_batch_size > 0 and i + 1 >= @upload_max_batch_size * num_batches
-          job = Domo::Queue::Job.new(data, @upload_min_batch_size)
-          @queue << job
-          data.clear
-          num_batches += 1
-        end
       # Spamming events seems to get us to this point during/after restarts (on dev at least)
       elsif event.is_a? Array
-        data = event.map do |e|
+        data += event.map do |e|
           if e.is_a? LogStash::Event
             begin
               encode_event_data(e)
@@ -406,26 +364,40 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
           end
         end
       end
+      # Carve out Job batches if we have a maximum batch size.
+      if @upload_max_batch_size > 0 and data.length + 1 >= @upload_max_batch_size * num_batches
+        job = Domo::Queue::Job.new(data, @upload_min_batch_size)
+        @queue << job
+        data.clear
+        num_batches += 1
+      end
     end
+    # Merge pending jobs with our data
+    data = merge_pending_jobs!(data, shutdown) if @queue.pending_jobs.length > 0 and @queue.pending_jobs.ready?
     # Only make a job if we have data
-    unless data.length <= 0
+    unless data.nil? or data.length <= 0
       job = Domo::Queue::Job.new(data, @upload_min_batch_size, nil, nil, pending_timestamp)
-      # Incomplete jobs that aren't super old need to go in the pending queue
-      if job.status == :incomplete and (@commit_delay <= 0 or job.timestamp + @commit_delay*2 > Time.now.utc)
+      # Put incomplete jobs in the pending queue
+      if job.status == :incomplete and !shutdown
+        sleep(0.1) until @queue.pending_jobs.ready?
         @queue.pending_jobs << job
-        @logger.debug("Putting Job in pending queue",
+        @logger.trace("Putting job in pending queue",
                       :stream_id         => @stream_id,
                       :execution_id      => @queue.execution_id,
                       :pipeline_id       => pipeline_id,
                       :job               => job.to_hash(true))
       # Everybody else goes to the main queue
       else
-        # @queue.commit_status = :open if @queue.commit_complete?
         @queue << job
+        @logger.info("Added job to the main queue",
+                      :stream_id         => @stream_id,
+                      :execution_id      => @queue.execution_id,
+                      :pipeline_id       => pipeline_id,
+                      :job               => job.to_hash(true))
       end
     end
     # If the queue is empty, we're not shutting down, we're not ready to commit, and we have no data to add, give up
-    if data.length <= 0
+    if data.nil? or data.length <= 0
       return unless shutdown or @queue.unprocessed?(shutdown)
     end
     # Process the queue
@@ -479,7 +451,8 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
                              :commit_delay => @commit_delay,
                              :sleep_time   => sleep_time,
                              :last_commit  => @queue.last_commit,
-                             :next_commit  => @queue.next_commit(@commit_delay))
+                             :next_commit  => @queue.next_commit(@commit_delay),
+                             :commit_rows  => @queue.commit_rows)
                 @commit_task = Concurrent::ScheduledTask.execute(sleep_time) { commit_stream(shutdown) }
               end
             end
@@ -512,22 +485,10 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
       @queue = get_queue
       # Merge pending jobs into one job and add it to the main queue if we're force processing pending jobs.
       if force_pending and @queue.pending_jobs.length > 0
-        data = Array.new
-        begin
-          @lock_manager.lock(pending_lock_key, @lock_timeout) do |locked|
-            next unless locked
-            # Merge the data together and clear the jobs as we go
-            data = @queue.pending_jobs.reduce(data, true) do |memo, job|
-              memo + job.data
-            end
-
-            @queue << Domo::Queue::Job.new(data, 0)
-            # Prevent infinite loops
-            force_pending = false
-          end
-        rescue Redis::BaseConnectionError
-          next
-        end
+        data = merge_pending_jobs!(Array.new)
+        # Prevent infinite loops
+        force_pending = false
+        @queue << Domo::Queue::Job.new(data, 0) unless data.nil? or data.length <= 0
         # Restart the loop
         next
       end
@@ -961,6 +922,60 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
       return true if queue.next_commit(@commit_delay) <= Time.now.utc
     end
     false
+  end
+
+  private
+  # Merge the data in all of our pending jobs
+  # If we're shutting down or the size of the merged data exceeds upload_min_batch_size, then the data will be returned.
+  # Otherwise, the new job will be thrown back into the pending queue until it is ready, and nil will be returned.
+  #
+  # @param data [Array<String>] The CSV data to upload to DOMO.
+  # @param shutdown [Boolean] Indicates that Logstash is shutting down.
+  # @return [Array, nil]
+  def merge_pending_jobs!(data, shutdown=false)
+    # Another worker already called this function
+    return data unless @queue.pending_jobs.ready?
+
+    # These will be set to the IDs and timestamps of the oldest pending job.
+    pending_timestamp = nil
+    pending_id = nil
+    begin
+      # Grab a lock so other workers don't fight over grabbing these jobs
+      @lock_manager.lock(pending_lock_key, @lock_timeout) do |locked|
+        return data unless locked and @queue.pending_jobs.ready?
+        # Jobs will not be added to the pending queue while it is merging
+        @queue.pending_jobs.processing_status = :merging
+        # We want the pending queue to clear jobs as we grab the data
+        merged_data = @queue.pending_jobs.reduce(data) do |memo, job|
+          if pending_timestamp.nil? or job.timestamp < pending_timestamp
+            pending_timestamp = job.timestamp
+            pending_id = job.id
+          end
+          memo + job.data
+        end
+        # We managed to attempt to merge jobs with the pending queue's processing status set to open
+        # That's not allowed!
+        return data if merged_data.nil?
+
+        # We have enough data to push to Domo (or we're closing)
+        return merged_data if merged_data.length >= @upload_min_batch_size or shutdown
+
+        # Add the combined data into the pending queue
+        job = Domo::Queue::Job.new(merged_data, @upload_min_batch_size, nil, pending_id, pending_timestamp)
+        @queue.pending_jobs << job
+        @logger.debug("Merged pending jobs",
+                      :stream_id         => @stream_id,
+                      :execution_id      => @queue.execution_id,
+                      :pipeline_id       => pipeline_id,
+                      :job               => job.to_hash(true))
+      end
+    rescue Redis::BaseConnectionError
+      return data
+    ensure
+      @queue.pending_jobs.processing_status = :open
+    end
+
+    nil
   end
 
   private

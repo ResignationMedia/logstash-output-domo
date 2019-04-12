@@ -371,42 +371,6 @@ module Domo
         end
       end
 
-      # Implements a basic version of Enumerable#reduce except using our Queue and the Jobs in it.
-      #
-      # @param accumulator [Object, nil] The starting value for the memo. Will be set to the first Job in the queue if nil.
-      # @param clear_jobs [Boolean] Whether or not to remove the job from the queue after running our block
-      # @return [Object] The accumulator as modified by the provided block.
-      def reduce(accumulator=nil, clear_jobs=false)
-        fail 'a block is required' unless block_given?
-        if accumulator.nil?
-          skip_first = true
-        else
-          skip_first = false
-        end
-
-        if clear_jobs
-          i = 0
-          each do |job|
-            break if job.nil?
-            if i == 0 and skip_first
-              accumulator = job.data
-              i += 1
-            else
-              accumulator = Proc.new.call(accumulator, job)
-            end
-          end
-        else
-          each_with_index do |job, index|
-            if index == 0 and skip_first
-              accumulator = job.data
-            else
-              accumulator = Proc.new.call(accumulator, job)
-            end
-          end
-        end
-        accumulator
-      end
-
       # Specifies whether or not a {RedisDataPart} is valid for the Queue. Needs to be implemented by subclasses.
       def data_part_valid?(*args)
         raise NotImplementedError.new
@@ -783,6 +747,7 @@ module Domo
           self.commit_schedule_time = nil
           self.commit_rows = 0
           self.processing_status = :open
+          self.pending_jobs.processing_status = :open
         end
 
         # Notify the queue that a commit has been scheduled.
@@ -814,9 +779,60 @@ module Domo
           @queue_name = "#{redis_key_prefix}#{KEY_SUFFIXES[:PENDING]}"
         end
 
+        def processing_status
+          status = @client.get("#{@queue_name}:processing_status")
+          return :open if status.nil?
+          status.to_sym
+        end
+
+        def processing_status=(status)
+          if status.nil?
+            @client.del("#{@queue_name}:processing_status")
+          else
+            @client.set("#{@queue_name}:processing_status", status.to_s)
+          end
+        end
+
+        def ready?
+          processing_status == :open
+        end
+
+        def push(job)
+          @client.rpush(@queue_name, job.to_json)
+        end
+
         # Clear the queue
         def clear
           @client.del(@queue_name)
+        end
+
+        # Implements a basic version of Enumerable#reduce except using our Queue and the Jobs in it.
+        #
+        # @param accumulator [Object, nil] The starting value for the memo. Will be set to the first Job in the queue if nil.
+        # @param clear_jobs [Boolean] Whether or not to remove the job from the queue after running our block
+        # @return [Object] The accumulator as modified by the provided block.
+        def reduce(accumulator=nil, clear_jobs=false)
+          fail 'a block is required' unless block_given?
+          return nil unless self.processing_status == :merging
+          if accumulator.nil?
+            skip_first = true
+          else
+            skip_first = false
+          end
+
+          i = 0
+          @client.lrange(@queue_name, 0, -1).each do |job|
+            job = Job.from_json!(job)
+            if i == 0 and skip_first
+              accumulator = job.data
+              i += 1
+              next
+            end
+            accumulator = Proc.new.call(accumulator, job)
+          end
+          clear
+
+          accumulator
         end
 
         # Indicates that the provided {RedisDataPart} is valid

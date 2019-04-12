@@ -333,7 +333,7 @@ RSpec.configure do |config|
   config.include DomoHelper
 
   config.around(:each) do |example|
-    timeout = example.metadata.has_key?(:slow) ? 40 : 20
+    timeout = example.metadata.has_key?(:slow) ? 90 : 45
     Timeout::timeout(timeout) {
       example.run
     }
