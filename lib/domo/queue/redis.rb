@@ -1,10 +1,23 @@
 # encoding: utf-8
+require "digest"
 require "redis"
 require "json"
 require "domo/queue"
 
 module Domo
   module Queue
+    # Suffixes to add to our redis keys
+    KEY_SUFFIXES = {
+        :ACTIVE_EXECUTION => "_active_execution",
+        :QUEUE            => "_queue",
+        :PART_NUM         => "_part_num",
+        :FAILURE          => "_failures",
+        :PENDING          => "_pending",
+    }.freeze
+
+    # A format string for the redis key prefix
+    KEY_PREFIX_FORMAT = "logstash-output-domo:%{dataset_id}:%{stream_id}".freeze
+
     # Enumerable object that houses {RedisDataPart} objects in redis.
     # The objects are stored in a Sorted Set using the Stream Execution ID as their score.
     class DataPartArray
@@ -177,18 +190,6 @@ module Domo
 
     # Base class for any queues that are redis-based
     class RedisQueue
-      # Suffixes to add to our redis keys
-      KEY_SUFFIXES = {
-          :ACTIVE_EXECUTION => "_active_execution",
-          :QUEUE            => "_queue",
-          :PART_NUM         => "_part_num",
-          :FAILURE          => "_failures",
-          :PENDING          => "_pending",
-      }
-
-      # A format string for the redis key prefix
-      KEY_PREFIX_FORMAT = "logstash-output-domo:%{dataset_id}:%{stream_id}"
-
       # @return [String] The name of the queue.
       attr_reader :queue_name
       # @return [String The pipeline id.
@@ -768,15 +769,44 @@ module Domo
 
       # Redis-based Queue for pending jobs.
       # Pending jobs = Jobs whose number of rows is less than their minimum size
-      class PendingJobQueue < RedisQueue
+      class PendingJobQueue
+        SCRIPTS = Hash.new
+
+        SCRIPTS[:pop] = {
+            :sha => '16bae244732c4f4c395effa4cc3347c757bcad09'.freeze,
+            :code => <<~EOF
+                local data = redis.call('zrange', KEYS[1], 0, 0)[1]
+                if data then
+                  redis.call('zrem', KEYS[1], data)
+                end
+                return data
+            EOF
+        }
+
         # @param redis_client [Redis]
         # @param dataset_id [String]
         # @param stream_id [Integer]
         # @param pipeline_id [String, nil]
         def initialize(redis_client, dataset_id, stream_id, pipeline_id='main')
-          super(redis_client, dataset_id, stream_id, pipeline_id)
+          # @type [Redis]
+          @client = redis_client
+          # @type [String]
+          @dataset_id = dataset_id
+          # @type [Integer]
+          @stream_id = stream_id
+          # @type [String]
+          @pipeline_id = pipeline_id
           # @type [String]
           @queue_name = "#{redis_key_prefix}#{KEY_SUFFIXES[:PENDING]}"
+          # @type [Array<Hash>]
+          @scripts = load_scripts
+        end
+
+        # @!attribute [r] redis_key_prefix
+        # The prefix for all redis keys.
+        # @return [String]
+        def redis_key_prefix
+          KEY_PREFIX_FORMAT % {:dataset_id => @dataset_id, :stream_id => @stream_id}
         end
 
         def processing_status
@@ -797,8 +827,36 @@ module Domo
           processing_status == :open
         end
 
-        def push(job)
-          @client.rpush(@queue_name, job.to_json)
+        def length
+          @client.zcard(@queue_name)
+        end
+
+        def empty?
+          length <= 0
+        end
+
+        def push(data)
+          @client.zadd(@queue_name, @stream_id, JSON.generate(data))
+        end
+
+        alias_method :<<, :push
+        alias_method :add, :push
+
+        def pop
+          data = @client.evalsha(@scripts[:pop][:sha], :keys => [@queue_name])
+          JSON.parse(data)
+        end
+
+        def delete!(data)
+          @client.zrem(@queue_name, JSON.generate(data))
+        end
+
+        def each
+          return to_enum(:each) unless block_given?
+
+          @client.zscan_each(@queue_name) do |data|
+            Proc.new.call(data)
+          end
         end
 
         # Clear the queue
@@ -809,30 +867,49 @@ module Domo
         # Implements a basic version of Enumerable#reduce except using our Queue and the Jobs in it.
         #
         # @param accumulator [Object, nil] The starting value for the memo. Will be set to the first Job in the queue if nil.
-        # @param clear_jobs [Boolean] Whether or not to remove the job from the queue after running our block
         # @return [Object] The accumulator as modified by the provided block.
-        def reduce(accumulator=nil, clear_jobs=false)
-          fail 'a block is required' unless block_given?
-          return nil unless self.processing_status == :merging
-          if accumulator.nil?
-            skip_first = true
-          else
-            skip_first = false
-          end
+        def reduce(accumulator, min_upload_size=0, shutdown=false)
+          min_upload_size = 0 if shutdown
 
-          i = 0
-          @client.lrange(@queue_name, 0, -1).each do |job|
-            job = Job.from_json!(job)
-            if i == 0 and skip_first
-              accumulator = job.data
-              i += 1
-              next
-            end
-            accumulator = Proc.new.call(accumulator, job)
-          end
-          clear
-
-          accumulator
+          cmd = <<~EOF
+                local accumulator = ARGV
+                local min_data_size = #{min_upload_size}
+                local processing_status = redis.call('get', KEYS[2])
+  
+                if processing_status == 'open' then
+                  redis.call('set', KEYS[2], 'merging')
+                elseif processing_status == 'merging' then
+                  return accumulator
+                end
+  
+                local card = redis.call('zcard', KEYS[1])
+                local row_count = 0
+                local rows_added = 0
+                while (card > 0) do
+                  local data = redis.call('zrange', KEYS[1], 0, 0)[1]
+                  if data then
+                    redis.call('zrem', KEYS[1], data)
+                  else
+                    break
+                  end
+                  data = cjson.decode(data)
+                  for k,v in ipairs(data) do
+                    table.insert(accumulator, v)
+                    rows_added = rows_added + 1
+                  end
+                  card = redis.call('zcard', KEYS[1])
+                end
+                for k,v in ipairs(accumulator) do
+                  row_count = row_count + 1
+                end
+                if row_count < min_data_size then
+                  redis.call('zadd', KEYS[1], #{@stream_id}, cjson.encode(accumulator))
+                  accumulator = {}
+                end
+                redis.call('set', KEYS[2], 'open')
+                return {accumulator, rows_added}
+          EOF
+          @client.eval(cmd, :keys => [@queue_name, "#{@queue_name}:processing_status"], :argv => accumulator)
         end
 
         # Indicates that the provided {RedisDataPart} is valid
@@ -842,6 +919,25 @@ module Domo
         def data_part_valid?(data_part)
           # All RedisDataPart objects are valid for this queue.
           true
+        end
+
+        private
+
+        def load_scripts
+          scripts = @scripts.nil? ? SCRIPTS.clone : @scripts
+          scripts.each do |n, script|
+            next if script.has_key?(:cache_sha) and script[:cache_sha] == script[:sha]
+
+            sha = Digest::SHA1.new << script[:code]
+            script[:sha] = sha.to_s
+
+            unless @client.script(:exists, script[:sha])
+              script[:sha] = @client.script(:load, script[:code])
+            end
+            script[:cache_sha] = script[:sha]
+          end
+
+          scripts
         end
       end
 

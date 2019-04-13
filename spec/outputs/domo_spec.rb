@@ -255,7 +255,7 @@ RSpec.shared_examples "LogStash::Outputs::Domo" do
         )
       end
 
-      it "waits until the batch size is reached" do
+      it "waits until the batch size is reached", hi: true do
         batch_events = (1..100).map do |i|
           LogStash::Event.new("Event Name"      => i.to_s,
                               "Count"           => i,
