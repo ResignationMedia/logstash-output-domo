@@ -380,6 +380,9 @@ module Domo
     module Redis
       # Manages a redis-based queue for sending Logstash Events to Domo
       class JobQueue < RedisQueue
+        attr_reader :pending_jobs
+        attr_reader :failures
+
         # @param redis_client [Redis]
         # @param dataset_id [String]
         # @param stream_id [Integer]
@@ -390,6 +393,9 @@ module Domo
           # @type [String]
           @queue_name = "#{redis_key_prefix}#{KEY_SUFFIXES[:QUEUE]}"
           set_execution_id(execution_id) unless execution_id.nil?
+
+          @pending_jobs = PendingJobQueue.new(@client, @dataset_id, @stream_id, @pipeline_id)
+          @failures = FailureQueue.new(@client, @dataset_id, @stream_id, @pipeline_id)
         end
 
         # Pop the first job off the queue. Return nil if there are no jobs in the queue.
@@ -520,15 +526,15 @@ module Domo
 
         # The {FailureQueue} associated with this queue.
         # @return [FailureQueue]
-        def failures
-          FailureQueue.new(@client, @dataset_id, @stream_id, @pipeline_id)
-        end
+        # def failures
+        #   FailureQueue.new(@client, @dataset_id, @stream_id, @pipeline_id)
+        # end
 
         # The {PendingJobQueue} associated with this queue.
         # @return [PendingJobQueue]
-        def pending_jobs
-          PendingJobQueue.new(@client, @dataset_id, @stream_id, @pipeline_id)
-        end
+        # def pending_jobs
+        #   PendingJobQueue.new(@client, @dataset_id, @stream_id, @pipeline_id)
+        # end
 
         # Checks that all {PendingJobQueue}s and {FailureQueue}s related to this queue are empty.
         #
@@ -747,7 +753,6 @@ module Domo
           self.commit_schedule_time = nil
           self.commit_rows = 0
           self.processing_status = :open
-          self.pending_jobs.processing_status = :open
         end
 
         # Notify the queue that a commit has been scheduled.
@@ -769,6 +774,27 @@ module Domo
       # Redis-based Queue for pending jobs.
       # Pending jobs = Jobs whose number of rows is less than their minimum size
       class PendingJobQueue < RedisQueue
+        # Lua scripts that will be loaded onto the server if they don't exist already
+        # Functions that call them should use #evalsha
+        SCRIPTS = {
+            :reduce => {
+                :sha => "fc9f3d31ddb49c1f28b2570ff51adc653ab37b43",
+                :code => <<~EOF
+                    if redis.call('llen', KEYS[1]) <= 0 then
+                      return {}
+                    end
+      
+                    local min_upload_size = ARGV[1]
+                    local lrange_stop = ARGV[2]
+                    local ltrim_stop = ARGV[3]
+      
+                    local data = redis.call('lrange', KEYS[1], 0, lrange_stop)
+                    redis.call('ltrim', KEYS[1], min_upload_size, ltrim_stop)
+                    return data
+                EOF
+            }
+        }.freeze
+
         # @param redis_client [Redis]
         # @param dataset_id [String]
         # @param stream_id [Integer]
@@ -777,24 +803,20 @@ module Domo
           super(redis_client, dataset_id, stream_id, pipeline_id)
           # @type [String]
           @queue_name = "#{redis_key_prefix}#{KEY_SUFFIXES[:PENDING]}"
+          # Load in our Lua scripts
+          load_scripts
         end
 
-        def processing_status
-          status = @client.get("#{@queue_name}:processing_status")
-          return :open if status.nil?
-          status.to_sym
-        end
+        # Indicates if the queue is ready for a data merge
+        #
+        # @param row_count [Integer] The number of rows we're trying to merge
+        # @param min_upload_size [Integer] The minimum upload batch size
+        # @param shutdown [Boolean] Indicates that Logstash is shutting down and we should ignore min_upload_size
+        def merge_ready?(row_count, min_upload_size=0, shutdown=false)
+          return false unless length > 0
+          return false unless shutdown or length + row_count >= min_upload_size
 
-        def processing_status=(status)
-          if status.nil?
-            @client.del("#{@queue_name}:processing_status")
-          else
-            @client.set("#{@queue_name}:processing_status", status.to_s)
-          end
-        end
-
-        def ready?
-          processing_status == :open
+          true
         end
 
         # Clear the queue
@@ -817,39 +839,28 @@ module Domo
         alias_method :<<, :push
         alias_method :add, :push
 
-        # Implements a basic version of Enumerable#reduce except using our Queue and the Jobs in it.
+        # Implements a basic version of Enumerable#reduce except using our Queue and the data in it.
         #
-        # @param accumulator [Array] The starting value for the memo. Will be set to the first Job in the queue if nil.
-        # @return [Array] The accumulator as modified by the provided block.
+        # @param accumulator [Array] The starting value for the memo.
+        # @param min_upload_size [Integer] The minimum size for an upload batch. Will grab the entire queue if 0
+        # @param shutdown [Boolean] Indicates that Logstash is shutting down, which forces the entire queue to process.
+        # @return [Array] The accumulator with min_upload_size rows added to it
         def reduce(accumulator, min_upload_size=0, shutdown=false)
-          return accumulator if self.processing_status == :merging
-
+          # Set the stop parameters for our calls to LRANGE and LTRIM based on min_upload_size / shutdown
           if shutdown or min_upload_size == 0
+            # Grab the entire queue and clear it
             min_upload_size = -1
             lrange_stop = -1
             ltrim_stop = 0
           else
+            # Grab up to min_upload_size rows from the queue and clear them
             lrange_stop = min_upload_size - 1
             ltrim_stop = -1
           end
 
-          self.processing_status = :merging
-          pending_data = @client.watch("#{@queue_name}:processing_status") do
-            if @client.get("#{@queue_name}:processing_status") == "merging"
-              @client.multi do |m|
-                data = m.lrange(@queue_name, 0, lrange_stop)
-                m.ltrim(@queue_name, min_upload_size, ltrim_stop)
-                m.set("#{@queue_name}:processing_status", "open")
-                data
-              end
-            else
-              @client.unwatch
-              nil
-            end
-          end
-          return accumulator if pending_data.nil? or pending_data[0].nil?
-
-          accumulator + pending_data[0]
+          # Execute the reduce Lua script and add the return to our accumulator
+          sha = SCRIPTS[:reduce][:sha]
+          accumulator + @client.evalsha(sha, [@queue_name], [min_upload_size, lrange_stop, ltrim_stop])
         end
 
         # Indicates that the provided {RedisDataPart} is valid
@@ -859,6 +870,16 @@ module Domo
         def data_part_valid?(data_part)
           # All RedisDataPart objects are valid for this queue.
           true
+        end
+
+        private
+        # Load our Lua scripts into redis if they haven't been already.
+        def load_scripts
+          SCRIPTS.each do |n, s|
+            unless @client.script(:exists, s[:sha])
+              @client.script(:load, s[:code])
+            end
+          end
         end
       end
 

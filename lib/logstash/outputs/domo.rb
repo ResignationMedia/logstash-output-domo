@@ -373,13 +373,12 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
       end
     end
     # Merge pending jobs with our data
-    data = merge_pending_jobs!(data, shutdown) if @queue.pending_jobs.ready? or shutdown
+    data = merge_pending_jobs!(data, shutdown)
     # Only make a job if we have data
     unless data.length <= 0
       job = Domo::Queue::Job.new(data, @upload_min_batch_size)
       # Put incomplete jobs in the pending queue
       if job.status == :incomplete and !shutdown
-        sleep(0.1) until @queue.pending_jobs.ready?
         @queue.pending_jobs << job.data
         @logger.trace("Putting job in pending queue",
                       :stream_id         => @stream_id,
@@ -933,17 +932,14 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
   # @param shutdown [Boolean] Indicates that Logstash is shutting down.
   # @return [Array, nil]
   def merge_pending_jobs!(data, shutdown=false)
-    # Another worker already called this function
-    return data unless @queue.pending_jobs.ready?
-
     merged_data = data
     rows_start = data.length
     begin
       # Grab a lock so other workers don't fight over grabbing these jobs
       @lock_manager.lock(pending_lock_key, @lock_timeout*2) do |locked|
-        return merged_data unless locked and @queue.pending_jobs.ready?
+        return merged_data unless locked
 
-        while @queue.pending_jobs.ready? and @queue.pending_jobs.length > 0 and (shutdown or @queue.pending_jobs.length + data.length >= @upload_min_batch_size)
+        while @queue.pending_jobs.merge_ready?(rows_start, @upload_min_batch_size, shutdown)
           merged_data = @queue.pending_jobs.reduce(merged_data, @upload_min_batch_size, shutdown)
         end
       end

@@ -43,14 +43,15 @@ module DomoHelper
     unless expect_thread
       return if queue.commit_status != :running and queue.processed?
     end
-    until queue.commit_unscheduled? and queue.commit_status == :success and queue.processed?
+    until queue.commit_unscheduled? and queue.processed?(true) or (queue.commit_status == :success and queue.processed?)
       sleep(0.1)
     end
   end
 
   def wait_for_shutdown(subject)
     queue = subject.get_queue
-    until queue.commit_unscheduled? and queue.commit_status == :success and queue.all_empty?
+    wait_for_commit(subject, true)
+    until queue.all_empty?
       sleep(0.1)
     end
   end
