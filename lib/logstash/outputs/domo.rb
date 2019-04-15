@@ -943,11 +943,11 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
       @lock_manager.lock(pending_lock_key, @lock_timeout*2) do |locked|
         return merged_data unless locked and @queue.pending_jobs.ready?
 
-        while @queue.pending_jobs.length > 0 and (shutdown or @queue.pending_jobs.length + data.length >= @upload_min_batch_size)
+        while @queue.pending_jobs.ready? and @queue.pending_jobs.length > 0 and (shutdown or @queue.pending_jobs.length + data.length >= @upload_min_batch_size)
           merged_data = @queue.pending_jobs.reduce(merged_data, @upload_min_batch_size, shutdown)
         end
       end
-      if merged_data.length > 0
+      if merged_data.length > rows_start
         @logger.debug("Merged pending jobs",
                       :stream_id         => @stream_id,
                       :execution_id      => @queue.execution_id,
