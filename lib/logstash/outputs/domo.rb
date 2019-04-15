@@ -373,7 +373,7 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
       end
     end
     # Merge pending jobs with our data
-    data = merge_pending_jobs!(data, shutdown) if @queue.pending_jobs.length > 0 and @queue.pending_jobs.ready?
+    data = merge_pending_jobs!(data, shutdown) if @queue.pending_jobs.ready? or shutdown
     # Only make a job if we have data
     unless data.length <= 0
       job = Domo::Queue::Job.new(data, @upload_min_batch_size)
@@ -485,7 +485,7 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
       @queue = get_queue
       # Merge pending jobs into one job and add it to the main queue if we're force processing pending jobs.
       if force_pending and @queue.pending_jobs.length > 0
-        data = merge_pending_jobs!(Array.new)
+        data = merge_pending_jobs!(Array.new, force_pending)
         # Prevent infinite loops
         force_pending = false
         @queue << Domo::Queue::Job.new(data, 0) unless data.length <= 0
@@ -935,28 +935,34 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
   def merge_pending_jobs!(data, shutdown=false)
     # Another worker already called this function
     return data unless @queue.pending_jobs.ready?
-    merged_data = Array.new
-    rows_added = 0
+
+    merged_data = data
+    rows_start = data.length
     begin
       # Grab a lock so other workers don't fight over grabbing these jobs
       @lock_manager.lock(pending_lock_key, @lock_timeout*2) do |locked|
-        return data unless locked and @queue.pending_jobs.ready?
+        return merged_data unless locked and @queue.pending_jobs.ready?
 
-        merged_data, rows_added = @queue.pending_jobs.reduce(data)
+        while @queue.pending_jobs.length > 0 and (shutdown or @queue.pending_jobs.length + data.length >= @upload_min_batch_size)
+          merged_data = @queue.pending_jobs.reduce(merged_data, @upload_min_batch_size, shutdown)
+        end
       end
-      @logger.debug("Merged pending jobs",
-                    :stream_id         => @stream_id,
-                    :execution_id      => @queue.execution_id,
-                    :pipeline_id       => pipeline_id,
-                    :rows_added        => rows_added,
-                    :start_rows        => data.length)
-      # We have enough data to push to Domo (or we're closing)
-      return merged_data
+      if merged_data.length > 0
+        @logger.debug("Merged pending jobs",
+                      :stream_id         => @stream_id,
+                      :execution_id      => @queue.execution_id,
+                      :pipeline_id       => pipeline_id,
+                      :rows_start        => rows_start,
+                      :rows_pending      => @queue.pending_jobs.length,
+                      :rows_merged       => merged_data.length)
+      end
     rescue Redlock::LockError
-      return data
+      # Do nothing
     rescue Redis::BaseConnectionError
-      return data
+      # Do nothing
     end
+
+    merged_data
   end
 
   private

@@ -255,7 +255,7 @@ RSpec.shared_examples "LogStash::Outputs::Domo" do
         )
       end
 
-      it "waits until the batch size is reached", hi: true do
+      it "waits until the batch size is reached" do
         batch_events = (1..100).map do |i|
           LogStash::Event.new("Event Name"      => i.to_s,
                               "Count"           => i,
@@ -269,19 +269,46 @@ RSpec.shared_examples "LogStash::Outputs::Domo" do
         queue.last_commit = Time.now.utc - config["commit_delay"]
         subject.multi_receive(batch_events.slice(0..24))
         expect(queue.length).to eq(0)
-        expect(queue.pending_jobs.length).to eq(1)
+        expect(queue.pending_jobs.length).to eq(25)
 
         queue.last_commit = Time.now.utc
         subject.multi_receive(batch_events.slice(25..49))
         expect(queue.pending_jobs.length).to eq(0)
 
         subject.multi_receive(batch_events.slice(50..74))
-        expect(queue.pending_jobs.length).to eq(1)
+        expect(queue.pending_jobs.length).to eq(25)
 
         queue.last_commit = Time.now.utc
         subject.multi_receive(batch_events.slice(75..-1))
 
         wait_for_commit(subject, true)
+        expect(dataset_data_match?(domo_client, dataset_id, expected_domo_data)).to be(true)
+      end
+
+      it "handles being spammed with events", spam: true, slow: true, skip_close: true do
+        spam_events = (1..200).map do |i|
+          LogStash::Event.new("Event Name"      => i.to_s,
+                              "Count"           => i,
+                              "Event Timestamp" => LogStash::Timestamp.now,
+                              "Event Date"      => Date.today.to_s,
+                              "Percent"         => ((i.to_f/200)*100).round(2))
+        end
+
+        expected_domo_data = spam_events.map { |event| event_to_domo_hash(event) }
+
+        spam_threads = Array.new
+        spam_threads << Thread.new { subject.multi_receive(spam_events.slice(0..74)) }
+        spam_threads << Thread.new { subject.multi_receive(spam_events.slice(100..-1)) }
+        spam_threads << Thread.new { subject.multi_receive(spam_events.slice(75..99)) }
+        spam_threads.each(&:join)
+
+        wait_for_commit(subject, true)
+        sleep(0.5)
+
+        subject.multi_receive([LogStash::SHUTDOWN])
+        wait_for_shutdown(subject)
+
+        sleep(2) # Let's sleep yet AGAIN because there seems to be a lag in data making it to Domo's Datset Export API
         expect(dataset_data_match?(domo_client, dataset_id, expected_domo_data)).to be(true)
       end
 
@@ -301,7 +328,7 @@ RSpec.shared_examples "LogStash::Outputs::Domo" do
 
         queue.last_commit = Time.now.utc
         subject.multi_receive(batch_events.slice(50..-1))
-        expect(queue.pending_jobs.length).to eq(1)
+        expect(queue.pending_jobs.length).to eq(25)
 
         subject.multi_receive([LogStash::SHUTDOWN])
         wait_for_commit(subject, true)
