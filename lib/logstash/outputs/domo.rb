@@ -321,8 +321,6 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
     shutdown = false
     # The Array of CSV strings to associate with upload job data.
     data = Array.new
-    # If there are pending jobs, this will get set to the timestamp of the oldest job
-    pending_timestamp = nil
     # When using upload_max_batch_size we keep track of the number of batches generated from the provided events
     num_batches = 1
     # Loop through the incoming events, encode them, add the encoded data to the data Array, and parcel out jobs.
@@ -503,8 +501,11 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
       break if @queue.processed?(force_pending)
       # Get the job from the queue
       job = @queue.pop
-      # Skup the job if it has no data for some reason
-      next unless job.nil? or job.row_count > 0
+      # Skip the job if it has no data for some reason
+      unless job.nil? or job.row_count > 0
+        @queue.processing_status = :open
+        next
+      end
       # If we're out of jobs, process any failures
       if job.nil?
         break if @queue.failures.length <= 0
@@ -602,15 +603,15 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
           next
         end
         # Block until failed jobs are done reprocessing back into the queue
-        sleep(0.1) until @queue.failures.processing_status != :reprocessing and @queue.execution_id and @queue.commit_status == :open
-        # Reset and/or increment the job's data part if need be
-        job.data_part = @queue.incr_data_part if job.data_part.nil? or job.data_part.execution_id != @queue.execution_id
+        sleep(0.1) until @queue.upload_ready?
         # Prevent a race condition when a long running commit is underway
         unless @queue.commit_status == :open
           job.data_part = job.data_part&.execution_id == @queue.execution_id ? job.data_part : nil
           @queue.unshift(job)
           next
         end
+        # Reset and/or increment the job's data part if need be
+        job.data_part = @queue.incr_data_part if job.data_part.nil? or job.data_part.execution_id != @queue.execution_id
         # Upload the job's data to Domo.
         @domo_client.stream_client.uploadDataPart(@stream_id, job.data_part.execution_id, job.data_part.part_id, job.upload_data)
         @queue.add_commit_rows(job.row_count)
@@ -916,6 +917,7 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
   def commit_ready?
     queue = get_queue
     return false unless queue&.execution_id and queue.commit_rows > 0
+
     if queue.processed? and queue.commit_status != :running
       return true if @commit_delay <= 0 or queue.last_commit.nil?
       return true if queue.next_commit(@commit_delay) <= Time.now.utc
@@ -941,6 +943,8 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
 
         while @queue.pending_jobs.merge_ready?(rows_start, @upload_min_batch_size, shutdown)
           merged_data = @queue.pending_jobs.reduce(merged_data, @upload_min_batch_size, shutdown)
+          break if merged_data.length == rows_start
+
         end
       end
       if merged_data.length > rows_start

@@ -398,14 +398,53 @@ module Domo
           @failures = FailureQueue.new(@client, @dataset_id, @stream_id, @pipeline_id)
         end
 
+        def upload_ready?
+          return false if failures.processing_status == :reprocessing
+          return false unless execution_id and commit_status == :open
+
+          true
+        end
+
         # Pop the first job off the queue. Return nil if there are no jobs in the queue.
         #
         # @return [Job, nil]
         def pop
-          job = @client.lpop(@queue_name)
+          unless @client.exists("#{@queue_name}:processing_status")
+            self.processing_status = :open
+          end
+
+          job = nil
+          (1..10).each do
+            job = pop_job
+            if job.nil? or job[-1].nil?
+              if length <= 0
+                self.processing_status = :open
+                return
+              end
+
+              job = pop_job
+              break if job
+            else
+              break
+            end
+          end
           return if job.nil?
-          self.processing_status = :processing
-          Job.from_json!(job)
+
+          Job.from_json!(job[-1])
+        end
+
+        def pop_job
+          @client.watch("#{@queue_name}:processing_status") do
+            if @client.get("#{@queue_name}:processing_status") != "processing"
+              @client.multi do |m|
+                m.set("#{@queue_name}:processing_status", "processing")
+                m.lpop(@queue_name)
+              end
+            else
+              @client.unwatch
+              nil
+            end
+          end
         end
 
         # Prepend a job to the queue. Useful for quick retries
@@ -503,7 +542,7 @@ module Domo
         #
         # @return [Symbol]
         def processing_status
-          status = @client.hget("#{redis_key_prefix}#{KEY_SUFFIXES[:ACTIVE_EXECUTION]}", "processing_status")
+          status = @client.get("#{@queue_name}:processing_status")
           return if status.nil?
           status.to_sym
         end
@@ -511,9 +550,9 @@ module Domo
         # @!attribute [w] processing_status
         def processing_status=(status)
           if status.nil?
-            @client.hdel("#{redis_key_prefix}#{KEY_SUFFIXES[:ACTIVE_EXECUTION]}", "processing_status")
+            @client.del("#{@queue_name}:processing_status")
           else
-            @client.hset("#{redis_key_prefix}#{KEY_SUFFIXES[:ACTIVE_EXECUTION]}", "processing_status", status.to_s)
+            @client.set("#{@queue_name}:processing_status", status.to_s)
           end
         end
 
@@ -778,18 +817,14 @@ module Domo
         # Functions that call them should use #evalsha
         SCRIPTS = {
             :reduce => {
-                :sha => "fc9f3d31ddb49c1f28b2570ff51adc653ab37b43",
+                :sha => "519d8884a3188865eda71d41518cf65d0b235231",
                 :code => <<~EOF
-                    if redis.call('llen', KEYS[1]) <= 0 then
-                      return {}
-                    end
-      
                     local min_upload_size = ARGV[1]
                     local lrange_stop = ARGV[2]
                     local ltrim_stop = ARGV[3]
       
                     local data = redis.call('lrange', KEYS[1], 0, lrange_stop)
-                    redis.call('ltrim', KEYS[1], min_upload_size, ltrim_stop)
+                    redis.call('ltrim', KEYS[1], min_upload_size - 1, ltrim_stop)
                     return data
                 EOF
             }
@@ -854,7 +889,7 @@ module Domo
             ltrim_stop = 0
           else
             # Grab up to min_upload_size rows from the queue and clear them
-            lrange_stop = min_upload_size - 1
+            lrange_stop = min_upload_size - 2 # See the LRANGE documentation for why this is -2 instead of -1
             ltrim_stop = -1
           end
 
