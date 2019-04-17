@@ -382,6 +382,7 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
                       :stream_id         => @stream_id,
                       :execution_id      => @queue.execution_id,
                       :pipeline_id       => pipeline_id,
+                      :rows_pending      => @queue.pending_jobs.length,
                       :job               => job.to_hash(true))
       # Everybody else goes to the main queue
       else
