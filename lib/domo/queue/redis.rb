@@ -428,7 +428,7 @@ module Domo
               break
             end
           end
-          return if job.nil?
+          return if job.nil? or job[-1].nil?
 
           Job.from_json!(job[-1])
         end
