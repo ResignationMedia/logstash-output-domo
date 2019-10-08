@@ -10,7 +10,7 @@ Gem::Specification.new do |s|
   s.require_paths = %w(lib vendor/jar-dependencies)
 
   # Files
-  s.files = Dir['lib/**/*','spec/**/*','*.gemspec','*.md',
+  s.files = Dir['lib/**/*','spec/**/*','*.gemspec','*.md', 'rakelib/**/*',
                 'CONTRIBUTORS','Gemfile','LICENSE','NOTICE.TXT',
                 'vendor/jar-dependencies/**/*.jar', 'vendor/jar-dependencies/**/*.rb']
 
@@ -39,4 +39,5 @@ Gem::Specification.new do |s|
   s.add_runtime_dependency "nokogiri", "~> 1.10", ">= 1.10.1"
 
   s.add_development_dependency "logstash-devutils"
+  s.add_development_dependency "rake"
 end

@@ -1,38 +1,48 @@
-def symbolize_redis_client_args(redis_client_args)
-  redis_client_args = redis_client_args.inject({}) {|memo, (k, v)| memo[k.to_sym] = v; memo}
+require "java"
+java_import "com.domo.sdk.streams.model.Stream"
 
-  unless redis_client_args.fetch(:sentinels, nil).nil?
-    redis_client_args[:sentinels] = redis_client_args[:sentinels].map do |sentinel|
-      sentinel.inject({}) {|memo, (k, v)| memo[k.to_sym] = v; memo}
-    end
+def init_redis_client
+  redis_client = {:url => ENV["REDIS_URL"]}
+  redis_client[:sentinels] = ENV.select { |k, v| k.start_with? "REDIS_SENTINEL_HOST"}.map do |k, v|
+    index = k.split("_")[-1].to_i
+    port = ENV.fetch("REDIS_SENTINEL_PORT_#{index}", 26379)
+
+    {
+        :host => v,
+        :port => port,
+    }
   end
 
-  redis_client_args
+  if redis_client[:sentinels].length <= 0
+    redis_client = redis_client.reject { |k, v| k == :sentinels }
+  end
+
+  Redis.new(redis_client)
 end
 
-
-def validate_settings!(settings)
+def validate_settings!(settings, args)
   raise KeyError, 'domo' unless settings.has_key?('domo')
-  raise KeyError, 'redis' unless settings.has_key?('redis')
+  raise ArgumentError, 'The old_dataset_id argument is required' if args.old_dataset_id.nil?
+  raise ArgumentError, 'The new_dataset_id argument is required' if args.new_dataset_id.nil?
 end
-
 
 namespace :domo do
-  task :queue_migrate, [:old_dataset_id, :new_dataset_id, :queue_settings] do |t, args|
+  desc 'Migrate logstash-output-domo queue from one Domo Dataset to another.'
+  task :migrate_queue, [:old_dataset_id, :new_dataset_id, :queue_settings] do |t, args|
+    $LOAD_PATH.unshift(File.join(File.dirname(__dir__), "lib"))
     require "redis"
     require "yaml"
     require "domo/client"
     require "domo/queue/redis"
 
-    args.with_defaults(:queue_settings => './queue_migrate.yaml')
+    args.with_defaults(:queue_settings => './testing/rspec_settings.yaml')
 
     config_file = File.expand_path(args.queue_settings)
     begin
       settings = YAML.safe_load(File.read(config_file))
-      validate_settings!(settings)
+      validate_settings!(settings, args)
 
-      redis_settings = symbolize_redis_client_args(settings['redis'])
-      redis_client = Redis.new(**redis_settings)
+      redis_client = init_redis_client
 
       domo_settings = settings['domo']
       domo_client = Domo::Client.new(domo_settings['client_id'],
@@ -42,6 +52,9 @@ namespace :domo do
                                      Java::ComDomoSdkRequest::Scope::DATA)
     rescue KeyError => e
       puts "#{e} was not found in the settings file #{args.queue_settings}"
+      exit(1)
+    rescue ArgumentError => e
+      puts e
       exit(1)
     end
 
@@ -59,8 +72,8 @@ namespace :domo do
     end
 
     begin
-      old_stream = domo_client.stream(nil, args.old_dataset_id)
-      new_stream = domo_client.stream(nil, args.new_dataset_id)
+      old_stream = domo_client.stream(nil, args.old_dataset_id, false )
+      new_stream = domo_client.stream(nil, args.new_dataset_id, false )
     rescue Java::ComDomoSdkRequest::RequestException => e
       puts "Error locating Streams!"
       puts e

@@ -5,6 +5,7 @@ require "domo/queue"
 require "logstash/outputs/domo"
 require "logstash/event"
 require "core_extensions/flatten"
+require "rake"
 require_relative "../../spec/domo_spec_helper"
 
 RSpec.shared_examples "LogStash::Outputs::Domo" do
@@ -402,6 +403,55 @@ describe CoreExtensions, extensions: true do
     expect(flattened_event).not_to eq(subject)
     expect(flattened_event).to be_a(Hash)
     expect(flattened_event).not_to satisfy("not have sub-hashes") { |v| v.any? { |k, v| v.is_a? Hash } }
+  end
+end
+
+describe "rake tasks", rake: true do
+  include_context "dataset bootstrap" do
+    let(:test_settings) { get_test_settings }
+    let(:domo_client) { get_domo_client(test_settings) }
+    let(:stream_config) { bootstrap_dataset(domo_client, "_BATCH_DATE_") }
+  end
+
+  let(:config) do
+    global_config.clone.merge(
+        {
+            "upload_timestamp_field" => "_BATCH_DATE_",
+        }
+    )
+  end
+  let!(:tasks_path) do
+    File.expand_path(File.join(File.dirname(File.dirname(File.dirname(__FILE__ ))), "rakelib"))
+  end
+
+  let(:old_dataset) { stream_config }
+  let(:new_dataset) { bootstrap_dataset(domo_client, "_BATCH_DATE_") }
+  let(:lib_root) { File.expand_path(File.dirname(File.dirname(File.dirname(__FILE__ )))) }
+  let(:rake) { Rake::Application.new }
+  subject { Rake::Task[task_name] }
+
+  before(:each) do
+    rake_filename = task_name.split(':').last
+    loaded_files = $".reject {|file| file == File.join(tasks_path, "#{rake_filename}.rake").to_s }
+    rake.rake_require(rake_filename, [tasks_path], loaded_files)
+  end
+
+  context "task is domo:migrate_queue" do
+    let(:task_name) { "domo:migrate_queue" }
+
+    it "works" do
+      subject.invoke(old_dataset["dataset_id"], new_dataset["dataset_id"])
+    end
+  end
+
+  after(:each) do |example|
+    if example.exception
+      puts "Example #{example} failed."
+    end
+    unless ENV.fetch("KEEP_FAILED_DATASETS", false)
+      domo_client.dataSetClient.delete(old_dataset["dataset_id"])
+      domo_client.dataSetClient.delete(new_dataset["dataset_id"])
+    end
   end
 end
 

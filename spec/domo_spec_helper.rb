@@ -29,7 +29,8 @@ module DomoHelper
     test_settings_file = File.join(test_settings_file, 'rspec_settings.yaml')
 
     if File.exists?(test_settings_file)
-      settings.merge!(YAML.load_file(test_settings_file))
+      domo_settings = YAML.load_file(test_settings_file)
+      settings.merge!(domo_settings['domo'])
     end
 
     settings

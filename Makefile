@@ -1,4 +1,4 @@
-.PHONY: docker-test test redlock-test thread-test distclean clean build libbuild
+.PHONY: docker-test test redlock-test thread-test rake-test distclean clean build libbuild
 
 default : build
 
@@ -30,6 +30,10 @@ ifeq ($(TAGS),)
 else
 	-docker-compose run $(RUN_ARGS) --rm test bundle exec rspec --backtrace --format documentation$(ARGS)$(TAGS)
 endif
+	docker-compose down
+
+rake-test : clean
+	-docker-compose run $(RUN_ARGS) --rm test bundle exec rspec --backtrace --format documentation$(ARGS) --tag rake
 	docker-compose down
 
 thread-test :
