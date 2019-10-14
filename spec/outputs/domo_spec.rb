@@ -424,6 +424,51 @@ describe "rake tasks", rake: true do
     File.expand_path(File.join(File.dirname(File.dirname(File.dirname(__FILE__ ))), "rakelib"))
   end
 
+  let(:redis_client) do
+    redis_client = {:url => ENV["REDIS_URL"]}
+    redis_client[:sentinels] = ENV.select { |k, v| k.start_with? "REDIS_SENTINEL_HOST"}.map do |k, v|
+      index = k.split("_")[-1].to_i
+      port = ENV.fetch("REDIS_SENTINEL_PORT_#{index}", 26379)
+
+      {
+          :host => v,
+          :port => port,
+      }
+    end
+
+    if redis_client[:sentinels].length <= 0
+      redis_client = redis_client.reject { |k, v| k == :sentinels }
+    end
+
+    Redis.new(redis_client)
+  end
+
+  let(:jobs) do
+    events = (1..10).map do |i|
+      {
+          "Event Name"      => i.to_s,
+          "Count"           => i,
+          "Event Timestamp" => Time.now.utc.to_datetime,
+          "Event Date"      => Time.now.utc.to_date,
+          "Percent"         => ((i.to_f/10)*100).round(2)
+      }
+    end
+
+    csv_encode_opts = {
+        :headers => events[0].keys,
+        :write_headers => false,
+        :return_headers => false,
+    }
+    events.map do |e|
+      csv_data = CSV.generate(String.new, csv_encode_opts) do |csv_obj|
+        data = e.sort_by { |k, _| events[0].key(k) }.to_h
+        csv_obj << data.values
+      end
+      csv_data = csv_data.strip
+      Domo::Queue::Job.new(csv_data)
+    end
+  end
+
   let(:old_dataset) { stream_config }
   let(:new_dataset) { bootstrap_dataset(domo_client, "_BATCH_DATE_") }
   let(:lib_root) { File.expand_path(File.dirname(File.dirname(File.dirname(__FILE__ )))) }
@@ -438,9 +483,22 @@ describe "rake tasks", rake: true do
 
   context "task is domo:migrate_queue" do
     let(:task_name) { "domo:migrate_queue" }
+    let(:old_queue) { Domo::Queue::Redis::JobQueue.active_queue(redis_client, old_dataset['dataset_id'], old_dataset['stream_id'], 'main') }
+    let(:new_queue) { Domo::Queue::Redis::JobQueue.active_queue(redis_client, new_dataset['dataset_id'], new_dataset['stream_id'], 'main') }
 
-    it "works" do
+    before(:each) do
+      jobs.each do |job|
+        old_queue << job
+      end
+    end
+
+    it "moves everything from the old queue to the new queue" do
+      expect(old_queue.length).to eq(10)
+      expect(new_queue.length).to eq(0)
+
       subject.invoke(old_dataset["dataset_id"], new_dataset["dataset_id"])
+      expect(old_queue.length).to eq(0)
+      expect(new_queue.length).to eq(10)
     end
   end
 

@@ -82,10 +82,9 @@ namespace :domo do
 
     old_queue = Domo::Queue::Redis::JobQueue.active_queue(redis_client, args.old_dataset_id, old_stream.getId, 'main')
     new_queue = Domo::Queue::Redis::JobQueue.active_queue(redis_client, args.new_dataset_id, new_stream.getId, 'main')
-
     num_old_jobs = old_queue.length + old_queue.failures.length
     old_pending_data = old_queue.pending_jobs.length
-    until old_queue.all_empty?
+    until old_queue.processed?(true)
       old_queue.failures.reprocess_jobs!
       job = old_queue.pop
 
