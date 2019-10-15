@@ -884,7 +884,7 @@ module Domo
           # Set the stop parameters for our calls to LRANGE and LTRIM based on min_upload_size / shutdown
           if shutdown or min_upload_size == 0
             # Grab the entire queue and clear it
-            min_upload_size = -1
+            min_upload_size = length + 1
             lrange_stop = -1
             ltrim_stop = 0
           else

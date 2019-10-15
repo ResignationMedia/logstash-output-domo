@@ -464,7 +464,7 @@ describe "rake tasks", rake: true do
         data = e.sort_by { |k, _| events[0].key(k) }.to_h
         csv_obj << data.values
       end
-      csv_data = csv_data.strip
+      csv_data = [csv_data.strip]
       Domo::Queue::Job.new(csv_data)
     end
   end
@@ -481,24 +481,60 @@ describe "rake tasks", rake: true do
     rake.rake_require(rake_filename, [tasks_path], loaded_files)
   end
 
-  context "task is domo:migrate_queue" do
+  context "when the task is domo:migrate_queue" do
     let(:task_name) { "domo:migrate_queue" }
-    let(:old_queue) { Domo::Queue::Redis::JobQueue.active_queue(redis_client, old_dataset['dataset_id'], old_dataset['stream_id'], 'main') }
-    let(:new_queue) { Domo::Queue::Redis::JobQueue.active_queue(redis_client, new_dataset['dataset_id'], new_dataset['stream_id'], 'main') }
+    let!(:old_queue) { Domo::Queue::Redis::JobQueue.active_queue(redis_client, old_dataset['dataset_id'], old_dataset['stream_id'], 'main') }
+    let!(:new_queue) { Domo::Queue::Redis::JobQueue.active_queue(redis_client, new_dataset['dataset_id'], new_dataset['stream_id'], 'main') }
+    let!(:task_args) { [old_dataset["dataset_id"], old_dataset["stream_id"], new_dataset["dataset_id"], new_dataset["stream_id"], true] }
 
     before(:each) do
+      # Load the queue up with our jobs
       jobs.each do |job|
         old_queue << job
       end
+    end
+
+    after(:each) do |example|
+      # Make sure the queues are clear
+      old_queue.clear
+      new_queue.clear
+      # Re-enable the rake task for subsequent tests
+      subject.reenable
     end
 
     it "moves everything from the old queue to the new queue" do
       expect(old_queue.length).to eq(10)
       expect(new_queue.length).to eq(0)
 
-      subject.invoke(old_dataset["dataset_id"], new_dataset["dataset_id"])
+      subject.invoke(*task_args)
       expect(old_queue.length).to eq(0)
       expect(new_queue.length).to eq(10)
+    end
+
+    it "moves failed and pending jobs to the new queue" do
+      old_queue.failures << jobs[0]
+
+      pending_data = old_queue.pop.data
+      old_queue.pending_jobs << [pending_data, pending_data]
+
+      expect(old_queue.length).to eq(9)
+      expect(old_queue.failures.length).to eq(1)
+      expect(old_queue.pending_jobs.length).to eq(2)
+
+      subject.invoke(*task_args)
+
+      expect(old_queue.length).to eq(0)
+      expect(old_queue.pending_jobs.length).to eq(0)
+      expect(old_queue.all_empty?).to be(true)
+
+      expect(new_queue.length).to eq(11)
+      data_rows = Array.new
+      new_queue.each_with_index do |job, i|
+        expect(job.data.length).to be >= 1
+        data_rows += job.data
+      end
+
+      expect(data_rows.length).to eq(12)
     end
   end
 

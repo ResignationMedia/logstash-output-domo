@@ -18,9 +18,7 @@ module Domo
     # @param scopes [Array<Java::ComDomoSdkRequest::Scope>, Java::ComDomoSdkRequest::Scope] The OAuth permission scopes.
     # @return [Client]
     def initialize(client_id, client_secret, api_host, use_https, scopes)
-      unless scopes.is_a? Array
-        scopes = [scopes]
-      end
+      scopes = [scopes] unless scopes.is_a? Array
       # Build the API client configuration
       client_config = Java::ComDomoSdkRequest::Config.with
                           .clientId(client_id)
@@ -129,6 +127,7 @@ module Domo
         if s.dataset.getId == dataset_id
           stream = s
           return stream unless include_execution
+
           break
         end
       end
@@ -151,6 +150,7 @@ module Domo
     def self.request_error_status_code(e)
       # Future proofing in case DOMO gets their act together with the SDK's exception handling
       return e.getStatusCode if e&.getStatusCode != -1
+
       begin
         # GROSS. Fix this DOMO.
         # Yes, that's right they have a typo somewhere.
@@ -168,7 +168,14 @@ module Domo
       # Sometimes API error messages come back as HTML documents with the status code in the <title> tag O_o
       rescue JSON::ParserError => ex
         html_doc = Nokogiri::HTML(e.to_s)
-        title = html_doc.xpath('//title')[0].content
+        title = html_doc.xpath('//title')
+        if title.nil? or title.length <=0 or title[0].nil?
+          return e.getStatusCode unless e.nil?
+
+          return e
+        end
+
+        title = title[0].content
         if title =~ /^Error [0-9]{3}.*$/
           status_code = title.split(' ')[1]
           status_code = status_code.to_i
@@ -179,6 +186,7 @@ module Domo
         status_code
       rescue NoMethodError => ex
         return e.getStatusCode unless e.nil?
+
         e
       end
     end

@@ -186,9 +186,8 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
   # The redis key for getting / incrementing the part number.
   # @return [String]
   def part_num_key
-    if @queue.is_a? Domo::Queue::RedisQueue
-      return @queue.part_num_key
-    end
+    return @queue.part_num_key if @queue.is_a? Domo::Queue::RedisQueue
+
     part_num_key = "#{Domo::Queue::RedisQueue::KEY_PREFIX_FORMAT}" % {:dataset_id => @dataset_id, :stream_id => @stream_id}
     "#{part_num_key}#{Domo::Queue::RedisQueue::KEY_SUFFIXES[:PART_NUM]}"
   end
@@ -210,7 +209,7 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
     rescue Java::ComDomoSdkRequest::RequestException => e
       status_code = Domo::Client.request_error_status_code(e)
       @logger.error(e, :status_code => status_code, :dataset_id => @dataset_id, :stream_id => @stream_id)
-      raise LogStash::ConfigurationError.new("Either Dataset ID #{@dataset_id} is invalid or the Stream (#{@stream_id}) associated with it is invalid. See error logs for more detail.")
+      raise LogStash::ConfigurationError, "Either Dataset ID #{@dataset_id} is invalid or the Stream (#{@stream_id}) associated with it is invalid. See error logs for more detail."
     end
     # @type [Integer] The Stream ID.
     @stream_id = stream.getId
@@ -310,6 +309,7 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
   # @return [Domo::Queue::Redis::JobQueue]
   def get_queue
     return @queue unless @queue.nil?
+
     Domo::Queue::Redis::JobQueue.active_queue(@redis_client, @dataset_id, @stream_id, pipeline_id)
   end
 
@@ -475,6 +475,7 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
   def send_to_domo(force_pending=false, force_run=false)
     @queue = get_queue
     return if @queue.processed?(force_pending) and !force_run
+
     # Block until failed jobs are done reprocessing back into the queue
     sleep(0.1) until @queue.failures.length <= 0 or @queue.failures.processing_status != :reprocessing
     # Process the queue
@@ -496,10 +497,10 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
       until force_run or @queue.commit_status != :running or @queue.stuck?(3600)
         sleep(0.1)
         next unless @queue.execution_id
-
       end
 
       break if @queue.processed?(force_pending)
+
       # Get the job from the queue
       job = @queue.pop
       # Skip the job if it has no data for some reason
@@ -510,11 +511,13 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
       # If we're out of jobs, process any failures
       if job.nil?
         break if @queue.failures.length <= 0
+
         # Retry failures if we're into that sort of thing.
         if @retry_failures or @distributed_lock
           # Clear out or update the Job's Execution ID if its associated Stream Execution is no longer valid.
           @lock_manager.lock(lock_key, @lock_timeout) do |locked|
             break unless locked
+
             # Validate the queue's StreamExecution
             unless @queue.execution_id.nil?
               begin
