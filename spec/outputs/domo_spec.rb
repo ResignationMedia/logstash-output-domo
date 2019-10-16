@@ -420,6 +420,7 @@ describe "rake tasks", rake: true do
         }
     )
   end
+
   let!(:tasks_path) do
     File.expand_path(File.join(File.dirname(File.dirname(File.dirname(__FILE__ ))), "rakelib"))
   end
@@ -450,7 +451,8 @@ describe "rake tasks", rake: true do
           "Count"           => i,
           "Event Timestamp" => Time.now.utc.to_datetime,
           "Event Date"      => Time.now.utc.to_date,
-          "Percent"         => ((i.to_f/10)*100).round(2)
+          "Percent"         => ((i.to_f/10)*100).round(2),
+          "_BATCH_DATE_"    => Time.now.utc.to_date
       }
     end
 
@@ -486,6 +488,77 @@ describe "rake tasks", rake: true do
     let!(:old_queue) { Domo::Queue::Redis::JobQueue.active_queue(redis_client, old_dataset['dataset_id'], old_dataset['stream_id'], 'main') }
     let!(:new_queue) { Domo::Queue::Redis::JobQueue.active_queue(redis_client, new_dataset['dataset_id'], new_dataset['stream_id'], 'main') }
     let!(:task_args) { [old_dataset["dataset_id"], old_dataset["stream_id"], new_dataset["dataset_id"], new_dataset["stream_id"], true] }
+
+    let(:plugin_lock_hosts) do
+      redis_servers = Array.new
+      ENV.each do |k, v|
+        if k.start_with? "LOCK_HOST"
+          redis_servers << v
+        end
+      end
+
+      if redis_servers.length <= 0
+        redis_servers = [
+            "redis://localhost:6379"
+        ]
+      end
+
+      redis_servers
+    end
+
+    let(:plugin_redis_client) do
+      {
+          "url"  => ENV["REDIS_URL"],
+      }
+    end
+
+    let(:plugin_redis_sentinels) do
+      sentinels = Array.new
+      ENV.each do |k, v|
+        if k.start_with? "REDIS_SENTINEL_HOST"
+          index = k.split("_")[-1].to_i
+          port = ENV.fetch("REDIS_SENTINEL_PORT_#{index}", 26379)
+
+          sentinel = "#{v}:#{port}"
+          sentinels << sentinel
+        end
+      end
+
+      sentinels
+    end
+
+    let(:global_config) do
+      test_settings.clone.merge(
+          {
+              "distributed_lock" => true,
+              "lock_hosts"       => plugin_lock_hosts,
+              "redis_client"     => plugin_redis_client,
+              "redis_sentinels"  => plugin_redis_sentinels,
+          }
+      )
+    end
+
+    let(:old_queue_plugin) do
+      begin
+        config.merge!(stream_config)
+        LogStash::Outputs::Domo.new(config)
+      rescue ArgumentError
+        global_config.merge!(stream_config)
+        LogStash::Outputs::Domo.new(global_config)
+      end
+    end
+
+    let(:new_queue_plugin) do
+      begin
+        config.merge!(stream_config)
+        config["dataset_id"] = new_queue.instance_variable_get(:@dataset_id)
+        config["stream_id"] = new_queue.instance_variable_get(:@stream_id)
+        LogStash::Outputs::Domo.new(config)
+      rescue ArgumentError
+        global_config.merge!(stream_config)
+        LogStash::Outputs::Domo.new(global_config)
+      end
+    end
 
     before(:each) do
       # Load the queue up with our jobs
@@ -535,6 +608,26 @@ describe "rake tasks", rake: true do
       end
 
       expect(data_rows.length).to eq(12)
+    end
+
+    it "creates jobs that the plugin can actually process", foo: true do
+      expected_domo_data = jobs.map do |job|
+        job_data_to_hash(job, "_BATCH_DATE_")
+      end
+
+      expect(old_queue.length).to eq(10)
+      expect(new_queue.length).to eq(0)
+
+      subject.invoke(*task_args)
+      expect(old_queue.length).to eq(0)
+      expect(new_queue.length).to eq(10)
+
+      new_queue_plugin.register
+      wait_for_commit(new_queue_plugin)
+      new_queue_plugin.close
+
+      dataset_id = new_queue_plugin.instance_variable_get(:@dataset_id)
+      expect(dataset_data_match?(domo_client, dataset_id, expected_domo_data)).to be(true)
     end
   end
 

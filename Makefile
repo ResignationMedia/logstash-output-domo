@@ -33,7 +33,7 @@ endif
 	docker-compose down
 
 rake-test : clean
-	-docker-compose run $(RUN_ARGS)--rm test bundle exec rspec --backtrace --format documentation$(ARGS) --tag rake
+	-docker-compose run $(RUN_ARGS)--rm test bundle exec rspec --backtrace --format documentation$(ARGS) --tag rake$(TAGS)
 	docker-compose down
 
 thread-test :

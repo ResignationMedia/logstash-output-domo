@@ -182,6 +182,49 @@ module DomoHelper
     new_event
   end
 
+  # Map the name of a header in CSV data to a Domo Dataset's columns.
+  #
+  # @param columns [ArrayList[Column]] The Dataset's columns
+  # @param header [String] The name of the CSV header.
+  # @return [Column] The matching Domo Dataset Column.
+  def csv_header_to_column(columns, header)
+    col = columns.select do |col|
+      col.getName == header
+    end
+    return if col.nil? or col.length <= 0
+
+    col[0]
+  end
+
+  # Convert CSV strings embedded in a QueueJob into a Hash
+  #
+  # @param job [Domo::Queue::Job] The job.
+  # @param upload_timestamp [String, nil] The name of the upload_timestamp column, if applicable.
+  # @param partition_field [String, nil] The name of the partition_field column, if applicable.
+  # @return [Hash] A hash representation of the job's data.
+  def job_data_to_hash(job, upload_timestamp=nil, partition_field=nil)
+    columns = test_dataset_columns(upload_timestamp, partition_field)
+    col_names = columns.map(&:getName)
+
+    data = job.data.map do |d|
+      CSV.parse(d)
+    end
+    data = Hash[col_names.zip(data.flatten)]
+
+    data.reduce({}) do |memo, (k,v)|
+      column = csv_header_to_column(columns, k)
+      if k == upload_timestamp
+        v = DateTime.parse(v)
+        v = v.strftime("%Y-%m-%d")
+      elsif column.getType == Java::ComDomoSdkDatasetsModel::ColumnType::DATETIME
+        v = DateTime.parse(v)
+        v = v.strftime("%Y-%m-%d %H:%M:%S")
+      end
+
+      memo.merge({k => v})
+    end
+  end
+
   # Convert a Logstash event to a CSV string while honoring the Domo schema
   #
   # @param event [LogStash::Event] The Logstash event.
@@ -323,6 +366,9 @@ module DomoHelper
         puts "-----"
         puts "Missing Data"
         puts missing_data
+        puts "-----"
+        puts "Actual Data"
+        puts data
         puts "-----"
       end
       return false

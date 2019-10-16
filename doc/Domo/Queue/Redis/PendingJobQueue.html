@@ -114,13 +114,48 @@ rows is less than their minimum size</p>
   
 
 </div>
-
-
-  <h2>Constant Summary</h2>
   
-  <h3 class="inherited">Constants inherited
-     from <span class='object_link'><a href="../RedisQueue.html" title="Domo::Queue::RedisQueue (class)">Domo::Queue::RedisQueue</a></span></h3>
-  <p class="inherited"><span class='object_link'><a href="../RedisQueue.html#KEY_PREFIX_FORMAT-constant" title="Domo::Queue::RedisQueue::KEY_PREFIX_FORMAT (constant)">Domo::Queue::RedisQueue::KEY_PREFIX_FORMAT</a></span>, <span class='object_link'><a href="../RedisQueue.html#KEY_SUFFIXES-constant" title="Domo::Queue::RedisQueue::KEY_SUFFIXES (constant)">Domo::Queue::RedisQueue::KEY_SUFFIXES</a></span></p>
+    <h2>
+      Constant Summary
+      <small><a href="#" class="constants_summary_toggle">collapse</a></small>
+    </h2>
+
+    <dl class="constants">
+      
+        <dt id="SCRIPTS-constant" class="">SCRIPTS =
+          <div class="docstring">
+  <div class="discussion">
+    
+<p>Lua scripts that will be loaded onto the server if they don&#39;t exist
+already Functions that call them should use #evalsha</p>
+
+
+  </div>
+</div>
+<div class="tags">
+  
+
+</div>
+        </dt>
+        <dd><pre class="code"><span class='lbrace'>{</span>
+    <span class='symbol'>:reduce</span> <span class='op'>=&gt;</span> <span class='lbrace'>{</span>
+        <span class='symbol'>:sha</span> <span class='op'>=&gt;</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>519d8884a3188865eda71d41518cf65d0b235231</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span>
+        <span class='symbol'>:code</span> <span class='op'>=&gt;</span> <span class='heredoc_beg'>&lt;&lt;~EOF</span>
+<span class='tstring_content'>            local min_upload_size = ARGV[1]
+            local lrange_stop = ARGV[2]
+            local ltrim_stop = ARGV[3]
+      
+            local data = redis.call(&#39;lrange&#39;, KEYS[1], 0, lrange_stop)
+            redis.call(&#39;ltrim&#39;, KEYS[1], min_upload_size - 1, ltrim_stop)
+            return data
+</span><span class='heredoc_end'>        EOF
+</span>    <span class='rbrace'>}</span>
+<span class='rbrace'>}</span><span class='period'>.</span><span class='id identifier rubyid_freeze'>freeze</span></pre></dd>
+      
+    </dl>
+  
+
+
 
 
 
@@ -213,6 +248,125 @@ rows is less than their minimum size</p>
 </li>
 
       
+        <li class="private ">
+  <span class="summary_signature">
+    
+      <a href="#load_scripts-instance_method" title="#load_scripts (instance method)">#<strong>load_scripts</strong>  &#x21d2; Object </a>
+    
+
+    
+  </span>
+  
+  
+  
+  <span class="note title private">private</span>
+  
+  
+  
+
+  
+    <span class="summary_desc"><div class='inline'>
+<p>Load our Lua scripts into redis if they haven&#39;t been already.</p>
+</div></span>
+  
+</li>
+
+      
+        <li class="public ">
+  <span class="summary_signature">
+    
+      <a href="#merge_ready%3F-instance_method" title="#merge_ready? (instance method)">#<strong>merge_ready?</strong>(row_count, min_upload_size = 0, shutdown = false)  &#x21d2; Boolean </a>
+    
+
+    
+  </span>
+  
+  
+  
+  
+  
+  
+  
+
+  
+    <span class="summary_desc"><div class='inline'>
+<p>Indicates if the queue is ready for a data merge.</p>
+</div></span>
+  
+</li>
+
+      
+        <li class="public ">
+  <span class="summary_signature">
+    
+      <a href="#pop-instance_method" title="#pop (instance method)">#<strong>pop</strong>  &#x21d2; Object </a>
+    
+
+    
+  </span>
+  
+  
+  
+  
+  
+  
+  
+
+  
+    <span class="summary_desc"><div class='inline'></div></span>
+  
+</li>
+
+      
+        <li class="public ">
+  <span class="summary_signature">
+    
+      <a href="#push-instance_method" title="#push (instance method)">#<strong>push</strong>(data)  &#x21d2; Object </a>
+    
+
+    
+      (also: #&lt;&lt;, #add)
+    
+  </span>
+  
+  
+  
+  
+  
+  
+  
+
+  
+    <span class="summary_desc"><div class='inline'></div></span>
+  
+</li>
+
+      
+        <li class="public ">
+  <span class="summary_signature">
+    
+      <a href="#reduce-instance_method" title="#reduce (instance method)">#<strong>reduce</strong>(accumulator, min_upload_size = 0, shutdown = false)  &#x21d2; Array </a>
+    
+
+    
+  </span>
+  
+  
+  
+  
+  
+  
+  
+
+  
+    <span class="summary_desc"><div class='inline'>
+<p>Implements a basic version of Enumerable#reduce except using our Queue and
+the data in it.</p>
+</div></span>
+  
+</li>
+
+      
     </ul>
   
 
@@ -226,7 +380,7 @@ rows is less than their minimum size</p>
   
   
   <h3 class="inherited">Methods inherited from <span class='object_link'><a href="../RedisQueue.html" title="Domo::Queue::RedisQueue (class)">Domo::Queue::RedisQueue</a></span></h3>
-  <p class="inherited"><span class='object_link'><a href="../RedisQueue.html#<<-instance_method" title="Domo::Queue::RedisQueue#&lt;&lt; (method)">#<<</a></span>, <span class='object_link'><a href="../RedisQueue.html#[]-instance_method" title="Domo::Queue::RedisQueue#[] (method)">#[]</a></span>, <span class='object_link'><a href="../RedisQueue.html#add-instance_method" title="Domo::Queue::RedisQueue#add (method)">#add</a></span>, <span class='object_link'><a href="../RedisQueue.html#any%3F-instance_method" title="Domo::Queue::RedisQueue#any? (method)">#any?</a></span>, <span class='object_link'><a href="../RedisQueue.html#each-instance_method" title="Domo::Queue::RedisQueue#each (method)">#each</a></span>, <span class='object_link'><a href="../RedisQueue.html#each_with_index-instance_method" title="Domo::Queue::RedisQueue#each_with_index (method)">#each_with_index</a></span>, <span class='object_link'><a href="../RedisQueue.html#empty%3F-instance_method" title="Domo::Queue::RedisQueue#empty? (method)">#empty?</a></span>, <span class='object_link'><a href="../RedisQueue.html#length-instance_method" title="Domo::Queue::RedisQueue#length (method)">#length</a></span>, <span class='object_link'><a href="../RedisQueue.html#pop-instance_method" title="Domo::Queue::RedisQueue#pop (method)">#pop</a></span>, <span class='object_link'><a href="../RedisQueue.html#push-instance_method" title="Domo::Queue::RedisQueue#push (method)">#push</a></span>, <span class='object_link'><a href="../RedisQueue.html#reduce-instance_method" title="Domo::Queue::RedisQueue#reduce (method)">#reduce</a></span>, <span class='object_link'><a href="../RedisQueue.html#set_last_commit-instance_method" title="Domo::Queue::RedisQueue#set_last_commit (method)">#set_last_commit</a></span>, <span class='object_link'><a href="../RedisQueue.html#size-instance_method" title="Domo::Queue::RedisQueue#size (method)">#size</a></span>, <span class='object_link'><a href="../RedisQueue.html#unshift-instance_method" title="Domo::Queue::RedisQueue#unshift (method)">#unshift</a></span></p>
+  <p class="inherited"><span class='object_link'><a href="../RedisQueue.html#[]-instance_method" title="Domo::Queue::RedisQueue#[] (method)">#[]</a></span>, <span class='object_link'><a href="../RedisQueue.html#any%3F-instance_method" title="Domo::Queue::RedisQueue#any? (method)">#any?</a></span>, <span class='object_link'><a href="../RedisQueue.html#each-instance_method" title="Domo::Queue::RedisQueue#each (method)">#each</a></span>, <span class='object_link'><a href="../RedisQueue.html#each_with_index-instance_method" title="Domo::Queue::RedisQueue#each_with_index (method)">#each_with_index</a></span>, <span class='object_link'><a href="../RedisQueue.html#empty%3F-instance_method" title="Domo::Queue::RedisQueue#empty? (method)">#empty?</a></span>, <span class='object_link'><a href="../RedisQueue.html#length-instance_method" title="Domo::Queue::RedisQueue#length (method)">#length</a></span>, <span class='object_link'><a href="../RedisQueue.html#set_last_commit-instance_method" title="Domo::Queue::RedisQueue#set_last_commit (method)">#set_last_commit</a></span>, <span class='object_link'><a href="../RedisQueue.html#size-instance_method" title="Domo::Queue::RedisQueue#size (method)">#size</a></span>, <span class='object_link'><a href="../RedisQueue.html#unshift-instance_method" title="Domo::Queue::RedisQueue#unshift (method)">#unshift</a></span></p>
 <div id="constructor_details" class="method_details_list">
   <h2>Constructor Details</h2>
   
@@ -306,19 +460,23 @@ rows is less than their minimum size</p>
       <pre class="lines">
 
 
-810
-811
-812
-813
-814</pre>
+837
+838
+839
+840
+841
+842
+843</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/domo/queue/redis.rb', line 810</span>
+      <pre class="code"><span class="info file"># File 'lib/domo/queue/redis.rb', line 837</span>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_initialize'>initialize</span><span class='lparen'>(</span><span class='id identifier rubyid_redis_client'>redis_client</span><span class='comma'>,</span> <span class='id identifier rubyid_dataset_id'>dataset_id</span><span class='comma'>,</span> <span class='id identifier rubyid_stream_id'>stream_id</span><span class='comma'>,</span> <span class='id identifier rubyid_pipeline_id'>pipeline_id</span><span class='op'>=</span><span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>main</span><span class='tstring_end'>&#39;</span></span><span class='rparen'>)</span>
   <span class='kw'>super</span><span class='lparen'>(</span><span class='id identifier rubyid_redis_client'>redis_client</span><span class='comma'>,</span> <span class='id identifier rubyid_dataset_id'>dataset_id</span><span class='comma'>,</span> <span class='id identifier rubyid_stream_id'>stream_id</span><span class='comma'>,</span> <span class='id identifier rubyid_pipeline_id'>pipeline_id</span><span class='rparen'>)</span>
   <span class='comment'># @type [String]
-</span>  <span class='ivar'>@queue_name</span> <span class='op'>=</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_redis_key_prefix'>redis_key_prefix</span><span class='embexpr_end'>}</span><span class='embexpr_beg'>#{</span><span class='const'><span class='object_link'><a href="../RedisQueue.html#KEY_SUFFIXES-constant" title="Domo::Queue::RedisQueue::KEY_SUFFIXES (constant)">KEY_SUFFIXES</a></span></span><span class='lbracket'>[</span><span class='symbol'>:PENDING</span><span class='rbracket'>]</span><span class='embexpr_end'>}</span><span class='tstring_end'>&quot;</span></span>
+</span>  <span class='ivar'>@queue_name</span> <span class='op'>=</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='embexpr_beg'>#{</span><span class='id identifier rubyid_redis_key_prefix'>redis_key_prefix</span><span class='embexpr_end'>}</span><span class='embexpr_beg'>#{</span><span class='const'><span class='object_link'><a href="../../Queue.html#KEY_SUFFIXES-constant" title="Domo::Queue::KEY_SUFFIXES (constant)">KEY_SUFFIXES</a></span></span><span class='lbracket'>[</span><span class='symbol'>:PENDING</span><span class='rbracket'>]</span><span class='embexpr_end'>}</span><span class='tstring_end'>&quot;</span></span>
+  <span class='comment'># Load in our Lua scripts
+</span>  <span class='id identifier rubyid_load_scripts'>load_scripts</span>
 <span class='kw'>end</span></pre>
     </td>
   </tr>
@@ -358,12 +516,12 @@ rows is less than their minimum size</p>
       <pre class="lines">
 
 
-817
-818
-819</pre>
+858
+859
+860</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/domo/queue/redis.rb', line 817</span>
+      <pre class="code"><span class="info file"># File 'lib/domo/queue/redis.rb', line 858</span>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_clear'>clear</span>
   <span class='ivar'>@client</span><span class='period'>.</span><span class='id identifier rubyid_del'>del</span><span class='lparen'>(</span><span class='ivar'>@queue_name</span><span class='rparen'>)</span>
@@ -427,17 +585,400 @@ rows is less than their minimum size</p>
       <pre class="lines">
 
 
-825
-826
-827
-828</pre>
+905
+906
+907
+908</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/domo/queue/redis.rb', line 825</span>
+      <pre class="code"><span class="info file"># File 'lib/domo/queue/redis.rb', line 905</span>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_data_part_valid?'>data_part_valid?</span><span class='lparen'>(</span><span class='id identifier rubyid_data_part'>data_part</span><span class='rparen'>)</span>
   <span class='comment'># All RedisDataPart objects are valid for this queue.
 </span>  <span class='kw'>true</span>
+<span class='kw'>end</span></pre>
+    </td>
+  </tr>
+</table>
+</div>
+    
+      <div class="method_details ">
+  <h3 class="signature " id="load_scripts-instance_method">
+  
+    #<strong>load_scripts</strong>  &#x21d2; <tt>Object</tt>  <span class="extras">(private)</span>
+  
+
+  
+
+  
+</h3><div class="docstring">
+  <div class="discussion">
+    
+<p>Load our Lua scripts into redis if they haven&#39;t been already.</p>
+
+
+  </div>
+</div>
+<div class="tags">
+  
+
+</div><table class="source_code">
+  <tr>
+    <td>
+      <pre class="lines">
+
+
+912
+913
+914
+915
+916
+917
+918</pre>
+    </td>
+    <td>
+      <pre class="code"><span class="info file"># File 'lib/domo/queue/redis.rb', line 912</span>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_load_scripts'>load_scripts</span>
+  <span class='const'><span class='object_link'><a href="#SCRIPTS-constant" title="Domo::Queue::Redis::PendingJobQueue::SCRIPTS (constant)">SCRIPTS</a></span></span><span class='period'>.</span><span class='id identifier rubyid_each'><span class='object_link'><a href="../RedisQueue.html#each-instance_method" title="Domo::Queue::RedisQueue#each (method)">each</a></span></span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_n'>n</span><span class='comma'>,</span> <span class='id identifier rubyid_s'>s</span><span class='op'>|</span>
+    <span class='kw'>unless</span> <span class='ivar'>@client</span><span class='period'>.</span><span class='id identifier rubyid_script'>script</span><span class='lparen'>(</span><span class='symbol'>:exists</span><span class='comma'>,</span> <span class='id identifier rubyid_s'>s</span><span class='lbracket'>[</span><span class='symbol'>:sha</span><span class='rbracket'>]</span><span class='rparen'>)</span>
+      <span class='ivar'>@client</span><span class='period'>.</span><span class='id identifier rubyid_script'>script</span><span class='lparen'>(</span><span class='symbol'>:load</span><span class='comma'>,</span> <span class='id identifier rubyid_s'>s</span><span class='lbracket'>[</span><span class='symbol'>:code</span><span class='rbracket'>]</span><span class='rparen'>)</span>
+    <span class='kw'>end</span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span></pre>
+    </td>
+  </tr>
+</table>
+</div>
+    
+      <div class="method_details ">
+  <h3 class="signature " id="merge_ready?-instance_method">
+  
+    #<strong>merge_ready?</strong>(row_count, min_upload_size = 0, shutdown = false)  &#x21d2; <tt>Boolean</tt> 
+  
+
+  
+
+  
+</h3><div class="docstring">
+  <div class="discussion">
+    
+<p>Indicates if the queue is ready for a data merge</p>
+
+
+  </div>
+</div>
+<div class="tags">
+  <p class="tag_title">Parameters:</p>
+<ul class="param">
+  
+    <li>
+      
+        <span class='name'>row_count</span>
+      
+      
+        <span class='type'>(<tt>Integer</tt>)</span>
+      
+      
+      
+        &mdash;
+        <div class='inline'>
+<p>The number of rows we&#39;re trying to merge</p>
+</div>
+      
+    </li>
+  
+    <li>
+      
+        <span class='name'>min_upload_size</span>
+      
+      
+        <span class='type'>(<tt>Integer</tt>)</span>
+      
+      
+        <em class="default">(defaults to: <tt>0</tt>)</em>
+      
+      
+        &mdash;
+        <div class='inline'>
+<p>The minimum upload batch size</p>
+</div>
+      
+    </li>
+  
+    <li>
+      
+        <span class='name'>shutdown</span>
+      
+      
+        <span class='type'>(<tt>Boolean</tt>)</span>
+      
+      
+        <em class="default">(defaults to: <tt>false</tt>)</em>
+      
+      
+        &mdash;
+        <div class='inline'>
+<p>Indicates that Logstash is shutting down and we should ignore
+min_upload_size</p>
+</div>
+      
+    </li>
+  
+</ul>
+
+<p class="tag_title">Returns:</p>
+<ul class="return">
+  
+    <li>
+      
+      
+        <span class='type'>(<tt>Boolean</tt>)</span>
+      
+      
+      
+    </li>
+  
+</ul>
+
+</div><table class="source_code">
+  <tr>
+    <td>
+      <pre class="lines">
+
+
+850
+851
+852
+853
+854
+855</pre>
+    </td>
+    <td>
+      <pre class="code"><span class="info file"># File 'lib/domo/queue/redis.rb', line 850</span>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_merge_ready?'>merge_ready?</span><span class='lparen'>(</span><span class='id identifier rubyid_row_count'>row_count</span><span class='comma'>,</span> <span class='id identifier rubyid_min_upload_size'>min_upload_size</span><span class='op'>=</span><span class='int'>0</span><span class='comma'>,</span> <span class='id identifier rubyid_shutdown'>shutdown</span><span class='op'>=</span><span class='kw'>false</span><span class='rparen'>)</span>
+  <span class='kw'>return</span> <span class='kw'>false</span> <span class='kw'>unless</span> <span class='id identifier rubyid_length'>length</span> <span class='op'>&gt;</span> <span class='int'>0</span>
+  <span class='kw'>return</span> <span class='kw'>false</span> <span class='kw'>unless</span> <span class='id identifier rubyid_shutdown'>shutdown</span> <span class='kw'>or</span> <span class='id identifier rubyid_length'>length</span> <span class='op'>+</span> <span class='id identifier rubyid_row_count'>row_count</span> <span class='op'>&gt;=</span> <span class='id identifier rubyid_min_upload_size'>min_upload_size</span>
+
+  <span class='kw'>true</span>
+<span class='kw'>end</span></pre>
+    </td>
+  </tr>
+</table>
+</div>
+    
+      <div class="method_details ">
+  <h3 class="signature " id="pop-instance_method">
+  
+    #<strong>pop</strong>  &#x21d2; <tt>Object</tt> 
+  
+
+  
+
+  
+</h3><table class="source_code">
+  <tr>
+    <td>
+      <pre class="lines">
+
+
+862
+863
+864</pre>
+    </td>
+    <td>
+      <pre class="code"><span class="info file"># File 'lib/domo/queue/redis.rb', line 862</span>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_pop'>pop</span>
+  <span class='ivar'>@client</span><span class='period'>.</span><span class='id identifier rubyid_lpop'>lpop</span><span class='lparen'>(</span><span class='ivar'>@queue_name</span><span class='rparen'>)</span>
+<span class='kw'>end</span></pre>
+    </td>
+  </tr>
+</table>
+</div>
+    
+      <div class="method_details ">
+  <h3 class="signature " id="push-instance_method">
+  
+    #<strong>push</strong>(data)  &#x21d2; <tt>Object</tt> 
+  
+
+  
+    <span class="aliases">Also known as:
+    <span class="names"><span id='<<-instance_method'>&lt;&lt;</span>, <span id='add-instance_method'>add</span></span>
+    </span>
+  
+
+  
+</h3><table class="source_code">
+  <tr>
+    <td>
+      <pre class="lines">
+
+
+866
+867
+868
+869
+870
+871
+872</pre>
+    </td>
+    <td>
+      <pre class="code"><span class="info file"># File 'lib/domo/queue/redis.rb', line 866</span>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_push'>push</span><span class='lparen'>(</span><span class='id identifier rubyid_data'>data</span><span class='rparen'>)</span>
+  <span class='ivar'>@client</span><span class='period'>.</span><span class='id identifier rubyid_pipelined'>pipelined</span> <span class='kw'>do</span>
+    <span class='id identifier rubyid_data'>data</span><span class='period'>.</span><span class='id identifier rubyid_each'>each</span> <span class='kw'>do</span> <span class='op'>|</span><span class='id identifier rubyid_d'>d</span><span class='op'>|</span>
+      <span class='ivar'>@client</span><span class='period'>.</span><span class='id identifier rubyid_rpush'>rpush</span><span class='lparen'>(</span><span class='ivar'>@queue_name</span><span class='comma'>,</span> <span class='id identifier rubyid_d'>d</span><span class='rparen'>)</span>
+    <span class='kw'>end</span>
+  <span class='kw'>end</span>
+<span class='kw'>end</span></pre>
+    </td>
+  </tr>
+</table>
+</div>
+    
+      <div class="method_details ">
+  <h3 class="signature " id="reduce-instance_method">
+  
+    #<strong>reduce</strong>(accumulator, min_upload_size = 0, shutdown = false)  &#x21d2; <tt>Array</tt> 
+  
+
+  
+
+  
+</h3><div class="docstring">
+  <div class="discussion">
+    
+<p>Implements a basic version of Enumerable#reduce except using our Queue and
+the data in it.</p>
+
+
+  </div>
+</div>
+<div class="tags">
+  <p class="tag_title">Parameters:</p>
+<ul class="param">
+  
+    <li>
+      
+        <span class='name'>accumulator</span>
+      
+      
+        <span class='type'>(<tt>Array</tt>)</span>
+      
+      
+      
+        &mdash;
+        <div class='inline'>
+<p>The starting value for the memo.</p>
+</div>
+      
+    </li>
+  
+    <li>
+      
+        <span class='name'>min_upload_size</span>
+      
+      
+        <span class='type'>(<tt>Integer</tt>)</span>
+      
+      
+        <em class="default">(defaults to: <tt>0</tt>)</em>
+      
+      
+        &mdash;
+        <div class='inline'>
+<p>The minimum size for an upload batch. Will grab the entire queue if 0</p>
+</div>
+      
+    </li>
+  
+    <li>
+      
+        <span class='name'>shutdown</span>
+      
+      
+        <span class='type'>(<tt>Boolean</tt>)</span>
+      
+      
+        <em class="default">(defaults to: <tt>false</tt>)</em>
+      
+      
+        &mdash;
+        <div class='inline'>
+<p>Indicates that Logstash is shutting down, which forces the entire queue to
+process.</p>
+</div>
+      
+    </li>
+  
+</ul>
+
+<p class="tag_title">Returns:</p>
+<ul class="return">
+  
+    <li>
+      
+      
+        <span class='type'>(<tt>Array</tt>)</span>
+      
+      
+      
+        &mdash;
+        <div class='inline'>
+<p>The accumulator with min_upload_size rows added to it</p>
+</div>
+      
+    </li>
+  
+</ul>
+
+</div><table class="source_code">
+  <tr>
+    <td>
+      <pre class="lines">
+
+
+883
+884
+885
+886
+887
+888
+889
+890
+891
+892
+893
+894
+895
+896
+897
+898
+899</pre>
+    </td>
+    <td>
+      <pre class="code"><span class="info file"># File 'lib/domo/queue/redis.rb', line 883</span>
+
+<span class='kw'>def</span> <span class='id identifier rubyid_reduce'>reduce</span><span class='lparen'>(</span><span class='id identifier rubyid_accumulator'>accumulator</span><span class='comma'>,</span> <span class='id identifier rubyid_min_upload_size'>min_upload_size</span><span class='op'>=</span><span class='int'>0</span><span class='comma'>,</span> <span class='id identifier rubyid_shutdown'>shutdown</span><span class='op'>=</span><span class='kw'>false</span><span class='rparen'>)</span>
+  <span class='comment'># Set the stop parameters for our calls to LRANGE and LTRIM based on min_upload_size / shutdown
+</span>  <span class='kw'>if</span> <span class='id identifier rubyid_shutdown'>shutdown</span> <span class='kw'>or</span> <span class='id identifier rubyid_min_upload_size'>min_upload_size</span> <span class='op'>==</span> <span class='int'>0</span>
+    <span class='comment'># Grab the entire queue and clear it
+</span>    <span class='id identifier rubyid_min_upload_size'>min_upload_size</span> <span class='op'>=</span> <span class='id identifier rubyid_length'>length</span> <span class='op'>+</span> <span class='int'>1</span>
+    <span class='id identifier rubyid_lrange_stop'>lrange_stop</span> <span class='op'>=</span> <span class='op'>-</span><span class='int'>1</span>
+    <span class='id identifier rubyid_ltrim_stop'>ltrim_stop</span> <span class='op'>=</span> <span class='int'>0</span>
+  <span class='kw'>else</span>
+    <span class='comment'># Grab up to min_upload_size rows from the queue and clear them
+</span>    <span class='id identifier rubyid_lrange_stop'>lrange_stop</span> <span class='op'>=</span> <span class='id identifier rubyid_min_upload_size'>min_upload_size</span> <span class='op'>-</span> <span class='int'>2</span> <span class='comment'># See the LRANGE documentation for why this is -2 instead of -1
+</span>    <span class='id identifier rubyid_ltrim_stop'>ltrim_stop</span> <span class='op'>=</span> <span class='op'>-</span><span class='int'>1</span>
+  <span class='kw'>end</span>
+
+  <span class='comment'># Execute the reduce Lua script and add the return to our accumulator
+</span>  <span class='id identifier rubyid_sha'>sha</span> <span class='op'>=</span> <span class='const'><span class='object_link'><a href="#SCRIPTS-constant" title="Domo::Queue::Redis::PendingJobQueue::SCRIPTS (constant)">SCRIPTS</a></span></span><span class='lbracket'>[</span><span class='symbol'>:reduce</span><span class='rbracket'>]</span><span class='lbracket'>[</span><span class='symbol'>:sha</span><span class='rbracket'>]</span>
+  <span class='id identifier rubyid_accumulator'>accumulator</span> <span class='op'>+</span> <span class='ivar'>@client</span><span class='period'>.</span><span class='id identifier rubyid_evalsha'>evalsha</span><span class='lparen'>(</span><span class='id identifier rubyid_sha'>sha</span><span class='comma'>,</span> <span class='lbracket'>[</span><span class='ivar'>@queue_name</span><span class='rbracket'>]</span><span class='comma'>,</span> <span class='lbracket'>[</span><span class='id identifier rubyid_min_upload_size'>min_upload_size</span><span class='comma'>,</span> <span class='id identifier rubyid_lrange_stop'>lrange_stop</span><span class='comma'>,</span> <span class='id identifier rubyid_ltrim_stop'>ltrim_stop</span><span class='rbracket'>]</span><span class='rparen'>)</span>
 <span class='kw'>end</span></pre>
     </td>
   </tr>
@@ -449,9 +990,9 @@ rows is less than their minimum size</p>
 </div>
 
       <div id="footer">
-  Generated on Tue Apr  9 12:20:27 2019 by
+  Generated on Wed Oct 16 18:02:50 2019 by
   <a href="http://yardoc.org" title="Yay! A Ruby Documentation Tool" target="_parent">yard</a>
-  0.9.18 (ruby-2.3.3).
+  0.9.20 (ruby-2.3.3).
 </div>
 
     </div>

@@ -132,13 +132,11 @@ module Domo
         end
       end
 
-      if stream.nil?
-        raise DomoStreamNotFound.new("No Stream found for Dataset #{dataset_id}", dataset_id, stream_id)
-      end
+      raise DomoStreamNotFound.new("No Stream found for Dataset #{dataset_id}", dataset_id, stream_id) if stream.nil?
 
       if include_execution
         stream_execution = stream_execution(stream)
-        return  stream, stream_execution
+        return stream, stream_execution
       end
       stream
     end
@@ -169,7 +167,7 @@ module Domo
       rescue JSON::ParserError => ex
         html_doc = Nokogiri::HTML(e.to_s)
         title = html_doc.xpath('//title')
-        if title.nil? or title.length <=0 or title[0].nil?
+        if title.nil? or title.length <= 0 or title[0].nil?
           return e.getStatusCode unless e.nil?
 
           return e
