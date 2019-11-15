@@ -590,7 +590,7 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
               until @queue.commit_status != :wait and @queue.commit_status != :running
                 sleep(0.5)
                 if locked.is_a? Hash and locked[:validity] < 1000
-                  locked = @lock_manager.lock(lock_key, @lock_timeout, extend: locked, extend_life: true)
+                  locked = @lock_manager.lock(lock_key, @lock_timeout, extend: locked, extend_only_if_locked: true)
                 end
               end
               stream_execution = @domo_client.stream_client.createExecution(@stream_id)
@@ -715,7 +715,7 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
         break unless api_lock and commit_lock
         # Make sure the API lock and commit lock will last for at least the same amount of time.
         if commit_lock[:validity] <= api_lock[:validity]
-          commit_lock = @lock_manager.lock(commit_lock_key, lock_ttl, extend: commit_lock, extend_life: true)
+          commit_lock = @lock_manager.lock(commit_lock_key, lock_ttl, extend: commit_lock, extend_only_if_locked: true)
         end
         # Validate the active Stream Execution
         unless @queue.execution_id
@@ -774,8 +774,8 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
             sleep(0.5)
             # Keep the locks active
             if commit_lock[:validity] <= 1000 or api_lock[:validity] <= 1000
-              commit_lock = @lock_manager.lock(commit_lock_key, lock_ttl, extend: commit_lock, extend_life: true)
-              api_lock = @lock_manager.lock(lock_key, @lock_timeout, extend: api_lock, extend_life: true)
+              commit_lock = @lock_manager.lock(commit_lock_key, lock_ttl, extend: commit_lock, extend_only_if_locked: true)
+              api_lock = @lock_manager.lock(lock_key, @lock_timeout, extend: api_lock, extend_only_if_locked: true)
             end
           end
           stream_execution = stream_execution.value
@@ -787,8 +787,8 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
             # Give up if we still can't get it
             return :wait unless commit_lock
             # Keep the locks active
-            commit_lock = @lock_manager.lock(commit_lock_key, lock_ttl, extend: commit_lock, extend_life: true) if commit_lock[:validity] <= 1000
-            api_lock = @lock_manager.lock(lock_key, @lock_timeout, extend: api_lock, extend_life: true) if api_lock and api_lock[:validity] <= 1000
+            commit_lock = @lock_manager.lock(commit_lock_key, lock_ttl, extend: commit_lock, extend_only_if_locked: true) if commit_lock[:validity] <= 1000
+            api_lock = @lock_manager.lock(lock_key, @lock_timeout, extend: api_lock, extend_only_if_locked: true) if api_lock and api_lock[:validity] <= 1000
             # Update the StreamExecution from the API.
             begin
               stream_execution = @domo_client.stream_client.getExecution(@stream_id, execution_id)

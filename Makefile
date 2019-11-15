@@ -26,7 +26,7 @@ test : clean
 
 redlock-test : clean
 ifeq ($(TAGS),)
-	-docker-compose run $(RUN_ARGS) --rm test bundle exec rspec --backtrace --format documentation$(ARGS) --tag redis_queue --tag redlock --tag ~thread_lock
+	-docker-compose run $(RUN_ARGS) --rm test bundle exec rspec --backtrace --format documentation$(ARGS) --tag redis_queue --tag redlock --tag ~thread_lock --tag ~rake
 else
 	-docker-compose run $(RUN_ARGS) --rm test bundle exec rspec --backtrace --format documentation$(ARGS)$(TAGS)
 endif

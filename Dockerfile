@@ -13,8 +13,9 @@ COPY --chown=redis:redis testing/redis-sentinel.conf /usr/local/etc/redis/redis-
 FROM redis AS sentinel3
 COPY --chown=redis:redis testing/redis-sentinel.conf /usr/local/etc/redis/redis-sentinel.conf
 
-FROM jruby:9.1.17 AS test
+FROM jruby:9.2.8.0 AS test
 RUN mkdir /logstash-output-domo
 COPY . /logstash-output-domo
 WORKDIR /logstash-output-domo
+RUN gem install bundler --version 1.17.3
 RUN bundle install

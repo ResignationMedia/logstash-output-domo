@@ -1,6 +1,6 @@
 Gem::Specification.new do |s|
   s.name          = 'logstash-output-domo'
-  s.version       = '2.0.2-beta.1'
+  s.version       = '3.0.0-alpha.1'
   s.licenses      = ['Apache-2.0']
   s.summary       = 'Output events to the DOMO Streams API.'
   s.homepage      = 'https://github.com/ResignationMedia/logstash-output-domo'
@@ -30,12 +30,12 @@ Gem::Specification.new do |s|
   s.requirements << "jar 'com.squareup.okio:okio', '2.1.0'"
 
   # Gem dependencies
-  s.add_runtime_dependency "logstash-core-plugin-api", "~> 2.0"
+  s.add_runtime_dependency "logstash-core-plugin-api", ">= 1.60", "<= 2.99"
   s.add_runtime_dependency "logstash-codec-plain"
   s.add_runtime_dependency "concurrent-ruby", "~> 1.0"
   s.add_runtime_dependency "jar-dependencies"
-  s.add_runtime_dependency "redis", ">= 3.0.0", "< 5.0"
-  s.add_runtime_dependency "redlock", "~> 1.0"
+  s.add_runtime_dependency "redis", "~> 4.0"
+  s.add_runtime_dependency "redlock", "~> 1.1"
   s.add_runtime_dependency "nokogiri", "~> 1.10", ">= 1.10.1"
 
   s.add_development_dependency "logstash-devutils"

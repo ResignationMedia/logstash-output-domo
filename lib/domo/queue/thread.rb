@@ -21,15 +21,15 @@ module Domo
       # Lock the Mutex named resource and yield or return the status of the lock
       #
       # @param resource [String] The key name in @locks for the Mutex
-      # @param extend_life [Boolean] Extend the life of the lock if this thread is holding it.
+      # @param extend_only_if_locked [Boolean] Extend the life of the lock if this thread is holding it.
       # @return [Mutex] The Mutex lock.
-      def lock(resource, *args, extend_life: false, **kwargs)
+      def lock(resource, *args, extend_only_if_locked: false, **kwargs)
         # Get or create the Mutex
         unless @locks.fetch(resource, nil)&.locked?
           @locks[resource] = Mutex.new
         end
         lock = @locks[resource]
-        lock_info = lock_info(lock, resource, extend_life: extend_life)
+        lock_info = lock_info(lock, resource, extend_only_if_locked: extend_only_if_locked)
 
         if block_given?
           begin
@@ -47,13 +47,13 @@ module Domo
       #
       # @param lock [Mutex] The associated Mutex lock.
       # @param resource [String] The key in the @locks Hash housing the lock.
-      # @param extend_life [Boolean] Don't try to lock the Mutex if the caller is "extending" the lock.
+      # @param extend_only_if_locked [Boolean] Don't try to lock the Mutex if the caller is "extending" the lock.
       #   We need this for Redlock compatibility.
-      def lock_info(lock, resource, extend_life: false)
-        if lock&.locked? and not extend_life
+      def lock_info(lock, resource, extend_only_if_locked: false)
+        if lock&.locked? and not extend_only_if_locked
           return false unless lock.try_lock
         end
-        unless extend_life
+        unless extend_only_if_locked
           begin
             lock.lock
           rescue ThreadError => e
