@@ -197,8 +197,8 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
     # @type [Domo::Client] A client connection to Domo's APIs.
     @domo_client = Domo::Client.new(@client_id, @client_secret, @api_host, @api_ssl, Java::ComDomoSdkRequest::Scope::DATA)
 
-    # @type [Mutex] The Mutex we'll be using to lock writes to @commit_thread
-    @semaphore = Mutex.new
+    # @type [Domo::Queue::ThreadLockManager] The Mutex we'll be using to lock writes to @commit_thread
+    @semaphore = Domo::Queue::ThreadLockManager.new
 
     if @upload_max_batch_size > 0 and @upload_min_batch_size > @upload_max_batch_size
       raise LogStash::ConfigurationError.new("upload_min_batch_size cannot be larger than upload_max_batch_size")
@@ -256,18 +256,18 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
           :retry_count => redlock_retry_count(@lock_retry_delay),
           :retry_delay => @lock_retry_delay,
       }
-      @lock_manager = Redlock::Client.new(@lock_hosts, redlock_options)
+      @commit_lock_manager = Redlock::Client.new(@lock_hosts, redlock_options)
     else
-      @lock_manager = Domo::Queue::ThreadLockManager.new
+      @commit_lock_manager = Domo::Queue::ThreadLockManager.new
     end
 
     @queue = get_queue
     # @type [Concurrent::ScheduledTask, nil]
-    @semaphore.synchronize do
+    @semaphore.lock(lock_key, @lock_timeout) do |locked|
       @commit_task ||= nil
     end
     # Reset the commit status and possibly the Queue's execution_id after possible abnormal terminations
-    @lock_manager.lock(commit_lock_key, @lock_timeout) do |locked|
+    @commit_lock_manager.lock(commit_lock_key, @lock_timeout) do |locked|
       if locked and @queue.commit_status == :running
         begin
           if @queue.execution_id
@@ -303,7 +303,7 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
             commit_status = @commit_task&.value
           else
             commit_status = commit_stream
-            @semaphore.synchronize do
+            @semaphore.lock(lock_key, @lock_timeout) do |locked|
               @commit_task = nil
             end
           end
@@ -415,6 +415,7 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
   def try_commit(shutdown=false)
     if commit_ready? and @queue.execution_id
       commit_stream(shutdown) unless @queue.commit_scheduled?
+
       if @queue.commit_stalled?(@commit_delay) and @queue.commit_scheduled?
         @commit_task.cancel if @commit_task&.pending?
         commit_stream(shutdown)
@@ -431,22 +432,20 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
       sleep_time = @queue.commit_delay(@commit_delay)
       if sleep_time > 0 and @queue.commit_status != :running
         @queue.commit_status = :open
+
         if @queue.commit_stalled?(@commit_delay)
-          @semaphore.synchronize do
-            if @commit_task.nil? and @queue.execution_id
-              @commit_task = Concurrent::ScheduledTask.execute(0.0) { commit_stream(shutdown) }
-            elsif @commit_task&.pending?
-              @commit_task.reschedule(sleep_time)
-              @queue.schedule
-            end
+          if @commit_task.nil? and @queue.execution_id
+            @commit_task = Concurrent::ScheduledTask.execute(0.0) { commit_stream(shutdown) }
+          elsif @commit_task&.pending?
+            @commit_task.reschedule(sleep_time)
+            @queue.schedule
           end
 
           sleep(0.1) until @commit_task.complete? if @commit_task&.processing?
+
           if @commit_task&.incomplete? and @queue.execution_id
-            @semaphore.synchronize do
-              @commit_task.cancel
-              @commit_task = Concurrent::ScheduledTask.execute(sleep_time) { commit_stream(shutdown) }
-            end
+            @commit_task.cancel
+            @commit_task = Concurrent::ScheduledTask.execute(sleep_time) { commit_stream(shutdown) }
           end
         end
         if @queue.commit_unscheduled? and @commit_task&.pending?
@@ -455,29 +454,27 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
         end
         if @queue.commit_unscheduled? and @queue.execution_id
           begin
-            @lock_manager.lock(commit_lock_key, @lock_timeout) do |locked|
+            @commit_lock_manager.lock(commit_lock_key, @lock_timeout) do |locked|
               if locked and @queue.commit_unscheduled?
-                @semaphore.synchronize do
-                  @queue.schedule
-                  @logger.info("The API is not ready for committing yet. Will sleep for %0.2f seconds." % [sleep_time],
-                               :stream_id    => @stream_id,
-                               :pipeline_id  => pipeline_id,
-                               :dataset_id   => @dataset_id,
-                               :execution_id => @queue.execution_id,
-                               :commit_delay => @commit_delay,
-                               :sleep_time   => sleep_time,
-                               :last_commit  => @queue.last_commit,
-                               :next_commit  => @queue.next_commit(@commit_delay),
-                               :commit_rows  => @queue.commit_rows)
-                  @commit_task = Concurrent::ScheduledTask.execute(sleep_time) { commit_stream(shutdown) }
-                end
+                @queue.schedule
+                @logger.info("The API is not ready for committing yet. Will sleep for %0.2f seconds." % [sleep_time],
+                             :stream_id    => @stream_id,
+                             :pipeline_id  => pipeline_id,
+                             :dataset_id   => @dataset_id,
+                             :execution_id => @queue.execution_id,
+                             :commit_delay => @commit_delay,
+                             :sleep_time   => sleep_time,
+                             :last_commit  => @queue.last_commit,
+                             :next_commit  => @queue.next_commit(@commit_delay),
+                             :commit_rows  => @queue.commit_rows)
+                @commit_task = Concurrent::ScheduledTask.execute(sleep_time) { commit_stream(shutdown) }
               end
             end
           rescue Redis::BaseConnectionError
             # Once redlock-rb does a release with this pull request we can drop this rescue block https://github.com/leandromoreira/redlock-rb/pull/75
           end
-        elsif !@semaphore.locked? and @commit_task&.pending?
-          @semaphore.synchronize { @commit_task.reschedule(sleep_time) }
+        elsif @commit_task&.pending?
+          @commit_task.reschedule(sleep_time)
           @queue.schedule
         end
       else
@@ -534,7 +531,7 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
         # Retry failures if we're into that sort of thing.
         if @retry_failures or @distributed_lock
           # Clear out or update the Job's Execution ID if its associated Stream Execution is no longer valid.
-          @lock_manager.lock(lock_key, @lock_timeout) do |locked|
+          @commit_lock_manager.lock(lock_key, @lock_timeout) do |locked|
             break unless locked
 
             # Validate the queue's StreamExecution
@@ -583,7 +580,7 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
         # Prevent unnecessary executions
         return if @queue.processed? and @queue.commit_complete?
         # Get or create a Stream Execution
-        @lock_manager.lock(lock_key, @lock_timeout) do |locked|
+        @commit_lock_manager.lock(lock_key, @lock_timeout) do |locked|
           if locked
             stream_execution = nil
             # Check if the Queue's existing Stream Execution is still valid.
@@ -609,7 +606,7 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
               until @queue.commit_status != :wait and @queue.commit_status != :running
                 sleep(0.5)
                 if locked.is_a? Hash and locked[:validity] < 1000
-                  locked = @lock_manager.lock(lock_key, @lock_timeout, extend: locked, extend_only_if_locked: true)
+                  locked = @commit_lock_manager.lock(lock_key, @lock_timeout, extend: locked, extend_only_if_locked: true)
                 end
               end
               stream_execution = @domo_client.stream_client.createExecution(@stream_id)
@@ -707,157 +704,161 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
     lock_ttl = @lock_timeout if lock_ttl < @lock_timeout
     commit_lock = false
     # Acquire a lock to prevent other workers from executing this function.
-    # Hopefully, redlock-rb will accept our pull request so we don't need this rescue block anymore
-    begin
-      commit_lock = @lock_manager.lock(commit_lock_key, lock_ttl)
-    rescue Redis::BaseConnectionError
-      return :wait
-    end
-    # We'll be locking API later on
-    api_lock = false
-    return :wait unless commit_lock
-    begin
-      # Block everybody from uploading now
-      @queue.commit_status = :running
-      # Keep hanging on to the commit lock until we can commit.
-      while commit_lock
-        # Don't commit unless we're ready or shutting down Logstash
-        # Grab the lock again if we managed to lose it while sleeping
-        unless commit_lock
-          commit_lock = @lock_manager.lock(commit_lock_key, lock_ttl)
-        end
-        break unless commit_lock
-        # Clear out the queue
-        send_to_domo(shutdown, true) until @queue.processed?(shutdown)
-        # Acquire a lock on the key used for the non-commit API calls so nobody goes and creates a new Stream Execution in the middle of this.
-        api_lock = @lock_manager.lock(lock_key, @lock_timeout)
-        break unless api_lock and commit_lock
-        # Make sure the API lock and commit lock will last for at least the same amount of time.
-        if commit_lock[:validity] <= api_lock[:validity]
-          commit_lock = @lock_manager.lock(commit_lock_key, lock_ttl, extend: commit_lock, extend_only_if_locked: true)
-        end
-        # Validate the active Stream Execution
-        unless @queue.execution_id
-          @queue.commit_status = :open
+    @semaphore.lock(lock_key, @lock_timeout) do |locked|
+      break unless locked
+      # Hopefully, redlock-rb will accept our pull request so we don't need this rescue block anymore
+      begin
+        commit_lock = @commit_lock_manager.lock(commit_lock_key, lock_ttl)
+      rescue Redis::BaseConnectionError
+        return :wait
+      end
+      # We'll be locking API later on
+      api_lock = false
+      return :wait unless commit_lock
+
+      begin
+        # Block everybody from uploading now
+        @queue.commit_status = :running
+        # Keep hanging on to the commit lock until we can commit.
+        while commit_lock
+          # Don't commit unless we're ready or shutting down Logstash
+          # Grab the lock again if we managed to lose it while sleeping
+          unless commit_lock
+            commit_lock = @commit_lock_manager.lock(commit_lock_key, lock_ttl)
+          end
+          break unless commit_lock
+          # Clear out the queue
+          send_to_domo(shutdown, true) until @queue.processed?(shutdown)
+          # Acquire a lock on the key used for the non-commit API calls so nobody goes and creates a new Stream Execution in the middle of this.
+          api_lock = @commit_lock_manager.lock(lock_key, @lock_timeout)
+          break unless api_lock and commit_lock
+          # Make sure the API lock and commit lock will last for at least the same amount of time.
+          if commit_lock[:validity] <= api_lock[:validity]
+            commit_lock = @commit_lock_manager.lock(commit_lock_key, lock_ttl, extend: commit_lock, extend_only_if_locked: true)
+          end
+
+          # Validate the active Stream Execution
+          unless @queue.execution_id
+            @queue.commit_status = :open
+            break
+          end
+          # Do one last validation on the Stream Execution and abort if there are irregularities.
+          begin
+            stream_execution = @domo_client.stream_client.getExecution(@stream_id, @queue.execution_id)
+          rescue Java::ComDomoSdkRequest::RequestException => e
+            status_code = Domo::Client.request_error_status_code(e)
+            if status_code.nil? or status_code == -1
+              @logger.debug("We got a status code of -1 somehow. Let's look at the exception.",
+                            :exception => e,
+                            :status_code => status_code,
+                            :message => e.to_s)
+            end
+            # The Execution no longer exists.
+            if status_code == 404 or status_code == -1
+              @queue.commit_status = :open
+              @commit_lock_manager.unlock(api_lock) if api_lock
+              @commit_lock_manager.unlock(commit_lock) if commit_lock
+              return :open
+            else
+              @commit_lock_manager.unlock(api_lock) if api_lock
+              @commit_lock_manager.unlock(commit_lock) if commit_lock
+              raise e
+            end
+          end
+          # Abort errored out streams
+          if stream_execution.currentState == "ERROR" or stream_execution.currentState == "FAILED"
+            @domo_client.stream_client.abortExecution(@stream_id, stream_execution.getId)
+            @logger.error("Execution ID for #{stream_execution.getId} for Stream ID #{@stream_id} was aborted due to an error.",
+                          :stream_id        => @stream_id,
+                          :dataset_id       => @dataset_id,
+                          :execution_id     => stream_execution.getId,
+                          :execution_state  => stream_execution.currentState,
+                          :execution        => stream_execution.to_s)
+            @queue.commit_status = :failed
+          # Commit!
+          elsif stream_execution.currentState == "ACTIVE"
+            execution_id = stream_execution.getId
+            # Block everybody from uploading again
+            @queue.commit_status = :running
+            sleep(0.5) # Race conditions are a PITA
+            # Start the commit
+            @logger.info("Beginning commit of Stream Execution #{execution_id} for Stream ID #{@stream_id}.",
+                          :stream_id    => @stream_id,
+                          :pipeline_id  => pipeline_id,
+                          :dataset_id   => @dataset_id,
+                          :execution_id => execution_id,
+                          :commit_rows  => @queue.commit_rows,
+                          :execution    => stream_execution.to_s)
+            stream_execution = Concurrent::Future.execute { @domo_client.stream_client.commitExecution(@stream_id, execution_id) }
+            until stream_execution.complete?
+              sleep(0.5)
+              # Keep the locks active
+              if commit_lock[:validity] <= 1000 or api_lock[:validity] <= 1000
+                commit_lock = @commit_lock_manager.lock(commit_lock_key, lock_ttl, extend: commit_lock, extend_only_if_locked: true)
+                api_lock = @commit_lock_manager.lock(lock_key, @lock_timeout, extend: api_lock, extend_only_if_locked: true)
+              end
+            end
+
+            stream_execution = stream_execution.value
+            # Wait until the commit is actually done processing
+            while stream_execution&.currentState == "ACTIVE"
+              sleep(0.5)
+              # Attempt to grab the lock again if we lost it
+              commit_lock = @commit_lock_manager.lock(commit_lock_key, lock_ttl) unless commit_lock
+              # Give up if we still can't get it
+              return :wait unless commit_lock
+              # Keep the locks active
+              commit_lock = @commit_lock_manager.lock(commit_lock_key, lock_ttl, extend: commit_lock, extend_only_if_locked: true) if commit_lock[:validity] <= 1000
+              api_lock = @commit_lock_manager.lock(lock_key, @lock_timeout, extend: api_lock, extend_only_if_locked: true) if api_lock and api_lock[:validity] <= 1000
+              # Update the StreamExecution from the API.
+              begin
+                stream_execution = @domo_client.stream_client.getExecution(@stream_id, execution_id)
+              rescue Java::ComDomoSdkRequest::RequestException => e
+                # Almost every exception means we're done.
+                status_code = Domo::Client.request_error_status_code(e)
+                if status_code.nil? or status_code == -1
+                  @logger.debug("We got a status code of -1 somehow. Let's look at the exception.",
+                                :exception => e,
+                                :status_code => status_code,
+                                :message => e.to_s)
+                end
+                if status_code == 404 or status_code < 400 or status_code >= 500
+                  break
+                else
+                  raise e
+                end
+              end
+            end
+            # Mark the queue as successfully committed.
+            commit_rows = @queue.commit_rows
+            @queue.commit
+            @logger.info("Committed Execution ID for #{execution_id} for Stream ID #{@stream_id}.",
+                          :stream_id        => @stream_id,
+                          :pipeline_id      => pipeline_id,
+                          :dataset_id       => @dataset_id,
+                          :execution_id     => execution_id,
+                          :commit_rows      => commit_rows,
+                          :execution        => stream_execution.to_s)
+          else
+            @logger.warn("Stream Execution ID #{stream_execution.getId} for Stream ID #{@stream_id} could not be committed or aborted because its state is #{stream_execution.currentState}",
+                         :stream_id        => @stream_id,
+                         :pipeline_id      => pipeline_id,
+                         :dataset_id       => @dataset_id,
+                         :commit_rows      => @queue.commit_rows,
+                         :execution_id     => stream_execution.getId,
+                         :execution_state  => stream_execution.currentState,
+                         :execution        => stream_execution.to_s)
+            @queue.commit_status = :failed
+          end
           break
         end
-        # Do one last validation on the Stream Execution and abort if there are irregularities.
-        begin
-          stream_execution = @domo_client.stream_client.getExecution(@stream_id, @queue.execution_id)
-        rescue Java::ComDomoSdkRequest::RequestException => e
-          status_code = Domo::Client.request_error_status_code(e)
-          if status_code.nil? or status_code == -1
-            @logger.debug("We got a status code of -1 somehow. Let's look at the exception.",
-                          :exception => e,
-                          :status_code => status_code,
-                          :message => e.to_s)
-          end
-          # The Execution no longer exists.
-          if status_code == 404 or status_code == -1
-            @queue.commit_status = :open
-            @lock_manager.unlock(api_lock) if api_lock
-            @lock_manager.unlock(commit_lock) if commit_lock
-            return :open
-          else
-            @lock_manager.unlock(api_lock) if api_lock
-            @lock_manager.unlock(commit_lock) if commit_lock
-            raise e
-          end
-        end
-        # Abort errored out streams
-        if stream_execution.currentState == "ERROR" or stream_execution.currentState == "FAILED"
-          @domo_client.stream_client.abortExecution(@stream_id, stream_execution.getId)
-          @logger.error("Execution ID for #{stream_execution.getId} for Stream ID #{@stream_id} was aborted due to an error.",
-                        :stream_id        => @stream_id,
-                        :dataset_id       => @dataset_id,
-                        :execution_id     => stream_execution.getId,
-                        :execution_state  => stream_execution.currentState,
-                        :execution        => stream_execution.to_s)
-          @queue.commit_status = :failed
-        # Commit!
-        elsif stream_execution.currentState == "ACTIVE"
-          execution_id = stream_execution.getId
-          # Block everybody from uploading again
-          @queue.commit_status = :running
-          sleep(0.5) # Race conditions are a PITA
-          # Start the commit
-          @logger.info("Beginning commit of Stream Execution #{execution_id} for Stream ID #{@stream_id}.",
-                        :stream_id    => @stream_id,
-                        :pipeline_id  => pipeline_id,
-                        :dataset_id   => @dataset_id,
-                        :execution_id => execution_id,
-                        :commit_rows  => @queue.commit_rows,
-                        :execution    => stream_execution.to_s)
-          stream_execution = Concurrent::Future.execute { @domo_client.stream_client.commitExecution(@stream_id, execution_id) }
-          until stream_execution.complete?
-            sleep(0.5)
-            # Keep the locks active
-            if commit_lock[:validity] <= 1000 or api_lock[:validity] <= 1000
-              commit_lock = @lock_manager.lock(commit_lock_key, lock_ttl, extend: commit_lock, extend_only_if_locked: true)
-              api_lock = @lock_manager.lock(lock_key, @lock_timeout, extend: api_lock, extend_only_if_locked: true)
-            end
-          end
-          stream_execution = stream_execution.value
-          # Wait until the commit is actually done processing
-          while stream_execution&.currentState == "ACTIVE"
-            sleep(0.5)
-            # Attempt to grab the lock again if we lost it
-            commit_lock = @lock_manager.lock(commit_lock_key, lock_ttl) unless commit_lock
-            # Give up if we still can't get it
-            return :wait unless commit_lock
-            # Keep the locks active
-            commit_lock = @lock_manager.lock(commit_lock_key, lock_ttl, extend: commit_lock, extend_only_if_locked: true) if commit_lock[:validity] <= 1000
-            api_lock = @lock_manager.lock(lock_key, @lock_timeout, extend: api_lock, extend_only_if_locked: true) if api_lock and api_lock[:validity] <= 1000
-            # Update the StreamExecution from the API.
-            begin
-              stream_execution = @domo_client.stream_client.getExecution(@stream_id, execution_id)
-            rescue Java::ComDomoSdkRequest::RequestException => e
-              # Almost every exception means we're done.
-              status_code = Domo::Client.request_error_status_code(e)
-              if status_code.nil? or status_code == -1
-                @logger.debug("We got a status code of -1 somehow. Let's look at the exception.",
-                              :exception => e,
-                              :status_code => status_code,
-                              :message => e.to_s)
-              end
-              if status_code == 404 or status_code < 400 or status_code >= 500
-                break
-              else
-                raise e
-              end
-            end
-          end
-          # Pause for API lag to condition race prevent :p
-          sleep(0.5)
-          # Mark the queue as successfully committed.
-          commit_rows = @queue.commit_rows
-          @queue.commit
-          @logger.info("Committed Execution ID for #{execution_id} for Stream ID #{@stream_id}.",
-                        :stream_id        => @stream_id,
-                        :pipeline_id      => pipeline_id,
-                        :dataset_id       => @dataset_id,
-                        :execution_id     => execution_id,
-                        :commit_rows      => commit_rows,
-                        :execution        => stream_execution.to_s)
-        else
-          @logger.warn("Stream Execution ID #{stream_execution.getId} for Stream ID #{@stream_id} could not be committed or aborted because its state is #{stream_execution.currentState}",
-                       :stream_id        => @stream_id,
-                       :pipeline_id      => pipeline_id,
-                       :dataset_id       => @dataset_id,
-                       :commit_rows      => @queue.commit_rows,
-                       :execution_id     => stream_execution.getId,
-                       :execution_state  => stream_execution.currentState,
-                       :execution        => stream_execution.to_s)
-          @queue.commit_status = :failed
-        end
-        break
+      # Make sure to unlock all the locks
+      ensure
+        @commit_lock_manager.unlock(api_lock) if api_lock
+        @commit_lock_manager.unlock(commit_lock) if commit_lock
+        # Open the queue back up if the execution failed
+        @queue.commit_status = :open if @queue.commit_status == :running
       end
-    # Make sure to unlock all the locks
-    ensure
-      @lock_manager.unlock(api_lock) if api_lock
-      @lock_manager.unlock(commit_lock) if commit_lock
-      # Open the queue back up if the execution failed
-      @queue.commit_status = :open if @queue.commit_status == :running
     end
     # Return the status of the commit.
     @queue.commit_status
@@ -867,20 +868,21 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
   def close
     @queue = get_queue
     send_to_domo until @queue.processed?
+    try_commit(true) if commit_ready?
     # Commit if we're ready
-    if commit_ready? and (@queue.commit_unscheduled? or @queue.commit_stalled?(@commit_delay))
-      if @commit_task.nil? or @commit_task.complete?
-        commit_status = commit_stream(true)
-        return
-      end
-      unless @commit_task&.processing?
-        @commit_task.cancel
-        commit_status = commit_stream(true)
-        return
-      end
-      sleep(0.1) while @commit_task&.processing?
-      commit_status = @commit_task&.value
-    end
+    # if commit_ready? and (@queue.commit_unscheduled? or @queue.commit_stalled?(@commit_delay))
+    #   if @commit_task.nil? or @commit_task.complete?
+    #     commit_status = commit_stream(true)
+    #     return
+    #   end
+    #   unless @commit_task&.processing?
+    #     @commit_task.cancel
+    #     commit_status = commit_stream(true)
+    #     return
+    #   end
+    #   sleep(0.1) while @commit_task&.processing?
+    #   commit_status = @commit_task&.value
+    # end
   end
 
   public
@@ -961,7 +963,7 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
     rows_start = data.length
     begin
       # Grab a lock so other workers don't fight over grabbing these jobs
-      @lock_manager.lock(pending_lock_key, @lock_timeout*2) do |locked|
+      @commit_lock_manager.lock(pending_lock_key, @lock_timeout*2) do |locked|
         return merged_data unless locked
 
         while @queue.pending_jobs.merge_ready?(rows_start, @upload_min_batch_size, shutdown)

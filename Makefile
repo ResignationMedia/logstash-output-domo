@@ -21,7 +21,7 @@ RUN_ARGS =
 endif
 
 test : clean
-	-docker-compose run$(RUN_ARGS) --rm test bundle exec rspec --backtrace --format documentation$(ARGS)$(TAGS)
+	-docker-compose run $(RUN_ARGS) --rm test bundle exec rspec --backtrace --format documentation$(ARGS)$(TAGS)
 	docker-compose down
 
 redlock-test : clean
