@@ -292,22 +292,8 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
     unless @queue.processed?
       # Upload any jobs that are already in the queue.
       send_to_domo until @queue.processed?
-        # Commit if we're ready
-        if commit_ready?
-          if @commit_task.nil?
-            commit_status = commit_stream
-          elsif @commit_task.pending? or @commit_task.unscheduled?
-            @commit_task.reschedule(0)
-            sleep(1)
-            sleep(0.1) while @commit_task&.processing?
-            commit_status = @commit_task&.value
-          else
-            commit_status = commit_stream
-            @semaphore.lock(lock_key, @lock_timeout) do |locked|
-              @commit_task = nil
-            end
-          end
-      end
+      # Commit if we're ready
+      try_commit
     end
   end # def register
 
@@ -417,21 +403,31 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
       commit_stream(shutdown) unless @queue.commit_scheduled?
 
       if @queue.commit_stalled?(@commit_delay) and @queue.commit_scheduled?
-        @commit_task.cancel if @commit_task&.pending?
+        @semaphore.lock(lock_key) do |locked|
+          @commit_task.cancel if locked and @commit_task&.pending?
+        end
         commit_stream(shutdown)
       end
     elsif shutdown
-      if @commit_task&.processing?
-        sleep(0.1) while @commit_task&.processing?
-      else
-        @commit_task.cancel unless @commit_task.nil? or @commit_task.complete?
+      @semaphore.lock(lock_key) do |locked|
+        if locked
+          if @commit_task&.processing?
+            sleep(0.1) while @commit_task&.processing?
+          else
+            @commit_task.cancel unless @commit_task.nil? or @commit_task.complete?
+          end
+        end
       end
+
       commit_stream(shutdown) unless @queue.processed?(true) and @queue.execution_id.nil?
     else
       # The amount of time to sleep before committing.
       sleep_time = @queue.commit_delay(@commit_delay)
       if sleep_time > 0 and @queue.commit_status != :running
         @queue.commit_status = :open
+
+        thread_locked = @semaphore.lock(lock_key)
+        return unless thread_locked
 
         if @queue.commit_stalled?(@commit_delay)
           if @commit_task.nil? and @queue.execution_id
@@ -444,10 +440,13 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
           sleep(0.1) until @commit_task.complete? if @commit_task&.processing?
 
           if @commit_task&.incomplete? and @queue.execution_id
-            @commit_task.cancel
-            @commit_task = Concurrent::ScheduledTask.execute(sleep_time) { commit_stream(shutdown) }
+            if thread_locked
+              @commit_task.cancel
+              @commit_task = Concurrent::ScheduledTask.execute(sleep_time) { commit_stream(shutdown) }
+            end
           end
         end
+
         if @queue.commit_unscheduled? and @commit_task&.pending?
           scheduled_time = Time.at(@commit_task.schedule_time).utc
           @queue.schedule(scheduled_time - @commit_delay)
@@ -467,15 +466,20 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
                              :last_commit  => @queue.last_commit,
                              :next_commit  => @queue.next_commit(@commit_delay),
                              :commit_rows  => @queue.commit_rows)
+                @semaphore.unlock(thread_locked)
                 @commit_task = Concurrent::ScheduledTask.execute(sleep_time) { commit_stream(shutdown) }
+              else
+                @semaphore.unlock(thread_locked) if thread_locked
               end
             end
           rescue Redis::BaseConnectionError
             # Once redlock-rb does a release with this pull request we can drop this rescue block https://github.com/leandromoreira/redlock-rb/pull/75
+            @semaphore.unlock(thread_locked) if thread_locked
           end
         elsif @commit_task&.pending?
           @commit_task.reschedule(sleep_time)
           @queue.schedule
+          @semaphore.unlock(thread_locked) if thread_locked
         end
       else
         commit_stream(shutdown)
@@ -704,8 +708,8 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
     lock_ttl = @lock_timeout if lock_ttl < @lock_timeout
     commit_lock = false
     # Acquire a lock to prevent other workers from executing this function.
-    @semaphore.lock(lock_key, @lock_timeout) do |locked|
-      break unless locked
+    @semaphore.lock(commit_lock_key) do |locked|
+      return :wait unless locked
       # Hopefully, redlock-rb will accept our pull request so we don't need this rescue block anymore
       begin
         commit_lock = @commit_lock_manager.lock(commit_lock_key, lock_ttl)
