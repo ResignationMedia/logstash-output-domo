@@ -197,6 +197,9 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
     # @type [Domo::Client] A client connection to Domo's APIs.
     @domo_client = Domo::Client.new(@client_id, @client_secret, @api_host, @api_ssl, Java::ComDomoSdkRequest::Scope::DATA)
 
+    # @type [Mutex] The Mutex we'll be using to lock writes to @commit_thread
+    @semaphore = Mutex.new
+
     if @upload_max_batch_size > 0 and @upload_min_batch_size > @upload_max_batch_size
       raise LogStash::ConfigurationError.new("upload_min_batch_size cannot be larger than upload_max_batch_size")
     end
@@ -260,7 +263,9 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
 
     @queue = get_queue
     # @type [Concurrent::ScheduledTask, nil]
-    @commit_task ||= nil
+    @semaphore.synchronize do
+      @commit_task ||= nil
+    end
     # Reset the commit status and possibly the Queue's execution_id after possible abnormal terminations
     @lock_manager.lock(commit_lock_key, @lock_timeout) do |locked|
       if locked and @queue.commit_status == :running
@@ -298,7 +303,9 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
             commit_status = @commit_task&.value
           else
             commit_status = commit_stream
-            @commit_task = nil
+            @semaphore.synchronize do
+              @commit_task = nil
+            end
           end
       end
     end
@@ -401,6 +408,11 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
     # Process the queue
     send_to_domo(shutdown) until @queue.processed?(shutdown)
     # Commit if we're ready
+    try_commit(shutdown)
+  end
+
+  public
+  def try_commit(shutdown=false)
     if commit_ready? and @queue.execution_id
       commit_stream(shutdown) unless @queue.commit_scheduled?
       if @queue.commit_stalled?(@commit_delay) and @queue.commit_scheduled?
@@ -420,16 +432,21 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
       if sleep_time > 0 and @queue.commit_status != :running
         @queue.commit_status = :open
         if @queue.commit_stalled?(@commit_delay)
-          if @commit_task.nil? and @queue.execution_id
-            @commit_task = Concurrent::ScheduledTask.execute(0) { commit_stream(shutdown) }
-          elsif @commit_task&.pending?
-            @commit_task.reschedule(sleep_time)
-            @queue.schedule
+          @semaphore.synchronize do
+            if @commit_task.nil? and @queue.execution_id
+              @commit_task = Concurrent::ScheduledTask.execute(0.0) { commit_stream(shutdown) }
+            elsif @commit_task&.pending?
+              @commit_task.reschedule(sleep_time)
+              @queue.schedule
+            end
           end
+
           sleep(0.1) until @commit_task.complete? if @commit_task&.processing?
           if @commit_task&.incomplete? and @queue.execution_id
-            @commit_task.cancel
-            @commit_task = Concurrent::ScheduledTask.execute(sleep_time) { commit_stream(shutdown) }
+            @semaphore.synchronize do
+              @commit_task.cancel
+              @commit_task = Concurrent::ScheduledTask.execute(sleep_time) { commit_stream(shutdown) }
+            end
           end
         end
         if @queue.commit_unscheduled? and @commit_task&.pending?
@@ -440,25 +457,27 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
           begin
             @lock_manager.lock(commit_lock_key, @lock_timeout) do |locked|
               if locked and @queue.commit_unscheduled?
-                @queue.schedule
-                @logger.info("The API is not ready for committing yet. Will sleep for %0.2f seconds." % [sleep_time],
-                             :stream_id    => @stream_id,
-                             :pipeline_id  => pipeline_id,
-                             :dataset_id   => @dataset_id,
-                             :execution_id => @queue.execution_id,
-                             :commit_delay => @commit_delay,
-                             :sleep_time   => sleep_time,
-                             :last_commit  => @queue.last_commit,
-                             :next_commit  => @queue.next_commit(@commit_delay),
-                             :commit_rows  => @queue.commit_rows)
-                @commit_task = Concurrent::ScheduledTask.execute(sleep_time) { commit_stream(shutdown) }
+                @semaphore.synchronize do
+                  @queue.schedule
+                  @logger.info("The API is not ready for committing yet. Will sleep for %0.2f seconds." % [sleep_time],
+                               :stream_id    => @stream_id,
+                               :pipeline_id  => pipeline_id,
+                               :dataset_id   => @dataset_id,
+                               :execution_id => @queue.execution_id,
+                               :commit_delay => @commit_delay,
+                               :sleep_time   => sleep_time,
+                               :last_commit  => @queue.last_commit,
+                               :next_commit  => @queue.next_commit(@commit_delay),
+                               :commit_rows  => @queue.commit_rows)
+                  @commit_task = Concurrent::ScheduledTask.execute(sleep_time) { commit_stream(shutdown) }
+                end
               end
             end
           rescue Redis::BaseConnectionError
             # Once redlock-rb does a release with this pull request we can drop this rescue block https://github.com/leandromoreira/redlock-rb/pull/75
           end
-        elsif @commit_task&.pending?
-          @commit_task.reschedule(sleep_time)
+        elsif !@semaphore.locked? and @commit_task&.pending?
+          @semaphore.synchronize { @commit_task.reschedule(sleep_time) }
           @queue.schedule
         end
       else
