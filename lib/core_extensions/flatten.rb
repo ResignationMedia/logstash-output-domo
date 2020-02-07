@@ -14,7 +14,7 @@ module CoreExtensions
           k, v = i, elem
         end
 
-        key = parent_prefix ? "#{parent_prefix}.#{k}" : k # assign key name for result hash
+        key = parent_prefix ? "#{parent_prefix}_#{k}" : k # assign key name for result hash
 
         if v.is_a? Hash
           res.merge!(v.flatten_with_path(key)) # recursive call to flatten child elements
