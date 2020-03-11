@@ -642,6 +642,42 @@ describe "rake tasks", rake: true do
   end
 end
 
+describe "configuration parser", config_test: true do
+  let(:config) do
+    {
+        'client_id'        => 'whatever',
+        'client_secret'    => 'whatever',
+        'distributed_lock' => true,
+        'stream_id'        => 0,
+        'dataset_id'       => 'whatever',
+        'lock_hosts'       => %w[
+            redis://redis1:6379
+            redis://redis2:6379
+            rediss://:password@127.0.0.1:6379/0
+        ],
+        'redis_client'     => {
+            'url'        => 'rediss://:password@127.0.0.1:6379/1',
+            'ssl_params' => {'verify_mode' => 'VERIFY_NONE'}
+        }
+    }
+  end
+  subject { LogStash::Outputs::Domo.new(config) }
+
+  it "should parse the redis configurations" do
+    redis_client = subject.send(:recursive_symbolize, config['redis_client'])
+    expect(redis_client).to be_a(Hash)
+    redis_client.keys.each { |k| expect(k).to be_a(Symbol) }
+    expect(redis_client).to have_key(:url)
+    expect(redis_client).to have_key(:ssl_params)
+    expect(redis_client[:ssl_params]).to have_key(:verify_mode)
+    expect(redis_client[:ssl_params][:verify_mode]).to eq(OpenSSL::SSL::VERIFY_NONE)
+    expect(Redis.new(redis_client)).to be_a(Redis)
+
+    lock_hosts = subject.send(:lock_hosts_tls_opts, config['lock_hosts'])
+    lock_hosts.each { |h| expect(h).to be_a(Redis) }
+  end
+end
+
 describe LogStash::Outputs::Domo do
   before(:each) do |example|
     subject.register unless example.metadata[:skip_before]

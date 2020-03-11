@@ -110,8 +110,12 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
   #   "redis://:password@host2:6379"
   #   "redis://host3:6379/0"
   #   "unix+redis://some/socket/path?db=0&password=password"
+  #   "rediss://:password@host-tls:port/db"
   # ]
   # -----------------------
+  #
+  # NOTE: Currently, if using rediss, then the plugin will *NOT* verify peer certificates.
+  # We'll happily accept pull requests to add support for peer certificate verification.
   config :lock_hosts, :validate => :array
 
   # A hash with connection information for the redis client for the Queue
@@ -130,11 +134,27 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
   # }
   # -----------------------
   #
+  # Below is a variation that uses redis+tls.
+  # NOTE: If you need to verify certs, you are responsible for figuring out key and cert distribution.
+  # The ssl_params hash will take any argument that OpenSSL::SSL::SSLContext finds acceptable
+  # https://ruby-doc.org/stdlib-2.3.0/libdoc/openssl/rdoc/OpenSSL/SSL/SSLContext.html
+  # [source,ruby]
+  # ----------------------------------
+  # redis_client => {
+  #   "url"        => "rediss://:password@host/db"
+  #   "ssl_params" => {
+  #     "verify_mode" => "VERIFY_NONE"
+  #   }
+  # }
+  # -----------------------
+  #
   # The documentation for the Redis class's constructor can be found at the following URL:
   # https://www.rubydoc.info/gems/redis/Redis#initialize-instance_method
   config :redis_client, :validate => :hash, :required => true
 
   # Optional redis sentinels to associate with redis_client.
+  # NOTE: Your results will be *very* unpredictable if you combine this with a redis+tls connection.
+  #
   # Use host:port syntax
   #
   # Below is an example
@@ -256,6 +276,8 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
           :retry_count => redlock_retry_count(@lock_retry_delay),
           :retry_delay => @lock_retry_delay,
       }
+      # Add redis+tls crap if need be.
+      @lock_hosts = lock_hosts_tls_opts(@lock_hosts)
       @commit_lock_manager = Redlock::Client.new(@lock_hosts, redlock_options)
     else
       @commit_lock_manager = Domo::Queue::ThreadLockManager.new
@@ -1079,14 +1101,65 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
   end
 
   private
+  # Figure out which OpenSSL::SSL::VERIFY constant matches with a string on the config.
+  #
+  # @param val [String]
+  # @return [Integer, String]
+  def openssl_opt_from_string(val)
+    case val
+    when 'VERIFY_NONE'
+      OpenSSL::SSL::VERIFY_NONE
+    when 'VERIFY_PEER'
+      OpenSSL::SSL::VERIFY_PEER
+    when 'VERIFY_FAIL_IF_NO_PEER_CERT'
+      OpenSSL::SSL::VERIFY_FAIL_IF_NO_PEER_CERT
+    when 'VERIFY_CLIENT_ONCE'
+      OpenSSL::SSL::VERIFY_CLIENT_ONCE
+    else
+      val
+    end
+  end
+
+  private
+  # Symbol all keys in a hash, as well as keys from embedded hashes.
+  #
+  # @param obj [Hash]
+  # @return [Hash]
+  def recursive_symbolize(obj)
+    obj.reduce({}) do |memo, (k, v)|
+      if v.is_a? Hash
+        memo[k.to_sym] = recursive_symbolize(v)
+      else
+        memo[k.to_sym] = openssl_opt_from_string(v)
+      end
+      memo
+    end
+  end
+
+  private
+  # Loop through lock_hosts from the configuration and add TLS options if they're using rediss
+  #
+  # @param lock_hosts [Hash]
+  # @return [Array<Redis>]
+  def lock_hosts_tls_opts(lock_hosts)
+    lock_hosts.map do |host|
+      if host.start_with?('rediss')
+        Redis.new(url: host, ssl_params: {:verify_mode => OpenSSL::SSL::VERIFY_NONE})
+      else
+        Redis.new(url: host)
+      end
+    end
+  end
+
+  private
   # Convert all keys in the redis_client hash to symbols because Logstash makes them keys, but redis-rb wants symbols.
   #
   # @param redis_client_args [Hash]
   # @return [Hash]
   def symbolize_redis_client_args(redis_client_args)
-    redis_client_args = redis_client_args.inject({}) {|memo, (k, v)| memo[k.to_sym] = v; memo}
+    # redis_client_args = redis_client_args.inject({}) {|memo, (k, v)| memo[k.to_sym] = v; memo}
+    redis_client_args = recursive_symbolize(redis_client_args)
     unless redis_client_args.fetch(:sentinels, nil).nil?
-
       redis_client_args[:sentinels] = redis_client_args[:sentinels].map do |sentinel|
         sentinel.inject({}) {|memo, (k, v)| memo[k.to_sym] = v; memo}
       end
