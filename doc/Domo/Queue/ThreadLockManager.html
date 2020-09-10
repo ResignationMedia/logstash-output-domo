@@ -10,11 +10,11 @@
   
 </title>
 
-  <link rel="stylesheet" href="../../css/style.css" type="text/css" charset="utf-8" />
+  <link rel="stylesheet" href="../../css/style.css" type="text/css" />
 
-  <link rel="stylesheet" href="../../css/common.css" type="text/css" charset="utf-8" />
+  <link rel="stylesheet" href="../../css/common.css" type="text/css" />
 
-<script type="text/javascript" charset="utf-8">
+<script type="text/javascript">
   pathId = "Domo::Queue::ThreadLockManager";
   relpath = '../../';
 </script>
@@ -187,7 +187,7 @@ for locking instead of redis instances.</p>
         <li class="public ">
   <span class="summary_signature">
     
-      <a href="#lock-instance_method" title="#lock (instance method)">#<strong>lock</strong>(resource, *args, extend_life: false, **kwargs)  &#x21d2; Mutex </a>
+      <a href="#lock-instance_method" title="#lock (instance method)">#<strong>lock</strong>(resource, *args, extend_only_if_locked: false, **kwargs)  &#x21d2; Mutex </a>
     
 
     
@@ -235,7 +235,7 @@ for locking instead of redis instances.</p>
         <li class="public ">
   <span class="summary_signature">
     
-      <a href="#lock_info-instance_method" title="#lock_info (instance method)">#<strong>lock_info</strong>(lock, resource, extend_life: false)  &#x21d2; Object </a>
+      <a href="#lock_info-instance_method" title="#lock_info (instance method)">#<strong>lock_info</strong>(lock, resource, extend_only_if_locked: false)  &#x21d2; Object </a>
     
 
     
@@ -322,7 +322,7 @@ for locking instead of redis instances.</p>
 </h3><div class="docstring">
   <div class="discussion">
     
-<p>Returns a new instance of ThreadLockManager</p>
+<p>Returns a new instance of ThreadLockManager.</p>
 
 
   </div>
@@ -441,7 +441,7 @@ for locking instead of redis instances.</p>
       <div class="method_details first">
   <h3 class="signature first" id="lock-instance_method">
   
-    #<strong>lock</strong>(resource, *args, extend_life: false, **kwargs)  &#x21d2; <tt>Mutex</tt> 
+    #<strong>lock</strong>(resource, *args, extend_only_if_locked: false, **kwargs)  &#x21d2; <tt>Mutex</tt> 
   
 
   
@@ -477,11 +477,13 @@ for locking instead of redis instances.</p>
   
     <li>
       
-        <span class='name'>extend_life</span>
+        <span class='name'>extend_only_if_locked</span>
       
       
         <span class='type'>(<tt>Boolean</tt>)</span>
       
+      
+        <em class="default">(defaults to: <tt>false</tt>)</em>
       
       
         &mdash;
@@ -541,13 +543,13 @@ for locking instead of redis instances.</p>
     <td>
       <pre class="code"><span class="info file"># File 'lib/domo/queue/thread.rb', line 26</span>
 
-<span class='kw'>def</span> <span class='id identifier rubyid_lock'>lock</span><span class='lparen'>(</span><span class='id identifier rubyid_resource'>resource</span><span class='comma'>,</span> <span class='op'>*</span><span class='id identifier rubyid_args'>args</span><span class='comma'>,</span> <span class='label'>extend_life:</span> <span class='kw'>false</span><span class='comma'>,</span> <span class='op'>**</span><span class='id identifier rubyid_kwargs'>kwargs</span><span class='rparen'>)</span>
+<span class='kw'>def</span> <span class='id identifier rubyid_lock'>lock</span><span class='lparen'>(</span><span class='id identifier rubyid_resource'>resource</span><span class='comma'>,</span> <span class='op'>*</span><span class='id identifier rubyid_args'>args</span><span class='comma'>,</span> <span class='label'>extend_only_if_locked:</span> <span class='kw'>false</span><span class='comma'>,</span> <span class='op'>**</span><span class='id identifier rubyid_kwargs'>kwargs</span><span class='rparen'>)</span>
   <span class='comment'># Get or create the Mutex
 </span>  <span class='kw'>unless</span> <span class='ivar'>@locks</span><span class='period'>.</span><span class='id identifier rubyid_fetch'>fetch</span><span class='lparen'>(</span><span class='id identifier rubyid_resource'>resource</span><span class='comma'>,</span> <span class='kw'>nil</span><span class='rparen'>)</span><span class='op'>&amp;.</span><span class='id identifier rubyid_locked?'>locked?</span>
     <span class='ivar'>@locks</span><span class='lbracket'>[</span><span class='id identifier rubyid_resource'>resource</span><span class='rbracket'>]</span> <span class='op'>=</span> <span class='const'>Mutex</span><span class='period'>.</span><span class='id identifier rubyid_new'>new</span>
   <span class='kw'>end</span>
   <span class='id identifier rubyid_lock'>lock</span> <span class='op'>=</span> <span class='ivar'>@locks</span><span class='lbracket'>[</span><span class='id identifier rubyid_resource'>resource</span><span class='rbracket'>]</span>
-  <span class='id identifier rubyid_lock_info'>lock_info</span> <span class='op'>=</span> <span class='id identifier rubyid_lock_info'>lock_info</span><span class='lparen'>(</span><span class='id identifier rubyid_lock'>lock</span><span class='comma'>,</span> <span class='id identifier rubyid_resource'>resource</span><span class='comma'>,</span> <span class='label'>extend_life:</span> <span class='id identifier rubyid_extend_life'>extend_life</span><span class='rparen'>)</span>
+  <span class='id identifier rubyid_lock_info'>lock_info</span> <span class='op'>=</span> <span class='id identifier rubyid_lock_info'>lock_info</span><span class='lparen'>(</span><span class='id identifier rubyid_lock'>lock</span><span class='comma'>,</span> <span class='id identifier rubyid_resource'>resource</span><span class='comma'>,</span> <span class='label'>extend_only_if_locked:</span> <span class='id identifier rubyid_extend_only_if_locked'>extend_only_if_locked</span><span class='rparen'>)</span>
 
   <span class='kw'>if</span> <span class='id identifier rubyid_block_given?'>block_given?</span>
     <span class='kw'>begin</span>
@@ -637,7 +639,7 @@ for locking instead of redis instances.</p>
       <div class="method_details ">
   <h3 class="signature " id="lock_info-instance_method">
   
-    #<strong>lock_info</strong>(lock, resource, extend_life: false)  &#x21d2; <tt>Object</tt> 
+    #<strong>lock_info</strong>(lock, resource, extend_only_if_locked: false)  &#x21d2; <tt>Object</tt> 
   
 
   
@@ -689,11 +691,13 @@ for locking instead of redis instances.</p>
   
     <li>
       
-        <span class='name'>extend_life</span>
+        <span class='name'>extend_only_if_locked</span>
       
       
         <span class='type'>(<tt>Boolean</tt>)</span>
       
+      
+        <em class="default">(defaults to: <tt>false</tt>)</em>
       
       
         &mdash;
@@ -734,11 +738,11 @@ need this for Redlock compatibility.</p>
     <td>
       <pre class="code"><span class="info file"># File 'lib/domo/queue/thread.rb', line 52</span>
 
-<span class='kw'>def</span> <span class='id identifier rubyid_lock_info'>lock_info</span><span class='lparen'>(</span><span class='id identifier rubyid_lock'>lock</span><span class='comma'>,</span> <span class='id identifier rubyid_resource'>resource</span><span class='comma'>,</span> <span class='label'>extend_life:</span> <span class='kw'>false</span><span class='rparen'>)</span>
-  <span class='kw'>if</span> <span class='id identifier rubyid_lock'>lock</span><span class='op'>&amp;.</span><span class='id identifier rubyid_locked?'>locked?</span> <span class='kw'>and</span> <span class='kw'>not</span> <span class='id identifier rubyid_extend_life'>extend_life</span>
+<span class='kw'>def</span> <span class='id identifier rubyid_lock_info'>lock_info</span><span class='lparen'>(</span><span class='id identifier rubyid_lock'>lock</span><span class='comma'>,</span> <span class='id identifier rubyid_resource'>resource</span><span class='comma'>,</span> <span class='label'>extend_only_if_locked:</span> <span class='kw'>false</span><span class='rparen'>)</span>
+  <span class='kw'>if</span> <span class='id identifier rubyid_lock'>lock</span><span class='op'>&amp;.</span><span class='id identifier rubyid_locked?'>locked?</span> <span class='kw'>and</span> <span class='kw'>not</span> <span class='id identifier rubyid_extend_only_if_locked'>extend_only_if_locked</span>
     <span class='kw'>return</span> <span class='kw'>false</span> <span class='kw'>unless</span> <span class='id identifier rubyid_lock'>lock</span><span class='period'>.</span><span class='id identifier rubyid_try_lock'>try_lock</span>
   <span class='kw'>end</span>
-  <span class='kw'>unless</span> <span class='id identifier rubyid_extend_life'>extend_life</span>
+  <span class='kw'>unless</span> <span class='id identifier rubyid_extend_only_if_locked'>extend_only_if_locked</span>
     <span class='kw'>begin</span>
       <span class='id identifier rubyid_lock'>lock</span><span class='period'>.</span><span class='id identifier rubyid_lock'>lock</span>
     <span class='kw'>rescue</span> <span class='const'>ThreadError</span> <span class='op'>=&gt;</span> <span class='id identifier rubyid_e'>e</span>
@@ -771,7 +775,8 @@ need this for Redlock compatibility.</p>
 <p>Attempt to grab the Mutex lock associated with the provided resource. If
 the lock doesn&#39;t exist, this returns true.</p>
 
-<pre class="code ruby"><code class="ruby">Otherwise the result of the {Mutex#try_lock} method on the associated Mutex is returned.</code></pre>
+<pre class="code ruby"><code class="ruby">Otherwise the result of the {Mutex#try_lock} method on the associated Mutex is returned.
+</code></pre>
 
 
   </div>
@@ -919,9 +924,9 @@ the lock doesn&#39;t exist, this returns true.</p>
 </div>
 
       <div id="footer">
-  Generated on Wed Oct 16 18:02:50 2019 by
+  Generated on Thu Sep 10 18:48:07 2020 by
   <a href="http://yardoc.org" title="Yay! A Ruby Documentation Tool" target="_parent">yard</a>
-  0.9.20 (ruby-2.3.3).
+  0.9.25 (ruby-2.5.3).
 </div>
 
     </div>

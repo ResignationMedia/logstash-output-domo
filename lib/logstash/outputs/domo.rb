@@ -61,6 +61,10 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
   # Set to 0 (default) to disable
   config :upload_max_batch_size, :validate => :number, :default => 0
 
+  # Set the maximum number of rows that can be committed per Stream Execution before processing is blocked until a commit fires.
+  # Set to 0 (default) to disable
+  config :commit_max_rows, :validate => :number, :default => 0
+
   # The amount of time (seconds) to wait between Stream commits.
   # Data will continue to be uploaded until the delay has passed and the queue has empty.
   # Domo Support recommends setting this to at least 15 minutes.
@@ -446,7 +450,7 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
       # The amount of time to sleep before committing.
       sleep_time = @queue.commit_delay(@commit_delay)
       if sleep_time > 0 and @queue.commit_status != :running
-        @queue.commit_status = :open
+        @queue.commit_status = :open unless @queue.commit_status == :blocked_for_commit
 
         thread_locked = @semaphore.lock(lock_key)
         return unless thread_locked
@@ -516,7 +520,7 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
   # @param force_run [Boolean] Ignore the commit status of the queue.
   def send_to_domo(force_pending=false, force_run=false)
     @queue = get_queue
-    return if @queue.processed?(force_pending) and !force_run
+    return if (@queue.processed?(force_pending) and !force_run) or @queue.processing_status == :blocked_for_commit
 
     # Block until failed jobs are done reprocessing back into the queue
     sleep(0.1) until @queue.failures.length <= 0 or @queue.failures.processing_status != :reprocessing
@@ -541,7 +545,7 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
         next unless @queue.execution_id
       end
 
-      break if @queue.processed?(force_pending)
+      break if @queue.processed?(force_pending) or @queue.force_commit?(@commit_max_rows)
 
       # Get the job from the queue
       job = @queue.pop
@@ -600,6 +604,11 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
         next
       end
       # Process the queued job and upload its data to Domo.
+      if 0 < @commit_max_rows and @commit_max_rows <= job.row_count
+        old_job = job
+        job = old_job.slice!(0, @commit_max_rows)
+        @queue << old_job
+      end
       begin
         # Block during commits
         sleep(0.1) until force_run or @queue.commit_status != :running or @queue.stuck?(3600)
@@ -710,6 +719,10 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
         end
       ensure
         @queue = get_queue if @queue.nil?
+        if @queue.force_commit?(@commit_max_rows)
+          @queue.processing_status = :blocked_for_commit
+          break
+        end
         @queue.processing_status = :open
       end
     end
@@ -729,6 +742,7 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
     lock_ttl = @commit_delay * 1000
     lock_ttl = @lock_timeout if lock_ttl < @lock_timeout
     commit_lock = false
+    prev_processing_status = nil
     # Acquire a lock to prevent other workers from executing this function.
     @semaphore.lock(commit_lock_key) do |locked|
       return :wait unless locked
@@ -742,6 +756,7 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
       api_lock = false
       return :wait unless commit_lock
 
+      prev_processing_status = @queue.processing_status
       begin
         # Block everybody from uploading now
         @queue.commit_status = :running
@@ -883,8 +898,12 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
         @commit_lock_manager.unlock(api_lock) if api_lock
         @commit_lock_manager.unlock(commit_lock) if commit_lock
         # Open the queue back up if the execution failed
-        @queue.commit_status = :open if @queue.commit_status == :running
+        @queue.commit_status = :open if @queue.commit_status == :running or @queue.commit_status == :blocked_for_commit
       end
+    end
+    if prev_processing_status == :blocked_for_commit
+      send_to_domo(shutdown) until @queue.processed?(shutdown)
+      try_commit(shutdown)
     end
     # Return the status of the commit.
     @queue.commit_status

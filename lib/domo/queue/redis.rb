@@ -579,7 +579,7 @@ module Domo
         #
         # @return [Boolean]
         def all_empty?
-          self.empty? and self.pending_jobs.empty? and self.failures.empty? and self.processing_status != :processing
+          (self.empty? and self.pending_jobs.empty? and self.failures.empty? and self.processing_status != :processing) or self.processing_status == :blocked_for_commit
         end
 
         # Establishes whether or not the queue is empty and that there are no failed jobs and (optionally) no pending jobs.
@@ -588,7 +588,8 @@ module Domo
         # @return [Boolean]
         def processed?(include_pending=false)
           return self.all_empty? if include_pending
-          self.empty? and self.failures.empty? and self.processing_status != :processing
+          # (self.empty? and self.failures.empty? and self.processing_status != :processing) or self.commit_status == :success or self.processing_status == :blocked_for_commit
+          (self.empty? and self.failures.empty? and self.processing_status != :processing) or self.processing_status == :blocked_for_commit
         end
 
         # Indicates that the queue is unprocessed (i.e. has jobs). Pending jobs can be taken out of consideration.
@@ -625,6 +626,16 @@ module Domo
         # @!attribute [w] commit_rows
         def commit_rows=(count)
           @client.hset("#{redis_key_prefix}#{KEY_SUFFIXES[:ACTIVE_EXECUTION]}", "commit_rows", count.to_s)
+        end
+
+        # Indicates if we should block processing and force a commit
+        # Only used when the commit_max_events configuration is set to something other than 0
+        #
+        # @return [Boolean]
+        def force_commit?(commit_max_events=0, data_rows=nil)
+          return false if commit_max_events <= 0
+
+          commit_rows >= commit_max_events or (!data_rows.nil? and data_rows >= commit_max_events)
         end
 
         # Indicates if a commit is complete (i.e. it succeeded or failed)

@@ -51,6 +51,27 @@ module Domo
         @data.length
       end
 
+      # Slice a chunk of data out of the Job and put it in a new job.
+      #
+      # @param start [Integer] The starting index for the slice.
+      # @param length [Integer] The size of the slice.
+      # @return [Domo::Queue::Job] The Job housing our sliced data.
+      def slice!(start, length)
+        if @data.length - 1 < start
+          raise IndexError, "#{start} is out of range"
+        end
+
+        stop_index = length == -1 ? @data.length - 1 : length - 1
+        if stop_index > @data.length - 1
+          stop_index = @data.length - 1
+        end
+
+        sliced_data = (start..stop_index).map do |_|
+          @data.shift
+        end
+        Domo::Queue::Job.new(sliced_data, @minimum_size)
+      end
+
       # @!attribute [r] execution_id
       # The Stream Execution ID associated with the job, if available.
       # @return [Integer, nil]

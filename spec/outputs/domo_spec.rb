@@ -49,6 +49,52 @@ RSpec.shared_examples "LogStash::Outputs::Domo" do
     end
   end
 
+  context "when setting commit_max_rows", commit_max_rows: true, slow: true do
+    include_context "dataset bootstrap" do
+      let(:test_settings) { get_test_settings }
+      let(:domo_client) { get_domo_client(test_settings) }
+      let(:stream_config) { bootstrap_dataset(domo_client, nil, nil) }
+    end
+
+    let(:events) do
+      (1..10).map do |i|
+        cur_date = Date.today.to_s
+        LogStash::Event.new("Count" => i,
+                            "Event Name" => "event_#{i}",
+                            "Event Timestamp" => LogStash::Timestamp.now,
+                            "Event Date" => cur_date,
+                            "Percent" => ((i.to_f/5)*100).round(2))
+      end
+    end
+
+    let(:config) do
+      global_config.clone.merge(
+          {
+              "commit_max_rows" => 5,
+              "commit_delay" => 5,
+          }
+      )
+    end
+
+    it "honors the maximum number of events per commit" do
+      expect(events.length).to eq(10)
+      allow(subject.instance_variable_get(:@logger)).to receive(:info)
+      queue = subject.get_queue
+      expected_domo_data = events.slice(0, 5).map { |event| event_to_domo_hash(event) }
+
+      subject.multi_receive(events)
+      wait_for_commit(subject)
+      expect(dataset_data_match?(domo_client, dataset_id, expected_domo_data)).to be(true)
+
+      expected_domo_data = events.map { |event| event_to_domo_hash(event) }
+      wait_for_commit(subject, true)
+      expect(subject.instance_variable_get(:@logger)).to have_received(:info).with(/The API is not ready for committing yet/, anything).once
+      sleep(0.1) until queue.all_empty?
+      sleep(0.1) until queue.commit_unscheduled? and queue.execution_id.nil?
+      expect(dataset_data_match?(domo_client, dataset_id, expected_domo_data)).to be(true)
+    end
+  end
+
   context "when using a partition date field", partition: true do
     include_context "dataset bootstrap" do
       let(:test_settings) { get_test_settings }
@@ -242,6 +288,24 @@ RSpec.shared_examples "LogStash::Outputs::Domo" do
         subject.multi_receive(batch_events.slice(21..-1))
 
         wait_for_commit(subject, true)
+        expect(dataset_data_match?(domo_client, dataset_id, expected_domo_data)).to be(true)
+      end
+
+      it "still processes the queue and commits on close", skip_close: true do
+        batch_events = (1..41).map do |i|
+          LogStash::Event.new("Event Name"      => i.to_s,
+                              "Count"           => i,
+                              "Event Timestamp" => LogStash::Timestamp.now,
+                              "Event Date"      => Date.today.to_s,
+                              "Percent"         => ((i.to_f/200)*100).round(2))
+        end
+        expected_domo_data = batch_events.slice(0, 41).map { |event| event_to_domo_hash(event) }
+        subject.multi_receive(batch_events)
+        wait_for_commit(subject, true)
+        expect(dataset_data_match?(domo_client, dataset_id, expected_domo_data)).to be(true)
+
+        expected_domo_data = batch_events.map { |event| event_to_domo_hash(event) }
+        subject.close
         expect(dataset_data_match?(domo_client, dataset_id, expected_domo_data)).to be(true)
       end
     end

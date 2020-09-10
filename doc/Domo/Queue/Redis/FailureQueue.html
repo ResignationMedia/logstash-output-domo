@@ -10,11 +10,11 @@
   
 </title>
 
-  <link rel="stylesheet" href="../../../css/style.css" type="text/css" charset="utf-8" />
+  <link rel="stylesheet" href="../../../css/style.css" type="text/css" />
 
-  <link rel="stylesheet" href="../../../css/common.css" type="text/css" charset="utf-8" />
+  <link rel="stylesheet" href="../../../css/common.css" type="text/css" />
 
-<script type="text/javascript" charset="utf-8">
+<script type="text/javascript">
   pathId = "Domo::Queue::Redis::FailureQueue";
   relpath = '../../../';
 </script>
@@ -340,7 +340,7 @@ reset (if necessary).</p>
 </h3><div class="docstring">
   <div class="discussion">
     
-<p>Returns a new instance of FailureQueue</p>
+<p>Returns a new instance of FailureQueue.</p>
 
 
   </div>
@@ -404,17 +404,17 @@ reset (if necessary).</p>
       <pre class="lines">
 
 
-927
-928
-929
-930
-931
-932
-933
-934</pre>
+938
+939
+940
+941
+942
+943
+944
+945</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/domo/queue/redis.rb', line 927</span>
+      <pre class="code"><span class="info file"># File 'lib/domo/queue/redis.rb', line 938</span>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_initialize'>initialize</span><span class='lparen'>(</span><span class='id identifier rubyid_redis_client'>redis_client</span><span class='comma'>,</span> <span class='id identifier rubyid_dataset_id'>dataset_id</span><span class='comma'>,</span> <span class='id identifier rubyid_stream_id'>stream_id</span><span class='comma'>,</span> <span class='id identifier rubyid_pipeline_id'>pipeline_id</span><span class='op'>=</span><span class='tstring'><span class='tstring_beg'>&#39;</span><span class='tstring_content'>main</span><span class='tstring_end'>&#39;</span></span><span class='rparen'>)</span>
   <span class='kw'>super</span><span class='lparen'>(</span><span class='id identifier rubyid_redis_client'>redis_client</span><span class='comma'>,</span> <span class='id identifier rubyid_dataset_id'>dataset_id</span><span class='comma'>,</span> <span class='id identifier rubyid_stream_id'>stream_id</span><span class='comma'>,</span> <span class='id identifier rubyid_pipeline_id'>pipeline_id</span><span class='rparen'>)</span>
@@ -475,15 +475,15 @@ reset (if necessary).</p>
       <pre class="lines">
 
 
-969
-970
-971
-972
-973
-974</pre>
+980
+981
+982
+983
+984
+985</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/domo/queue/redis.rb', line 969</span>
+      <pre class="code"><span class="info file"># File 'lib/domo/queue/redis.rb', line 980</span>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_processing_status'>processing_status</span>
   <span class='kw'>return</span> <span class='symbol'>:open</span> <span class='kw'>if</span> <span class='id identifier rubyid_length'>length</span> <span class='op'>&lt;=</span> <span class='int'>0</span>
@@ -544,15 +544,15 @@ reset (if necessary).</p>
       <pre class="lines">
 
 
-943
-944
-945
-946
-947
-948</pre>
+954
+955
+956
+957
+958
+959</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/domo/queue/redis.rb', line 943</span>
+      <pre class="code"><span class="info file"># File 'lib/domo/queue/redis.rb', line 954</span>
 
 <span class='kw'>def</span> <span class='op'>&lt;&lt;</span><span class='lparen'>(</span><span class='id identifier rubyid_job'>job</span><span class='rparen'>)</span>
   <span class='id identifier rubyid_job_queue'>job_queue</span> <span class='op'>=</span> <span class='id identifier rubyid_get_job_queue'>get_job_queue</span>
@@ -604,13 +604,13 @@ reset (if necessary).</p>
       <pre class="lines">
 
 
-984
-985
-986
-987</pre>
+995
+996
+997
+998</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/domo/queue/redis.rb', line 984</span>
+      <pre class="code"><span class="info file"># File 'lib/domo/queue/redis.rb', line 995</span>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_clear'>clear</span>
   <span class='ivar'>@client</span><span class='period'>.</span><span class='id identifier rubyid_del'>del</span><span class='lparen'>(</span><span class='tstring'><span class='tstring_beg'>&quot;</span><span class='embexpr_beg'>#{</span><span class='ivar'>@queue_name</span><span class='embexpr_end'>}</span><span class='tstring_content'>_processing_status</span><span class='tstring_end'>&quot;</span></span><span class='rparen'>)</span>
@@ -693,19 +693,19 @@ reset (if necessary).</p>
       <pre class="lines">
 
 
-955
-956
-957
-958
-959
-960
-961
-962
-963
-964</pre>
+966
+967
+968
+969
+970
+971
+972
+973
+974
+975</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/domo/queue/redis.rb', line 955</span>
+      <pre class="code"><span class="info file"># File 'lib/domo/queue/redis.rb', line 966</span>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_data_part_valid?'>data_part_valid?</span><span class='lparen'>(</span><span class='id identifier rubyid_data_part'>data_part</span><span class='comma'>,</span> <span class='id identifier rubyid_job_queue'>job_queue</span><span class='op'>=</span><span class='kw'>nil</span><span class='rparen'>)</span>
   <span class='kw'>return</span> <span class='kw'>false</span> <span class='kw'>if</span> <span class='id identifier rubyid_data_part'>data_part</span><span class='period'>.</span><span class='id identifier rubyid_nil?'>nil?</span>
@@ -737,12 +737,12 @@ reset (if necessary).</p>
       <pre class="lines">
 
 
-936
-937
-938</pre>
+947
+948
+949</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/domo/queue/redis.rb', line 936</span>
+      <pre class="code"><span class="info file"># File 'lib/domo/queue/redis.rb', line 947</span>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_get_job_queue'>get_job_queue</span>
   <span class='const'><span class='object_link'><a href="JobQueue.html" title="Domo::Queue::Redis::JobQueue (class)">JobQueue</a></span></span><span class='period'>.</span><span class='id identifier rubyid_active_queue'><span class='object_link'><a href="JobQueue.html#active_queue-class_method" title="Domo::Queue::Redis::JobQueue.active_queue (method)">active_queue</a></span></span><span class='lparen'>(</span><span class='ivar'>@client</span><span class='comma'>,</span> <span class='ivar'>@dataset_id</span><span class='comma'>,</span> <span class='ivar'>@stream_id</span><span class='comma'>,</span> <span class='ivar'>@pipeline_id</span><span class='rparen'>)</span>
@@ -794,19 +794,19 @@ reset (if necessary).</p>
       <pre class="lines">
 
 
-993
-994
-995
-996
-997
-998
-999
-1000
-1001
-1002</pre>
+1004
+1005
+1006
+1007
+1008
+1009
+1010
+1011
+1012
+1013</pre>
     </td>
     <td>
-      <pre class="code"><span class="info file"># File 'lib/domo/queue/redis.rb', line 993</span>
+      <pre class="code"><span class="info file"># File 'lib/domo/queue/redis.rb', line 1004</span>
 
 <span class='kw'>def</span> <span class='id identifier rubyid_reprocess_jobs!'>reprocess_jobs!</span>
   <span class='ivar'>@client</span><span class='period'>.</span><span class='id identifier rubyid_set'>set</span><span class='lparen'>(</span><span class='tstring'><span class='tstring_beg'>&quot;</span><span class='embexpr_beg'>#{</span><span class='ivar'>@queue_name</span><span class='embexpr_end'>}</span><span class='tstring_content'>_processing_status</span><span class='tstring_end'>&quot;</span></span><span class='comma'>,</span> <span class='tstring'><span class='tstring_beg'>&quot;</span><span class='tstring_content'>reprocessing</span><span class='tstring_end'>&quot;</span></span><span class='rparen'>)</span>
@@ -828,9 +828,9 @@ reset (if necessary).</p>
 </div>
 
       <div id="footer">
-  Generated on Wed Oct 16 18:02:50 2019 by
+  Generated on Thu Sep 10 18:48:07 2020 by
   <a href="http://yardoc.org" title="Yay! A Ruby Documentation Tool" target="_parent">yard</a>
-  0.9.20 (ruby-2.3.3).
+  0.9.25 (ruby-2.5.3).
 </div>
 
     </div>
