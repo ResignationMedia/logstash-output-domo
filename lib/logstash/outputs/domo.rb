@@ -745,6 +745,8 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
       begin
         # Block everybody from uploading now
         @queue.commit_status = :running
+        retry_count = 0
+        max_retries = 5
         # Keep hanging on to the commit lock until we can commit.
         while commit_lock
           # Don't commit unless we're ready or shutting down Logstash
@@ -785,6 +787,38 @@ class LogStash::Outputs::Domo < LogStash::Outputs::Base
               @commit_lock_manager.unlock(api_lock) if api_lock
               @commit_lock_manager.unlock(commit_lock) if commit_lock
               return :open
+            # Wait and retry if the API is down
+            elsif status_code == 500
+              if retry_count + 1 < max_retries
+                @commit_lock_manager.unlock(api_lock) if api_lock
+                @logger.error("Got an internal server error from DOMO's API. Will sleep for 60 seconds and retry.",
+                              :stream_id => @stream_id,
+                              :pipeline_id => pipeline_id,
+                              :dataset_id => @dataset_id,
+                              :execution_id => @queue.execution_id,
+                              :commit_rows => @queue.commit_rows,
+                              :retry_count => retry_count,
+                              :exception => e,
+                              :status_code => status_code,
+                              :message => e.to_s)
+                sleep(60)
+                retry_count += 1
+                next
+              else
+                @logger.error("Got an internal server error from DOMO's API, and we're out of retries. Failing.",
+                              :stream_id => @stream_id,
+                              :pipeline_id => pipeline_id,
+                              :dataset_id => @dataset_id,
+                              :execution_id => @queue.execution_id,
+                              :commit_rows => @queue.commit_rows,
+                              :retry_count => retry_count,
+                              :exception => e,
+                              :status_code => status_code,
+                              :message => e.to_s)
+                @commit_lock_manager.unlock(api_lock) if api_lock
+                @commit_lock_manager.unlock(commit_lock) if commit_lock
+                raise e
+              end
             else
               @commit_lock_manager.unlock(api_lock) if api_lock
               @commit_lock_manager.unlock(commit_lock) if commit_lock
