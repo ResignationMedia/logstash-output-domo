@@ -1,4 +1,4 @@
-.PHONY: docker-test test redlock-test thread-test rake-test distclean clean build libbuild
+.PHONY: docker-test test redlock-test thread-test rake-test distclean clean build libbuild pkg-build
 
 default : build
 
@@ -57,3 +57,6 @@ libbuild :
 	gradle wrapper
 	./gradlew vendor
 	bundle install
+
+pkg-build :
+	gem build logstash-output-domo.gemspec
