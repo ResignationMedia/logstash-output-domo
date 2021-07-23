@@ -1,10 +1,10 @@
 Gem::Specification.new do |s|
   s.name          = 'logstash-output-domo'
-  s.version       = '3.3.0'
+  s.version       = '3.4.0'
   s.licenses      = ['Apache-2.0']
   s.summary       = 'Output events to the DOMO Streams API.'
   s.homepage      = 'https://github.com/ResignationMedia/logstash-output-domo'
-  s.authors       = ['Chris Brundage', 'Chive Media Group, LLC']
+  s.authors       = ['Chris Brundage', 'Rarefied Atmosphere, Inc']
   s.email         = 'chris.brundage@chivemediagroup.com'
   s.platform      = 'java'
   s.require_paths = %w(lib vendor/jar-dependencies)
